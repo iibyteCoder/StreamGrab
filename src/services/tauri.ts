@@ -63,28 +63,33 @@ export interface DownloadProgressEvent {
  * 开始下载任务
  */
 export async function startDownload(args: StartDownloadArgs): Promise<void> {
-  return tauriInvoke('start_download', args);
+  // 使用 snake_case 与 Rust 后端匹配
+  return tauriInvoke('start_download', {
+    task_id: args.taskId,
+    url: args.url,
+    args: args.args,
+  });
 }
 
 /**
  * 停止下载任务
  */
 export async function stopDownload(taskId: string): Promise<void> {
-  return tauriInvoke('stop_download', { taskId });
+  return tauriInvoke('stop_download', { task_id: taskId });
 }
 
 /**
  * 暂停下载任务
  */
 export async function pauseDownload(taskId: string): Promise<void> {
-  return tauriInvoke('pause_download', { taskId });
+  return tauriInvoke('pause_download', { task_id: taskId });
 }
 
 /**
  * 恢复下载任务
  */
 export async function resumeDownload(taskId: string): Promise<void> {
-  return tauriInvoke('resume_download', { taskId });
+  return tauriInvoke('resume_download', { task_id: taskId });
 }
 
 /**

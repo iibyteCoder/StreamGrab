@@ -9,8 +9,8 @@ export const APP_NAME = 'StreamGrab';
 
 // 默认通用设置
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  saveDir: '',
-  tmpDir: '',
+  saveDir: 'C:\\Users\\ZYB33\\Downloads\\StreamGrab',
+  tmpDir: 'C:\\Users\\ZYB33\\Downloads\\StreamGrab',
   language: 'zh-CN',
   autoStartDownload: true,
   minimizeToTray: false,
@@ -101,7 +101,7 @@ export const DEFAULT_LIVE_SETTINGS: LiveSettings = {
 // 默认高级设置
 export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
   ffmpegPath: '',
-  n_m3u8dlPath: '',
+  n_m3u8dlPath: 'C:\\Users\\ZYB33\\Downloads\\my_projects\\StreamGrab\\tools\\N_m3u8DL-RE.exe',
   logLevel: 'INFO',
   logFilePath: '',
   noLog: false,

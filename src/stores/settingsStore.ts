@@ -6,6 +6,7 @@ import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import type { AppSettings } from '@/types';
 import { DEFAULT_SETTINGS } from '@/utils/constants';
+import { configService } from '@/services';
 
 export const useSettingsStore = defineStore('settings', () => {
   // State
@@ -14,11 +15,17 @@ export const useSettingsStore = defineStore('settings', () => {
   const isDirty = ref(false);
   const error = ref<string | null>(null);
 
-  // Watch for changes
+  // Watch for changes - 使用防抖保存
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   watch(
     settings,
     () => {
       isDirty.value = true;
+      // 自动保存（防抖）
+      if (saveTimeout) clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        saveSettings().catch(console.error);
+      }, 1000);
     },
     { deep: true }
   );
@@ -29,20 +36,14 @@ export const useSettingsStore = defineStore('settings', () => {
     error.value = null;
 
     try {
-      // 尝试从 Tauri 后端加载配置
-      // TODO: 实现 Tauri 配置加载
-      // const loaded = await invoke<AppSettings>('load_settings');
-      // settings.value = { ...DEFAULT_SETTINGS, ...loaded };
-
-      // 暂时使用 localStorage
-      const saved = localStorage.getItem('streamgrab-settings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        settings.value = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), parsed);
-      }
+      // 从 Tauri 后端加载配置
+      const loaded = await configService.loadSettings();
+      settings.value = loaded;
     } catch (e) {
       error.value = e instanceof Error ? e.message : '加载配置失败';
       console.error('Failed to load settings:', e);
+      // 加载失败时使用默认配置
+      settings.value = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     } finally {
       isLoading.value = false;
       isDirty.value = false;
@@ -50,14 +51,12 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   async function saveSettings(): Promise<void> {
+    if (!isDirty.value) return;
+
     error.value = null;
 
     try {
-      // TODO: 实现 Tauri 配置保存
-      // await invoke('save_settings', { settings: settings.value });
-
-      // 暂时使用 localStorage
-      localStorage.setItem('streamgrab-settings', JSON.stringify(settings.value));
+      await configService.saveSettings(settings.value, true);
       isDirty.value = false;
     } catch (e) {
       error.value = e instanceof Error ? e.message : '保存配置失败';
@@ -66,9 +65,9 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  function resetSettings(): void {
-    settings.value = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    isDirty.value = true;
+  async function resetSettings(): Promise<void> {
+    const defaultSettings = await configService.resetSettings();
+    settings.value = defaultSettings;
   }
 
   function resetSection<K extends keyof AppSettings>(section: K): void {
@@ -224,33 +223,3 @@ export const useSettingsStore = defineStore('settings', () => {
     toggleHeader,
   };
 });
-
-// Helper function for deep merge
-function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-  const result = { ...target };
-
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      const sourceValue = source[key];
-      const targetValue = result[key];
-
-      if (
-        sourceValue !== null &&
-        typeof sourceValue === 'object' &&
-        !Array.isArray(sourceValue) &&
-        targetValue !== null &&
-        typeof targetValue === 'object' &&
-        !Array.isArray(targetValue)
-      ) {
-        result[key] = deepMerge(
-          targetValue as Record<string, unknown>,
-          sourceValue as Record<string, unknown>
-        ) as T[Extract<keyof T, string>];
-      } else {
-        result[key] = sourceValue as T[Extract<keyof T, string>];
-      }
-    }
-  }
-
-  return result;
-}

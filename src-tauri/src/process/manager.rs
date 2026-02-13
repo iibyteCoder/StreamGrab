@@ -4,18 +4,19 @@
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
+use std::path::Path;
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::thread;
-use tokio::sync::mpsc;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 /// 进程信息
 struct ProcessInfo {
-    /// 子进程句柄
-    child: Child,
+    /// 进程 ID
+    pid: u32,
     /// 停止信号发送器
-    stop_tx: mpsc::Sender<()>,
+    stop_flag: Arc<Mutex<bool>>,
 }
 
 /// 进程管理器
@@ -40,6 +41,7 @@ impl ProcessManager {
     /// * `args` - 命令行参数
     /// * `on_output` - 输出回调
     /// * `on_complete` - 完成回调
+    #[allow(clippy::type_complexity)]
     pub async fn start_process<F, G>(
         &mut self,
         task_id: String,
@@ -49,8 +51,8 @@ impl ProcessManager {
         on_complete: G,
     ) -> Result<()>
     where
-        F: Fn(String) + Send + 'static,
-        G: Fn(bool, Option<String>) + Send + 'static,
+        F: Fn(String) + Send + Sync + 'static,
+        G: Fn(bool, Option<String>) + Send + Sync + 'static,
     {
         // 检查是否已有相同任务在运行
         if self.processes.contains_key(&task_id) {
@@ -59,70 +61,158 @@ impl ProcessManager {
 
         log::info!("Starting process: {} with args: {:?}", program, args);
 
+        // 检查程序是否存在
+        if program != "N_m3u8DL-RE" {
+            // 如果是绝对路径，检查文件是否存在
+            let program_path = Path::new(program);
+            if program_path.is_absolute() && !program_path.exists() {
+                bail!(
+                    "N_m3u8DL-RE program not found at specified path: {}",
+                    program
+                );
+            }
+        }
+
         // 启动子进程
-        let mut child = Command::new(program)
+        let mut child = match Command::new(program)
             .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .context("Failed to start download process")?;
+        {
+            Ok(child) => child,
+            Err(e) => {
+                let error_msg = if program == "N_m3u8DL-RE" {
+                    format!(
+                        "Failed to start N_m3u8DL-RE. Please ensure it is installed and in PATH. Error: {}",
+                        e
+                    )
+                } else {
+                    format!("Failed to start download process '{}': {}", program, e)
+                };
+                log::error!("{}", error_msg);
+                bail!("{}", error_msg);
+            }
+        };
+
+        let pid = child.id();
+        log::info!("Process started with PID: {}", pid);
 
         // 获取 stdout 和 stderr
         let stdout = child.stdout.take().context("Failed to capture stdout")?;
-        let _stderr = child.stderr.take().context("Failed to capture stderr")?;
+        let stderr = child.stderr.take().context("Failed to capture stderr")?;
 
-        // 创建停止信号通道
-        let (stop_tx, mut stop_rx) = mpsc::channel::<()>(1);
+        // 创建停止标志
+        let stop_flag = Arc::new(Mutex::new(false));
+        let stop_flag_clone = stop_flag.clone();
 
         // 保存进程信息
         self.processes.insert(
             task_id.clone(),
             ProcessInfo {
-                child,
-                stop_tx: stop_tx.clone(),
+                pid,
+                stop_flag: stop_flag.clone(),
             },
         );
 
         let task_id_clone = task_id.clone();
 
-        // 启动输出读取线程
-        thread::spawn(move || {
-            let mut reader = BufReader::new(stdout).lines();
+        // 将回调包装在 Arc 中以便跨线程共享
+        let output_callback = Arc::new(on_output);
+        let complete_callback = Arc::new(on_complete);
 
-            loop {
-                // 检查停止信号
-                if stop_rx.try_recv().is_ok() {
-                    log::info!("Process {} received stop signal", task_id_clone);
+        // 启动 stdout 读取线程
+        let output_callback_clone = Arc::clone(&output_callback);
+        let stop_flag_stdout = stop_flag_clone.clone();
+
+        thread::spawn(move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines() {
+                // 检查停止标志
+                if *stop_flag_stdout.lock().unwrap() {
+                    log::info!("stdout reader stopped for task {}", task_id_clone);
                     break;
                 }
 
-                // 读取 stdout
-                match reader.next() {
-                    Some(Ok(line)) => {
-                        on_output(line);
+                match line {
+                    Ok(text) => {
+                        log::debug!("[STDOUT] {}", text);
+                        output_callback_clone(text);
                     }
-                    Some(Err(e)) => {
+                    Err(e) => {
                         log::error!("Error reading stdout: {}", e);
+                        break;
                     }
-                    None => break,
                 }
             }
-
-            log::info!("Output reader thread exited for task {}", task_id_clone);
+            log::info!("stdout reader thread exited for task {}", task_id_clone);
         });
 
-        // 等待进程完成（在后台线程中）
-        let task_id_for_callback = task_id;
+        // 启动 stderr 读取线程
+        let task_id_clone = task_id.clone();
+        let output_callback_stderr = Arc::clone(&output_callback);
+        let stop_flag_stderr = stop_flag_clone;
+
         thread::spawn(move || {
-            let result = wait_for_process(task_id_for_callback.clone());
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                // 检查停止标志
+                if *stop_flag_stderr.lock().unwrap() {
+                    log::info!("stderr reader stopped for task {}", task_id_clone);
+                    break;
+                }
+
+                match line {
+                    Ok(text) => {
+                        log::debug!("[STDERR] {}", text);
+                        // stderr 也可能包含有用信息，同样传递给回调
+                        output_callback_stderr(text);
+                    }
+                    Err(e) => {
+                        log::error!("Error reading stderr: {}", e);
+                        break;
+                    }
+                }
+            }
+            log::info!("stderr reader thread exited for task {}", task_id_clone);
+        });
+
+        // 等待进程完成
+        let task_id_for_wait = task_id;
+        let stop_flag_wait = stop_flag;
+
+        thread::spawn(move || {
+            let result = child.wait();
 
             match result {
-                Ok(exit_code) => {
-                    let success = exit_code == 0;
-                    on_complete(success, None);
+                Ok(status) => {
+                    let success = status.success();
+                    let exit_code = status.code().unwrap_or(-1);
+
+                    log::info!(
+                        "Process {} (PID: {}) exited with code: {}, success: {}",
+                        task_id_for_wait,
+                        pid,
+                        exit_code,
+                        success
+                    );
+
+                    if success {
+                        complete_callback(true, None);
+                    } else {
+                        complete_callback(false, Some(format!("Process exited with code: {}", exit_code)));
+                    }
                 }
                 Err(e) => {
-                    on_complete(false, Some(e.to_string()));
+                    log::error!("Failed to wait for process {}: {}", task_id_for_wait, e);
+
+                    // 检查是否是被主动停止的
+                    let was_stopped = *stop_flag_wait.lock().unwrap();
+                    if was_stopped {
+                        complete_callback(false, Some("Download cancelled".to_string()));
+                    } else {
+                        complete_callback(false, Some(format!("Process error: {}", e)));
+                    }
                 }
             }
         });
@@ -135,14 +225,33 @@ impl ProcessManager {
     /// # Arguments
     /// * `task_id` - 任务 ID
     pub async fn stop_process(&mut self, task_id: &str) -> Result<()> {
-        if let Some(mut info) = self.processes.remove(task_id) {
-            // 发送停止信号
-            let _ = info.stop_tx.send(()).await;
+        if let Some(info) = self.processes.remove(task_id) {
+            // 设置停止标志
+            *info.stop_flag.lock().unwrap() = true;
 
-            // 终止进程
-            info.child.kill().context("Failed to kill process")?;
+            // 尝试终止进程
+            // 由于子进程句柄已在等待线程中，我们使用系统调用来终止
+            #[cfg(target_os = "windows")]
+            {
+                // Windows: 使用 taskkill 终止进程树
+                let _ = Command::new("taskkill")
+                    .args(["/F", "/T", "/PID"])
+                    .arg(info.pid.to_string())
+                    .output();
+            }
 
-            log::info!("Process {} stopped", task_id);
+            #[cfg(not(target_os = "windows"))]
+            {
+                // Unix: 发送 SIGTERM
+                let _ = Command::new("kill")
+                    .arg("-TERM")
+                    .arg(info.pid.to_string())
+                    .output();
+            }
+
+            log::info!("Process {} (PID: {}) stop signal sent", task_id, info.pid);
+        } else {
+            log::warn!("Process {} not found in active processes", task_id);
         }
 
         Ok(())
@@ -175,10 +284,4 @@ impl Default for ProcessManager {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// 等待进程完成（简化实现）
-fn wait_for_process(task_id: String) -> Result<i32> {
-    log::info!("Waiting for process: {}", task_id);
-    Ok(0)
 }

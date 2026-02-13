@@ -74,12 +74,14 @@ class DownloadService {
     const args = buildCommandArgs(task.url, config, settings);
 
     // 调用 Tauri 命令启动下载
+    // 使用 camelCase 参数名与 Rust 后端 serde rename 匹配
     await invokeTauri('start_download', {
       taskId: task.id,
       url: task.url,
       args,
       saveDir: config.saveDir || settings.general.saveDir,
       saveName: config.saveName,
+      programPath: settings.advanced.n_m3u8dlPath || null,
     });
   }
 
@@ -88,7 +90,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async stopDownload(taskId: string): Promise<void> {
-    await invokeTauri('stop_download', { taskId });
+    await invokeTauri('stop_download', { task_id: taskId });
   }
 
   /**
@@ -96,7 +98,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async pauseDownload(taskId: string): Promise<void> {
-    await invokeTauri('pause_download', { taskId });
+    await invokeTauri('pause_download', { task_id: taskId });
   }
 
   /**
@@ -104,7 +106,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async resumeDownload(taskId: string): Promise<void> {
-    await invokeTauri('resume_download', { taskId });
+    await invokeTauri('resume_download', { task_id: taskId });
   }
 
   /**
@@ -118,6 +120,7 @@ class DownloadService {
       useProxy: settings.network.useSystemProxy,
       customProxy: settings.network.customProxy,
       headers: settings.network.headers.filter((h) => h.enabled),
+      programPath: settings.advanced.n_m3u8dlPath || null,
     });
   }
 

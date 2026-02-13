@@ -26,7 +26,7 @@ class ConfigService {
   async loadSettings(): Promise<AppSettings> {
     try {
       const settings = await invokeTauri<AppSettings>('load_config', {
-        fileName: CONFIG_FILE_NAME,
+        file_name: CONFIG_FILE_NAME,
       });
 
       // 合并默认值（处理新增配置项）
@@ -70,7 +70,7 @@ class ConfigService {
   private async doSave(settings: AppSettings): Promise<void> {
     try {
       await invokeTauri('save_config', {
-        fileName: CONFIG_FILE_NAME,
+        file_name: CONFIG_FILE_NAME,
         config: settings,
       });
     } catch (error) {
@@ -145,7 +145,7 @@ class ConfigService {
     }
 
     await invokeTauri('export_config', {
-      filePath,
+      file_path: filePath,
       config: this.cachedSettings,
     });
   }
@@ -156,7 +156,7 @@ class ConfigService {
    */
   async importConfig(filePath: string): Promise<AppSettings> {
     const settings = await invokeTauri<AppSettings>('import_config', {
-      filePath,
+      file_path: filePath,
     });
 
     // 验证并合并
@@ -172,8 +172,8 @@ class ConfigService {
    * 获取配置文件路径
    */
   async getConfigPath(): Promise<string> {
-    return await invokeTauri<string>('get_config_path', {
-      fileName: CONFIG_FILE_NAME,
+    return await invokeTauri<string>('get_config_path_cmd', {
+      file_name: CONFIG_FILE_NAME,
     });
   }
 }

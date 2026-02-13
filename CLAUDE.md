@@ -207,6 +207,24 @@ chore: 构建/工具
 - `03-ui-design.md` - 界面设计
 - `04-architecture.md` - 项目架构
 - `05-development-plan.md` - 开发计划
+- `06-feature-status.md` - **功能实现状态追踪**
+
+## 任务追踪规则
+
+**重要**: 完成任何功能后，必须更新 `docs/design/06-feature-status.md` 中的状态：
+
+| 状态 | 符号 | 使用场景 |
+| --- | --- | --- |
+| 已完成 | `[x]` | 功能已实现并可用 |
+| 进行中 | `[/]` | 正在开发或部分完成 |
+| 计划中 | `[ ]` | 完全未开始 |
+| 暂不实现 | `[-]` | 明确暂不开发 |
+
+状态更新示例：
+
+```markdown
+| 单链接输入 | P0 | `[x]` | `src/components/input/UrlInput.vue` | 带验证的输入框 |
+```
 
 ## 参考文档
 

@@ -3,11 +3,14 @@
 //! 基于 Tauri 2.0 的现代视频流下载器 GUI 应用
 
 mod commands;
+mod db;
 mod process;
 
+use std::sync::Arc;
 use tauri::Manager;
 
 use commands::{config::*, download::*};
+use db::HistoryDb;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,9 +29,17 @@ pub fn run() {
             }
 
             // 初始化配置目录
-            if let Some(config_dir) = app.path().app_config_dir().ok() {
-                std::fs::create_dir_all(&config_dir).ok();
-            }
+            let config_dir = app
+                .path()
+                .app_config_dir()
+                .expect("Failed to get config directory");
+            std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
+
+            // 初始化历史记录数据库
+            let history_db = Arc::new(
+                HistoryDb::new(&config_dir).expect("Failed to initialize history database"),
+            );
+            app.manage(history_db);
 
             log::info!("StreamGrab starting...");
 
@@ -52,6 +63,12 @@ pub fn run() {
             file_exists,
             select_directory,
             select_file,
+            // 历史记录命令
+            load_history,
+            save_history,
+            add_history_record,
+            clear_history,
+            delete_history_record,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

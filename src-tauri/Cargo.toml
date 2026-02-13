@@ -46,3 +46,6 @@ anyhow = "1.0"
 
 # 延迟初始化
 once_cell = "1.19"
+
+# SQLite 数据库
+rusqlite = { version = "0.31", features = ["bundled"] }

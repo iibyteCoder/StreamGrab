@@ -258,3 +258,7 @@ export function sanitizeFileName(filename: string): string {
     .replace(/\s+/g, '_')
     .slice(0, 200);
 }
+
+// 别名导出，保持 API 一致性
+export const formatBytes = formatFileSize;
+export const formatDate = (date: Date | string | number) => formatDateTime(date, 'relative');

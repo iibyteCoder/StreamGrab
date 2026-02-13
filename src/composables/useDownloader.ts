@@ -1,10 +1,11 @@
 /**
  * 下载器组合式函数
  * 封装下载的核心逻辑，包括启动、停止、暂停、恢复等
+ * 支持并发控制，自动启动等待中的任务
  */
 
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useTaskStore, useSettingsStore } from '@/stores';
+import { ref, onUnmounted } from 'vue';
+import { useTaskStore, useSettingsStore, useHistoryStore } from '@/stores';
 import { downloadService, type DownloadEvent, type UnlistenFn } from '@/services';
 import { useToast } from './useToast';
 import type { DownloadTask, TaskConfig, StreamInfo } from '@/types';
@@ -15,6 +16,7 @@ import type { DownloadTask, TaskConfig, StreamInfo } from '@/types';
 export function useDownloader() {
   const taskStore = useTaskStore();
   const settingsStore = useSettingsStore();
+  const historyStore = useHistoryStore();
   const toast = useToast();
 
   // 正在启动的任务
@@ -29,11 +31,48 @@ export function useDownloader() {
   // 解析结果
   const parsedStreamInfo = ref<StreamInfo | null>(null);
 
+  // 是否正在处理队列（防止重复触发）
+  let isProcessingQueue = false;
+
+  /**
+   * 处理下载队列 - 自动启动等待中的任务
+   * 确保不超过最大并发数
+   */
+  const processQueue = async (): Promise<void> => {
+    // 防止重复触发
+    if (isProcessingQueue) {
+      return;
+    }
+    isProcessingQueue = true;
+
+    try {
+      // 持续检查并启动等待中的任务，直到达到并发上限或没有等待中的任务
+      while (taskStore.canStartMore && taskStore.pendingTasks.length > 0) {
+        const nextTask = taskStore.pendingTasks[0];
+        if (nextTask && !startingTasks.value.has(nextTask.id)) {
+          await startDownload(nextTask);
+        } else {
+          break;
+        }
+      }
+    } finally {
+      isProcessingQueue = false;
+    }
+  };
+
   /**
    * 开始下载任务
    */
   const startDownload = async (task: DownloadTask): Promise<void> => {
+    // 检查是否已经在启动中
     if (startingTasks.value.has(task.id)) {
+      return;
+    }
+
+    // 检查并发限制
+    if (!taskStore.canStartMore) {
+      // 如果不能启动更多，将任务状态设为等待
+      taskStore.updateTaskStatus(task.id, 'pending');
       return;
     }
 
@@ -84,7 +123,21 @@ export function useDownloader() {
     } catch (e) {
       console.error('Failed to start download:', e);
       taskStore.updateTaskStatus(task.id, 'failed');
-      toast.error(`下载失败: ${e instanceof Error ? e.message : '未知错误'}`);
+
+      // 提取更详细的错误信息
+      let errorMessage = '未知错误';
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      } else if (typeof e === 'string') {
+        errorMessage = e;
+      }
+
+      // 保存错误信息到任务
+      taskStore.updateTaskError(task.id, errorMessage);
+      toast.error(`下载失败: ${errorMessage}`);
+
+      // 任务失败后尝试启动下一个等待中的任务
+      processQueue();
     } finally {
       startingTasks.value.delete(task.id);
     }
@@ -102,6 +155,9 @@ export function useDownloader() {
       unsubscribeTask(taskId);
 
       toast.info('下载已取消');
+
+      // 任务取消后尝试启动下一个等待中的任务
+      processQueue();
     } catch (e) {
       console.error('Failed to stop download:', e);
       toast.error(`停止失败: ${e instanceof Error ? e.message : '未知错误'}`);
@@ -120,6 +176,9 @@ export function useDownloader() {
       unsubscribeTask(taskId);
 
       toast.info('下载已暂停');
+
+      // 任务暂停后尝试启动下一个等待中的任务
+      processQueue();
     } catch (e) {
       console.error('Failed to pause download:', e);
       toast.error(`暂停失败: ${e instanceof Error ? e.message : '未知错误'}`);
@@ -133,7 +192,6 @@ export function useDownloader() {
     try {
       // 恢复下载实际上是重新启动
       await startDownload(task);
-      taskStore.updateTaskStatus(task.id, 'downloading');
 
       toast.success('下载已恢复');
     } catch (e) {
@@ -191,33 +249,48 @@ export function useDownloader() {
         });
         break;
 
-      case 'status':
+      case 'status': {
         // 更新状态
         const statusData = data as { status: string; message?: string };
         taskStore.updateTaskStatus(taskId, statusData.status as DownloadTask['status']);
         break;
+      }
 
-      case 'error':
+      case 'error': {
         // 处理错误
         const errorData = data as { message: string };
         taskStore.updateTaskStatus(taskId, 'failed');
         taskStore.updateTaskError(taskId, errorData.message);
         toast.error(`下载出错: ${errorData.message}`);
         unsubscribeTask(taskId);
+        // 任务失败后尝试启动下一个等待中的任务
+        processQueue();
         break;
+      }
 
-      case 'complete':
+      case 'complete': {
         // 下载完成
         taskStore.updateTaskStatus(taskId, 'completed');
         const completeData = data as { outputPath: string };
         taskStore.updateTaskOutput(taskId, completeData.outputPath);
         toast.success('下载完成!');
+
+        // 保存历史记录
+        const task = taskStore.getTask(taskId);
+        if (task) {
+          const record = historyStore.createRecordFromTask(task);
+          historyStore.addRecord(record);
+        }
+
         unsubscribeTask(taskId);
+        // 任务完成后尝试启动下一个等待中的任务
+        processQueue();
         break;
+      }
 
       case 'log':
         // 处理日志（可选：显示在任务详情中）
-        const logData = data as { level: string; message: string };
+        // const logData = data as { level: string; message: string };
         // 可以存储到任务的日志列表中
         break;
     }
@@ -236,17 +309,25 @@ export function useDownloader() {
 
   /**
    * 启动等待中的任务
+   * 手动触发队列处理
    */
   const startPendingTasks = async (): Promise<void> => {
-    const pending = taskStore.pendingTasks;
+    await processQueue();
+  };
 
-    for (const task of pending) {
-      if (taskStore.canStartMore) {
-        await startDownload(task);
-      } else {
-        break;
-      }
+  /**
+   * 添加任务并自动启动（如果设置允许）
+   */
+  const addAndStartTask = async (url: string, fileName?: string, saveDir?: string): Promise<DownloadTask> => {
+    // 添加任务到 store
+    const task = taskStore.addTask(url, fileName, saveDir);
+
+    // 如果设置了自动开始下载，尝试启动
+    if (settingsStore.settings.general.autoStartDownload) {
+      await processQueue();
     }
+
+    return task;
   };
 
   /**
@@ -292,6 +373,8 @@ export function useDownloader() {
     retryDownload,
     parseUrl,
     startPendingTasks,
+    addAndStartTask,
+    processQueue,
 
     // Helpers
     checkDownloaderAvailable,

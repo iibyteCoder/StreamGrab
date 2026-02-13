@@ -338,12 +338,11 @@ export interface SubtitleStream extends BaseStream {
 export interface HistoryRecord {
   id: string;
   url: string;
-  fileName: string;
-  savePath: string;
-  fileSize: number;
+  file_name: string;
+  save_path: string;
+  file_size: number;
   duration: number;
-  completedAt: Date;
-  config: TaskConfig;
+  completed_at: string;
 }
 
 // ============================================

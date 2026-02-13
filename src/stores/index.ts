@@ -6,3 +6,4 @@ export const pinia = createPinia();
 export { useTaskStore } from './taskStore';
 export { useSettingsStore } from './settingsStore';
 export { useUiStore } from './uiStore';
+export { useHistoryStore } from './historyStore';

@@ -4,9 +4,12 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 use serde::{Deserialize, Serialize};
+
+use crate::db::{HistoryDb, HistoryRecord};
 
 /// 加载配置
 ///
@@ -205,4 +208,78 @@ pub async fn select_file(
 pub struct FileFilter {
     pub name: String,
     pub extensions: Vec<String>,
+}
+
+// ============================================
+// 历史记录相关命令（使用 SQLite）
+// ============================================
+
+/// 获取历史记录数据库实例
+fn get_history_db(app: &AppHandle) -> Result<Arc<HistoryDb>, String> {
+    app.try_state::<Arc<HistoryDb>>()
+        .map(|s| s.inner().clone())
+        .ok_or_else(|| "History database not initialized".to_string())
+}
+
+/// 加载历史记录
+#[tauri::command]
+pub async fn load_history(app: AppHandle) -> Result<Vec<HistoryRecord>, String> {
+    log::info!("Loading history records");
+
+    let db = get_history_db(&app)?;
+    db.load_all()
+}
+
+/// 保存历史记录（批量替换，用于导入）
+#[tauri::command]
+pub async fn save_history(
+    records: Vec<HistoryRecord>,
+    app: AppHandle,
+) -> Result<(), String> {
+    log::info!("Saving {} history records (batch)", records.len());
+
+    let db = get_history_db(&app)?;
+
+    // 先清除现有记录
+    db.clear()?;
+
+    // 批量添加
+    for record in records {
+        db.add(&record)?;
+    }
+
+    Ok(())
+}
+
+/// 添加历史记录
+#[tauri::command]
+pub async fn add_history_record(
+    record: HistoryRecord,
+    app: AppHandle,
+) -> Result<(), String> {
+    log::info!("Adding history record: {}", record.id);
+
+    let db = get_history_db(&app)?;
+    db.add(&record)
+}
+
+/// 清除历史记录
+#[tauri::command]
+pub async fn clear_history(app: AppHandle) -> Result<(), String> {
+    log::info!("Clearing history records");
+
+    let db = get_history_db(&app)?;
+    db.clear()
+}
+
+/// 删除单条历史记录
+#[tauri::command]
+pub async fn delete_history_record(
+    id: String,
+    app: AppHandle,
+) -> Result<(), String> {
+    log::info!("Deleting history record: {}", id);
+
+    let db = get_history_db(&app)?;
+    db.delete(&id)
 }
