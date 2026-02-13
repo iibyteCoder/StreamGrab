@@ -75,7 +75,7 @@ const updateDownload = (value: any) => {
           :min="0"
           :max="10"
           class="w-24"
-          @update:model-value="updateDownload({ retryCount: parseInt($event) || 3 })"
+          @update:model-value="updateDownload({ retryCount: parseInt(String($event)) || 3 })"
         />
 
         <SettingInput
@@ -85,7 +85,7 @@ const updateDownload = (value: any) => {
           :min="5"
           :max="300"
           class="w-24"
-          @update:model-value="updateDownload({ timeout: parseInt($event) || 30 })"
+          @update:model-value="updateDownload({ timeout: parseInt(String($event)) || 30 })"
         />
 
         <SettingInput

@@ -3,7 +3,7 @@ import type { AlertDialogTitleProps } from "reka-ui"
 import { AlertDialogTitle } from "reka-ui"
 import { cn } from '@/lib/utils'
 
-const props = defineProps<AlertDialogTitleProps>()
+const props = defineProps<AlertDialogTitleProps & { class?: string }>()
 </script>
 
 <template>

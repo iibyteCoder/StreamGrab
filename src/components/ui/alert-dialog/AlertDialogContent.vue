@@ -3,7 +3,7 @@ import type { AlertDialogContentEmits, AlertDialogContentProps } from "reka-ui"
 import { AlertDialogContent, AlertDialogOverlay, AlertDialogPortal, useForwardPropsEmits } from "reka-ui"
 import { cn } from '@/lib/utils'
 
-const props = defineProps<AlertDialogContentProps>()
+const props = defineProps<AlertDialogContentProps & { class?: string }>()
 const emits = defineEmits<AlertDialogContentEmits>()
 
 const forwarded = useForwardPropsEmits(props, emits)

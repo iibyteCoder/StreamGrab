@@ -31,7 +31,7 @@ const iconComponent = computed(() => {
 
 <template>
   <component
-    :is="iconComponent"
+    :is="iconComponent as any"
     :size="typeof size === 'number' ? size : undefined"
     :stroke-width="1.5"
     :class="className"

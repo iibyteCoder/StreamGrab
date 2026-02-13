@@ -41,7 +41,7 @@ const emit = defineEmits<{
       :max="max"
       :step="step"
       :disabled="disabled"
-      @update:model-value="emit('update:modelValue', $event[0])"
+      @update:model-value="(val: number[] | undefined) => emit('update:modelValue', val?.[0] ?? 0)"
     />
   </div>
 </template>

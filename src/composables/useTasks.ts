@@ -5,7 +5,7 @@
 
 import { computed } from 'vue';
 import { useTaskStore } from '@/stores';
-import type { DownloadTask, TaskConfig, TaskStatus } from '@/types';
+import type { DownloadTask, TaskStatus } from '@/types';
 
 /**
  * 任务组合式函数
@@ -47,7 +47,7 @@ export function useTasks() {
    * 添加新任务
    */
   const addTask = (url: string, fileName?: string, saveDir?: string): DownloadTask => {
-    return store.addTask(url, fileName, saveDir);
+    return store.addTaskSync(url, fileName, saveDir);
   };
 
   /**

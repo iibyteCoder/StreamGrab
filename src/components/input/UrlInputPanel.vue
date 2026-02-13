@@ -4,8 +4,7 @@
  * 支持多行输入、批量添加、文件导入
  */
 
-import { ref, computed } from 'vue';
-import { FileUp } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { AppIcon } from '@/components/common';
@@ -101,7 +100,7 @@ const handleDownload = () => {
   <div class="space-y-2">
     <Textarea
       :model-value="modelValue"
-      @update:model-value="emit('update:modelValue', $event)"
+      @update:model-value="(val: string | number) => emit('update:modelValue', String(val))"
       placeholder="输入下载链接，每行一个&#10;例如:&#10;https://example.com/video1.m3u8&#10;https://example.com/video2.m3u8"
       class="min-h-[80px] resize-none"
       @keydown.ctrl.enter="handleDownload"
@@ -113,7 +112,7 @@ const handleDownload = () => {
           <template v-else>Ctrl + Enter 快速添加</template>
         </span>
         <Button variant="ghost" size="sm" class="h-6 px-2 text-xs" @click="handleImportFile">
-          <AppIcon :name="FileUp" :size="12" class="mr-1" />
+          <AppIcon name="FileUp" :size="12" class="mr-1" />
           导入
         </Button>
       </div>

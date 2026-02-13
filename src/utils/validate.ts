@@ -146,8 +146,8 @@ export function validateFileName(filename: string): { valid: boolean; error?: st
     'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
   ];
 
-  const nameWithoutExt = trimmedName.split('.')[0].toUpperCase();
-  if (reservedNames.includes(nameWithoutExt)) {
+  const nameWithoutExt = (trimmedName.split('.')[0] ?? '').toUpperCase();
+  if (nameWithoutExt && reservedNames.includes(nameWithoutExt)) {
     return { valid: false, error: '文件名不能使用系统保留名称' };
   }
 

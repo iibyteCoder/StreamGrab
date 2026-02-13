@@ -28,7 +28,6 @@ const toast = useToast();
 
 const url = ref('');
 const validation = ref<UrlValidationResult | null>(null);
-const isFocused = ref(false);
 
 // 输入状态
 const hasError = computed(() => validation.value && !validation.value.valid);
@@ -92,6 +91,7 @@ const handleClear = () => {
 const statusText = computed(() => {
   if (!validation.value) return '';
   if (!validation.value.valid) return validation.value.error;
+  if (validation.value.type === null) return '未识别的流类型';
   if (validation.value.type === 'unknown') return '未识别的流类型';
   return `检测到 ${validation.value.type.toUpperCase()} 流`;
 });
@@ -112,7 +112,7 @@ const statusClass = computed(() => {
         <AppInput
           v-model="url"
           :placeholder="placeholder"
-          :error="hasError"
+          :error="hasError ?? undefined"
           clearable
           @input="handleInput"
           @paste="handlePaste"

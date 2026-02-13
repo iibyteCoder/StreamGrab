@@ -35,7 +35,7 @@ const emit = defineEmits<{
 <template>
   <div class="grid gap-2">
     <Label :class="{ 'opacity-50': disabled }">{{ label }}</Label>
-    <Select :model-value="modelValue" :disabled="disabled" @update:model-value="emit('update:modelValue', $event)">
+    <Select :model-value="modelValue" :disabled="disabled" @update:model-value="(val: unknown) => typeof val === 'string' && emit('update:modelValue', val)">
       <SelectTrigger class="w-full">
         <SelectValue :placeholder="placeholder" />
       </SelectTrigger>

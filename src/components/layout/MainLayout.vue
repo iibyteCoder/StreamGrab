@@ -24,10 +24,6 @@ const sidebarClasses = computed(() => {
     uiStore.isSidebarCollapsed ? 'w-0 overflow-hidden' : 'w-48',
   ];
 });
-
-const toggleSidebar = () => {
-  uiStore.toggleSidebar();
-};
 </script>
 
 <template>

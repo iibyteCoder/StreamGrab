@@ -5,7 +5,7 @@
  */
 
 import { computed } from 'vue';
-import { AppProgress, AppButton } from '@/components/common';
+import { AppProgress } from '@/components/common';
 import { useTasks, useDownloader } from '@/composables';
 import { formatSpeed, formatFileSize, formatDuration } from '@/utils/format';
 import { TASK_STATUS_CONFIG } from '@/utils/constants';
@@ -25,7 +25,7 @@ const emit = defineEmits<{
   (e: 'contextmenu', event: MouseEvent, task: DownloadTask): void;
 }>();
 
-const { getTask, removeTask } = useTasks();
+const { removeTask } = useTasks();
 const { startDownload, stopDownload, pauseDownload, resumeDownload, retryDownload } = useDownloader();
 
 // 状态配置
@@ -124,11 +124,11 @@ const handleContextmenu = (event: MouseEvent) => {
       <span
         class="flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium"
         :style="{
-          backgroundColor: `${statusConfig.color}20`,
-          color: statusConfig.color,
+          backgroundColor: `${statusConfig?.color ?? '#888'}20`,
+          color: statusConfig?.color ?? '#888',
         }"
       >
-        {{ statusConfig.text }}
+        {{ statusConfig?.text ?? '未知' }}
       </span>
     </div>
 

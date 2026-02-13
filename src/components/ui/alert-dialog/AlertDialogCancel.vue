@@ -4,7 +4,7 @@ import { AlertDialogCancel } from "reka-ui"
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 
-const props = defineProps<AlertDialogCancelProps>()
+const props = defineProps<AlertDialogCancelProps & { class?: string }>()
 </script>
 
 <template>

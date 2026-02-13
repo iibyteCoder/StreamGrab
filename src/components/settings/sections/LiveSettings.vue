@@ -91,7 +91,7 @@ const updateLive = (value: any) => {
           type="number"
           :min="0"
           class="w-24"
-          @update:model-value="updateLive({ waitTime: parseInt($event) || 0 })"
+          @update:model-value="updateLive({ waitTime: parseInt(String($event)) || 0 })"
         />
 
         <SettingInput
@@ -100,7 +100,7 @@ const updateLive = (value: any) => {
           type="number"
           :min="0"
           class="w-24"
-          @update:model-value="updateLive({ takeCount: parseInt($event) || 0 })"
+          @update:model-value="updateLive({ takeCount: parseInt(String($event)) || 0 })"
         />
       </CardContent>
     </Card>

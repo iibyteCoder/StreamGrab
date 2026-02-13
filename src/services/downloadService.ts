@@ -4,8 +4,8 @@
  */
 
 import { invokeTauri, subscribeToEvent, type UnlistenFn } from './tauri';
-import { buildCommandArgs, buildMuxImportArgs, buildKeyArgs } from '@/utils/commandBuilder';
-import type { DownloadTask, TaskConfig, AppSettings, StreamInfo, TaskProgress, TaskStatus } from '@/types';
+import { buildCommandArgs } from '@/utils/commandBuilder';
+import type { DownloadTask, TaskConfig, AppSettings, StreamInfo, TaskStatus } from '@/types';
 
 /**
  * 下载事件类型

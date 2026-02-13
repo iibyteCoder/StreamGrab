@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AppIcon } from '@/components/common';
-import { FolderOpen } from 'lucide-vue-next';
 
 interface Props {
   modelValue?: string;
@@ -34,7 +33,7 @@ const emit = defineEmits<{
         :placeholder="placeholder"
         :disabled="disabled"
         class="flex-1"
-        @update:model-value="emit('update:modelValue', $event)"
+        @update:model-value="(val: string | number) => emit('update:modelValue', String(val))"
       />
       <Button
         variant="outline"
@@ -42,7 +41,7 @@ const emit = defineEmits<{
         :disabled="disabled"
         @click="emit('select')"
       >
-        <AppIcon :name="FolderOpen" :size="16" />
+        <AppIcon name="FolderOpen" :size="16" />
       </Button>
     </div>
   </div>

@@ -27,11 +27,11 @@ class ConfigService {
 
       // 合并默认值（处理新增配置项）
       this.cachedSettings = this.mergeWithDefaults(settings);
-      return this.cachedSettings;
+      return this.cachedSettings!;
     } catch (error) {
       console.warn('加载配置失败，使用默认配置:', error);
       this.cachedSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-      return this.cachedSettings;
+      return this.cachedSettings!;
     }
   }
 

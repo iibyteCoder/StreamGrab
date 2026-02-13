@@ -4,7 +4,7 @@ import { AlertDialogAction } from "reka-ui"
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 
-const props = defineProps<AlertDialogActionProps>()
+const props = defineProps<AlertDialogActionProps & { class?: string }>()
 </script>
 
 <template>
