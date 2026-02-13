@@ -1,4 +1,7 @@
-name: Release
+# 发布工作流
+# 当推送 tag（如 v0.1.0）时自动构建并创建 Release
+
+name: 发布
 
 on:
   push:
@@ -22,42 +25,42 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - name: Checkout repository
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install Rust stable
+      - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: Rust cache
+      - name: 缓存 Rust 编译产物
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Install dependencies (Ubuntu only)
+      - name: 安装系统依赖（仅 Ubuntu）
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - name: Install frontend dependencies
+      - name: 安装前端依赖
         run: npm ci
 
-      - name: Build Tauri app
+      - name: 构建 Tauri 应用
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'StreamGrab ${{ github.ref_name }}'
-          releaseBody: 'See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.'
+          releaseBody: '查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) 了解详情。'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

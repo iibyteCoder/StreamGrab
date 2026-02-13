@@ -1,4 +1,7 @@
-name: CI
+# 持续集成工作流
+# 当推送代码或创建 PR 时自动运行代码检查和构建测试
+
+name: 持续集成
 
 on:
   push:
@@ -10,61 +13,61 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ============ Frontend ============
+  # ============ 前端检查 ============
   frontend-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: 安装依赖
         run: npm ci
 
-      - name: Type check
+      - name: 类型检查
         run: npm run type-check
 
-      - name: Lint
+      - name: 代码检查
         run: npm run lint
 
-      - name: Build frontend
+      - name: 构建前端
         run: npm run build
 
-  # ============ Backend (Rust) ============
+  # ============ 后端检查（Rust） ============
   backend-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Setup Rust
+      - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
 
-      - name: Rust cache
+      - name: 缓存 Rust 编译产物
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Install system dependencies
+      - name: 安装系统依赖
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - name: Check Rust formatting
+      - name: 检查 Rust 格式
         working-directory: src-tauri
         run: cargo fmt --check
 
-      - name: Clippy
+      - name: Clippy 静态分析
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
 
-      - name: Build
+      - name: 构建后端
         working-directory: src-tauri
         run: cargo build --release
