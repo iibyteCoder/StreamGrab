@@ -1,35 +1,38 @@
-# Changelog
+# 更新日志
 
-All notable changes to this project will be documented in this file.
+本文件记录了项目的所有重要变更。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
+版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [未发布]
 
-### Added
-- Initial release
+### 新增
 
-## [0.1.0] - 2024-01-01
+- 首次发布
 
-### Added
-- M3U8/MPD/MSS video stream download support
-- Multi-threaded downloading with configurable thread count
-- Real-time progress display with speed and ETA
-- Batch URL import from text files
-- Customizable download settings (threads, retry, timeout)
-- Mux settings (format, muxer selection)
-- Live stream recording support
-- Proxy configuration
-- Custom headers support
-- Dark theme UI
-- Task management (pause, resume, retry, delete)
-- Download history tracking
-- SQLite-based persistent storage
+## [0.1.0] - 2025-02-14
 
-### Technical
-- Built with Tauri 2.0 + Vue 3 + TypeScript
-- Cross-platform support (Windows, macOS, Linux)
+### 新增
 
-[Unreleased]: https://github.com/your-username/StreamGrab/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/your-username/StreamGrab/releases/tag/v0.1.0
+- M3U8/MPD/MSS 视频流下载支持
+- 多线程下载，可配置线程数
+- 实时进度显示，包含下载速度和剩余时间
+- 批量导入 URL（支持从文本文件导入）
+- 可自定义下载设置（线程数、重试次数、超时时间）
+- 混流设置（输出格式、混流器选择）
+- 直播流录制支持
+- 代理配置（支持 HTTP/HTTPS/SOCKS）
+- 自定义请求头支持
+- 深色主题界面
+- 任务管理（暂停、继续、重试、删除）
+- 下载历史记录
+- 基于 SQLite 的持久化存储
+
+### 技术栈
+
+- 使用 Tauri 2.0 + Vue 3 + TypeScript 构建
+- 跨平台支持（Windows、macOS、Linux）
+
+[未发布]: https://github.com/iibyteCoder/StreamGrab/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.1.0
