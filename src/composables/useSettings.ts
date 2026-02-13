@@ -28,8 +28,7 @@ export function useSettings() {
    */
   const loadSettings = async (): Promise<void> => {
     try {
-      const loadedSettings = await configService.loadSettings();
-      store.setSettings(loadedSettings);
+      await store.loadSettings();
     } catch (e) {
       console.error('Failed to load settings:', e);
       throw e;
@@ -41,7 +40,7 @@ export function useSettings() {
    */
   const saveSettings = async (): Promise<void> => {
     try {
-      await configService.saveSettings(store.settings);
+      await store.saveSettings();
     } catch (e) {
       console.error('Failed to save settings:', e);
       throw e;
@@ -53,8 +52,7 @@ export function useSettings() {
    */
   const resetSettings = async (): Promise<void> => {
     try {
-      const defaultSettings = await configService.resetSettings();
-      store.setSettings(defaultSettings);
+      await store.resetSettings();
     } catch (e) {
       console.error('Failed to reset settings:', e);
       throw e;
@@ -111,6 +109,13 @@ export function useSettings() {
   };
 
   /**
+   * 更新 UI 设置
+   */
+  const updateUi = (updates: Partial<AppSettings['ui']>): void => {
+    store.updateUi(updates);
+  };
+
+  /**
    * 设置主题
    */
   const setTheme = (newTheme: 'light' | 'dark' | 'system'): void => {
@@ -130,6 +135,7 @@ export function useSettings() {
   const importConfig = async (filePath: string): Promise<void> => {
     const imported = await configService.importConfig(filePath);
     store.setSettings(imported);
+    store.initTheme();  // 导入后重新应用主题
   };
 
   /**
@@ -204,6 +210,7 @@ export function useSettings() {
     updateDecryption,
     updateLive,
     updateAdvanced,
+    updateUi,
 
     // Import/Export
     exportConfig,

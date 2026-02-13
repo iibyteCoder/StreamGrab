@@ -6,11 +6,10 @@ mod commands;
 mod db;
 mod process;
 
-use std::sync::Arc;
 use tauri::Manager;
 
-use commands::{config::*, download::*};
-use db::HistoryDb;
+use commands::{config::*, download::*, task::*, keys::*};
+use db::Database;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -33,13 +32,11 @@ pub fn run() {
                 .path()
                 .app_config_dir()
                 .expect("Failed to get config directory");
-            std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
-            // 初始化历史记录数据库
-            let history_db = Arc::new(
-                HistoryDb::new(&config_dir).expect("Failed to initialize history database"),
-            );
-            app.manage(history_db);
+            // 初始化统一数据库
+            let database = Database::initialize(&config_dir)
+                .expect("Failed to initialize database");
+            app.manage(database);
 
             log::info!("StreamGrab starting...");
 
@@ -53,22 +50,42 @@ pub fn run() {
             resume_download,
             parse_url,
             get_n_m3u8dl_version,
-            // 配置命令
-            load_config,
-            save_config,
+            // 配置命令（SQLite）
+            load_settings,
+            save_setting,
+            save_settings,
+            reset_setting,
+            reset_all_settings,
             export_config,
             import_config,
-            get_config_path_cmd,
+            get_db_path,
             open_in_explorer,
             file_exists,
             select_directory,
             select_file,
             // 历史记录命令
             load_history,
-            save_history,
             add_history_record,
             clear_history,
             delete_history_record,
+            // 任务命令
+            load_all_tasks,
+            load_recoverable_tasks,
+            save_task,
+            save_tasks,
+            update_task_status,
+            update_task_progress,
+            delete_task,
+            clear_finished_tasks,
+            mark_active_tasks_interrupted,
+            clear_all_tasks,
+            // 密钥命令
+            load_keys,
+            add_key,
+            update_key,
+            delete_key,
+            clear_keys,
+            record_key_usage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

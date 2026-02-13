@@ -11,6 +11,7 @@ export const useHistoryStore = defineStore('history', () => {
   // State
   const records = ref<HistoryRecord[]>([]);
   const isLoading = ref(false);
+  const isInitialized = ref(false);
 
   // Getters
   const hasRecords = computed(() => records.value.length > 0);
@@ -19,19 +20,29 @@ export const useHistoryStore = defineStore('history', () => {
   // Actions
 
   /**
-   * 加载历史记录
+   * 初始化 - 从后端加载历史记录
    */
-  async function loadHistory(): Promise<void> {
+  async function initialize(): Promise<void> {
+    if (isInitialized.value) return;
+
     isLoading.value = true;
     try {
       const data = await invokeTauri<HistoryRecord[]>('load_history');
       records.value = data;
+      isInitialized.value = true;
     } catch (error) {
       console.error('Failed to load history:', error);
       records.value = [];
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /**
+   * 加载历史记录（兼容旧代码）
+   */
+  async function loadHistory(): Promise<void> {
+    return initialize();
   }
 
   /**
@@ -100,12 +111,14 @@ export const useHistoryStore = defineStore('history', () => {
     // State
     records,
     isLoading,
+    isInitialized,
 
     // Getters
     hasRecords,
     recentRecords,
 
     // Actions
+    initialize,
     loadHistory,
     addRecord,
     clearHistory,

@@ -22,10 +22,12 @@
 | 路由配置 | `[x]` | `src/router/index.ts` | Vue Router |
 | Pinia Store | `[x]` | `src/stores/` | taskStore, settingsStore |
 | TailwindCSS | `[x]` | `tailwind.config.js` | 样式系统 |
-| Tauri 命令框架 | `[x]` | `src-tauri/src/commands/` | config, download |
+| Tauri 命令框架 | `[x]` | `src-tauri/src/commands/` | config, download, task, keys |
 | 进程管理器 | `[x]` | `src-tauri/src/process/manager.rs` | 完整实现，支持启停/进度推送 |
-| 服务层封装 | `[x]` | `src/services/` | tauri.ts, downloadService.ts |
+| 服务层封装 | `[x]` | `src/services/` | tauri.ts, downloadService.ts, taskService.ts |
 | 命令行参数构建器 | `[x]` | `src/utils/commandBuilder.ts` | 完整支持所有 N_m3u8DL-RE 参数 |
+| **SQLite 统一数据库** | `[x]` | `src-tauri/src/db/` | settings, keys, tasks, history 表 |
+| **Store 缓存层架构** | `[x]` | `src/stores/taskStore.ts` | 数据来源于后端，Store 为内存缓存 |
 
 ---
 
@@ -280,3 +282,5 @@
 | 2025-02-14 | **历史记录持久化**: 实现后端历史记录命令、historyStore、任务完成时自动保存 |
 | 2025-02-14 | **SQLite 数据库**: 将历史记录持久化从 JSON 文件改为 SQLite 数据库 |
 | 2025-02-14 | **历史记录列表 UI**: 实现历史记录页面，支持查看、删除、重新下载 |
+| 2025-02-14 | **UI 重构**: 重构 SettingsView (999→189行) 和 HomeView (372→140行)，创建通用组件体系 |
+| 2025-02-14 | **数据持久化架构重构**: 统一使用 SQLite 存储，重构 Store 为缓存层，支持任务恢复 |

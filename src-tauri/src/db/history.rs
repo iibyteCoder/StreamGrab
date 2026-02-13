@@ -2,7 +2,6 @@
 
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 /// 历史记录项
@@ -15,6 +14,7 @@ pub struct HistoryRecord {
     pub file_size: u64,
     pub duration: f64,
     pub completed_at: String,
+    pub task_id: Option<String>,
 }
 
 /// 历史记录数据库
@@ -23,37 +23,10 @@ pub struct HistoryDb {
 }
 
 impl HistoryDb {
-    /// 创建或打开历史记录数据库
-    pub fn new(app_config_dir: &PathBuf) -> Result<Self, String> {
-        let db_path = app_config_dir.join("history.db");
-
-        log::info!("Opening history database at: {:?}", db_path);
-
-        let conn = Connection::open(&db_path)
-            .map_err(|e| format!("Failed to open history database: {}", e))?;
-
-        // 创建表
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS history (
-                id TEXT PRIMARY KEY,
-                url TEXT NOT NULL,
-                file_name TEXT NOT NULL,
-                save_path TEXT NOT NULL,
-                file_size INTEGER NOT NULL,
-                duration REAL NOT NULL,
-                completed_at TEXT NOT NULL
-            )",
-            [],
-        )
-        .map_err(|e| format!("Failed to create history table: {}", e))?;
-
-        // 创建索引
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_completed_at ON history(completed_at)",
-            [],
-        )
-        .map_err(|e| format!("Failed to create index: {}", e))?;
-
+    /// 创建历史记录管理器
+    ///
+    /// 注意：表结构由 schema.rs 统一创建
+    pub fn new(conn: Connection) -> Result<Self, String> {
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -65,7 +38,7 @@ impl HistoryDb {
 
         let mut stmt = conn
             .prepare(
-                "SELECT id, url, file_name, save_path, file_size, duration, completed_at
+                "SELECT id, url, file_name, save_path, file_size, duration, completed_at, task_id
                  FROM history
                  ORDER BY completed_at DESC",
             )
@@ -78,9 +51,10 @@ impl HistoryDb {
                     url: row.get(1)?,
                     file_name: row.get(2)?,
                     save_path: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     duration: row.get(5)?,
                     completed_at: row.get(6)?,
+                    task_id: row.get(7)?,
                 })
             })
             .map_err(|e| format!("Failed to query history: {}", e))?
@@ -95,8 +69,8 @@ impl HistoryDb {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
 
         conn.execute(
-            "INSERT INTO history (id, url, file_name, save_path, file_size, duration, completed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO history (id, url, file_name, save_path, file_size, duration, completed_at, task_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 record.id,
                 record.url,
@@ -104,7 +78,8 @@ impl HistoryDb {
                 record.save_path,
                 record.file_size as i64,
                 record.duration,
-                record.completed_at
+                record.completed_at,
+                record.task_id
             ],
         )
         .map_err(|e| format!("Failed to insert history record: {}", e))?;

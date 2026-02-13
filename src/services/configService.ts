@@ -1,16 +1,11 @@
 /**
  * 配置服务
- * 管理应用配置的持久化
+ * 管理应用配置的持久化（使用 SQLite）
  */
 
 import { invokeTauri } from './tauri';
 import type { AppSettings } from '@/types';
 import { DEFAULT_SETTINGS } from '@/utils/constants';
-
-/**
- * 配置文件名
- */
-const CONFIG_FILE_NAME = 'settings.json';
 
 /**
  * 配置服务类
@@ -21,13 +16,14 @@ class ConfigService {
 
   /**
    * 加载配置
-   * 如果本地没有配置文件，返回默认配置
+   * 从 SQLite 数据库加载配置
    */
   async loadSettings(): Promise<AppSettings> {
     try {
-      const settings = await invokeTauri<AppSettings>('load_config', {
-        file_name: CONFIG_FILE_NAME,
-      });
+      const settingsMap = await invokeTauri<Record<string, Record<string, unknown>>>('load_settings');
+
+      // 将 key-value 形式转换为 AppSettings 结构
+      const settings = this.mapToAppSettings(settingsMap);
 
       // 合并默认值（处理新增配置项）
       this.cachedSettings = this.mergeWithDefaults(settings);
@@ -69,10 +65,8 @@ class ConfigService {
    */
   private async doSave(settings: AppSettings): Promise<void> {
     try {
-      await invokeTauri('save_config', {
-        file_name: CONFIG_FILE_NAME,
-        config: settings,
-      });
+      const settingsMap = this.appSettingsToMap(settings);
+      await invokeTauri('save_settings', { settings: settingsMap });
     } catch (error) {
       console.error('保存配置失败:', error);
       throw error;
@@ -84,7 +78,7 @@ class ConfigService {
    */
   async resetSettings(): Promise<AppSettings> {
     const defaultSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    await this.saveSettings(defaultSettings, true);
+    await invokeTauri('reset_all_settings');
     this.cachedSettings = defaultSettings;
     return defaultSettings;
   }
@@ -97,6 +91,40 @@ class ConfigService {
   }
 
   /**
+   * 将 Map 转换为 AppSettings
+   */
+  private mapToAppSettings(map: Record<string, Record<string, unknown>>): Partial<AppSettings> {
+    const result: Partial<AppSettings> = {};
+
+    if (map['general']) result.general = map['general'] as unknown as AppSettings['general'];
+    if (map['download']) result.download = map['download'] as unknown as AppSettings['download'];
+    if (map['mux']) result.mux = map['mux'] as unknown as AppSettings['mux'];
+    if (map['network']) result.network = map['network'] as unknown as AppSettings['network'];
+    if (map['live']) result.live = map['live'] as unknown as AppSettings['live'];
+    if (map['decryption']) result.decryption = map['decryption'] as unknown as AppSettings['decryption'];
+    if (map['advanced']) result.advanced = map['advanced'] as unknown as AppSettings['advanced'];
+    if (map['ui']) result.ui = map['ui'] as unknown as AppSettings['ui'];
+
+    return result;
+  }
+
+  /**
+   * 将 AppSettings 转换为 Map
+   */
+  private appSettingsToMap(settings: AppSettings): Record<string, Record<string, unknown>> {
+    return {
+      general: settings.general as unknown as Record<string, unknown>,
+      download: settings.download as unknown as Record<string, unknown>,
+      mux: settings.mux as unknown as Record<string, unknown>,
+      network: settings.network as unknown as Record<string, unknown>,
+      live: settings.live as unknown as Record<string, unknown>,
+      decryption: settings.decryption as unknown as Record<string, unknown>,
+      advanced: settings.advanced as unknown as Record<string, unknown>,
+      ui: settings.ui as unknown as Record<string, unknown>,
+    };
+  }
+
+  /**
    * 合并默认值
    * 确保所有配置项都存在（处理版本升级时新增的配置）
    */
@@ -104,7 +132,7 @@ class ConfigService {
     const result = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as AppSettings;
 
     // 递归合并
-    this.deepMerge(result, settings);
+    this.deepMerge(result as unknown as Record<string, unknown>, settings as unknown as Record<string, unknown>);
 
     return result;
   }
@@ -140,14 +168,7 @@ class ConfigService {
    * @param filePath 导出路径
    */
   async exportConfig(filePath: string): Promise<void> {
-    if (!this.cachedSettings) {
-      throw new Error('没有可导出的配置');
-    }
-
-    await invokeTauri('export_config', {
-      file_path: filePath,
-      config: this.cachedSettings,
-    });
+    await invokeTauri('export_config', { filePath });
   }
 
   /**
@@ -155,26 +176,17 @@ class ConfigService {
    * @param filePath 导入路径
    */
   async importConfig(filePath: string): Promise<AppSettings> {
-    const settings = await invokeTauri<AppSettings>('import_config', {
-      file_path: filePath,
-    });
+    await invokeTauri('import_config', { filePath });
 
-    // 验证并合并
-    this.cachedSettings = this.mergeWithDefaults(settings);
-
-    // 保存到本地
-    await this.saveSettings(this.cachedSettings, true);
-
-    return this.cachedSettings;
+    // 重新加载配置
+    return this.loadSettings();
   }
 
   /**
-   * 获取配置文件路径
+   * 获取数据库文件路径
    */
-  async getConfigPath(): Promise<string> {
-    return await invokeTauri<string>('get_config_path_cmd', {
-      file_name: CONFIG_FILE_NAME,
-    });
+  async getDbPath(): Promise<string> {
+    return await invokeTauri<string>('get_db_path');
   }
 }
 

@@ -1,10 +1,16 @@
 <script setup lang="ts">
+/**
+ * HistoryView - 下载历史页面
+ * 显示已完成下载的历史记录
+ */
+
 import { onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useHistoryStore } from '@/stores';
 import { useToast } from '@/composables/useToast';
 import { formatBytes, formatDate } from '@/utils/format';
-import AppButton from '@/components/common/AppButton.vue';
+import { Button } from '@/components/ui/button';
+import { AppIcon } from '@/components/common';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,90 +66,96 @@ const formatDuration = (seconds: number): string => {
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
-    <!-- Header -->
-    <header class="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
-      <div class="flex items-center gap-4">
-        <AppButton variant="ghost" size="sm" @click="goBack">
-          <span class="i-carbon-arrow-left mr-1"></span>
-          返回
-        </AppButton>
-        <h1 class="text-lg font-semibold">下载历史</h1>
+  <div class="flex h-full flex-col bg-background">
+    <!-- 头部区域 -->
+    <header class="border-b p-4 shrink-0">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <Button variant="ghost" size="icon" @click="goBack">
+            <AppIcon name="ArrowLeft" :size="20" />
+          </Button>
+          <div>
+            <h1 class="text-xl font-semibold">下载历史</h1>
+            <p class="text-xs text-muted-foreground">查看已完成的下载记录</p>
+          </div>
+        </div>
+        <AlertDialog v-if="hasRecords">
+          <AlertDialogTrigger as-child>
+            <Button variant="destructive" size="sm">
+              <AppIcon name="Trash2" :size="16" class="mr-2" />
+              清除全部
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认清除</AlertDialogTitle>
+              <AlertDialogDescription>
+                此操作将清除所有下载历史记录，无法撤销。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction @click="handleClearAll">确认清除</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
-
-      <AlertDialog v-if="hasRecords">
-        <AlertDialogTrigger as-child>
-          <AppButton variant="destructive" size="sm">
-            清除全部
-          </AppButton>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认清除</AlertDialogTitle>
-            <AlertDialogDescription>
-              此操作将清除所有下载历史记录，无法撤销。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction @click="handleClearAll">确认清除</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </header>
 
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto p-6">
-      <!-- Loading -->
-      <div v-if="isLoading" class="flex items-center justify-center py-12">
-        <span class="i-carbon-renew animate-spin text-2xl text-muted-foreground"></span>
-      </div>
+    <!-- 历史记录列表区域 -->
+    <div class="flex-1 min-h-0 overflow-y-auto">
+      <div class="p-4">
+        <!-- Loading -->
+        <div v-if="isLoading" class="flex items-center justify-center py-12">
+          <AppIcon name="RefreshCw" :size="24" class="animate-spin text-muted-foreground" />
+        </div>
 
-      <!-- Empty State -->
-      <div
-        v-else-if="!hasRecords"
-        class="flex flex-col items-center justify-center py-12 text-muted-foreground"
-      >
-        <span class="i-carbon-document mb-4 text-4xl"></span>
-        <p>暂无下载历史</p>
-      </div>
-
-      <!-- History List -->
-      <div v-else class="space-y-3">
+        <!-- Empty State -->
         <div
-          v-for="record in records"
-          :key="record.id"
-          class="group flex items-center gap-4 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
+          v-else-if="!hasRecords"
+          class="flex flex-col items-center justify-center py-12 text-muted-foreground"
         >
-          <!-- Icon -->
-          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <span class="i-carbon-video text-xl text-primary"></span>
-          </div>
+          <AppIcon name="File" :size="48" class="mb-4 opacity-50" />
+          <p>暂无下载历史</p>
+        </div>
 
-          <!-- Info -->
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <h3 class="truncate font-medium">{{ record.file_name }}</h3>
+        <!-- History List -->
+        <div v-else class="space-y-3">
+          <div
+            v-for="record in records"
+            :key="record.id"
+            class="group flex items-center gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
+          >
+            <!-- Icon -->
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <AppIcon name="FileVideo" :size="20" class="text-primary" />
             </div>
-            <div class="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
-              <span>{{ formatBytes(record.file_size) }}</span>
-              <span v-if="record.duration > 0">{{ formatDuration(record.duration) }}</span>
-              <span>{{ formatDate(record.completed_at) }}</span>
-            </div>
-            <div class="mt-1 truncate text-xs text-muted-foreground">
-              {{ record.url }}
-            </div>
-          </div>
 
-          <!-- Actions -->
-          <div class="flex shrink-0 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-            <AppButton variant="outline" size="sm" @click="handleDownloadAgain(record)">
-              <span class="i-carbon-download mr-1"></span>
-              重新下载
-            </AppButton>
-            <AppButton variant="ghost" size="sm" @click="handleDelete(record.id)">
-              <span class="i-carbon-trash-can"></span>
-            </AppButton>
+            <!-- Info -->
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <h3 class="truncate font-medium">{{ record.file_name }}</h3>
+              </div>
+              <div class="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
+                <span>{{ formatBytes(record.file_size) }}</span>
+                <span v-if="record.duration > 0">{{ formatDuration(record.duration) }}</span>
+                <span>{{ formatDate(record.completed_at) }}</span>
+              </div>
+              <div class="mt-1 truncate text-xs text-muted-foreground">
+                {{ record.url }}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex shrink-0 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+              <Button variant="outline" size="sm" @click="handleDownloadAgain(record)">
+                <AppIcon name="Download" :size="16" class="mr-2" />
+                重新下载
+              </Button>
+              <Button variant="ghost" size="icon" @click="handleDelete(record.id)">
+                <AppIcon name="Trash2" :size="16" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

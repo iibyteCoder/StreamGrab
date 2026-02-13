@@ -3,3 +3,4 @@
  */
 
 export { default as UrlInput } from './UrlInput.vue';
+export { default as UrlInputPanel } from './UrlInputPanel.vue';

@@ -1,5 +1,7 @@
 /**
  * 任务状态管理
+ *
+ * Store 作为缓存层，数据来源于后端 SQLite
  */
 
 import { defineStore } from 'pinia';
@@ -7,6 +9,7 @@ import { ref, computed } from 'vue';
 import type { DownloadTask, TaskStatus, TaskProgressData } from '@/types';
 import { extractFileName } from '@/utils/format';
 import { MAX_CONCURRENT_TASKS } from '@/utils/constants';
+import { taskService } from '@/services';
 
 /**
  * 生成唯一 ID
@@ -39,11 +42,19 @@ function createEmptyProgress(): TaskProgressData {
 }
 
 export const useTaskStore = defineStore('task', () => {
-  // State
+  // ==========================================
+  // State - 缓存层
+  // ==========================================
+
   const tasks = ref<DownloadTask[]>([]);
   const maxConcurrent = ref(MAX_CONCURRENT_TASKS);
+  const isLoading = ref(false);
+  const isInitialized = ref(false);
 
+  // ==========================================
   // Getters
+  // ==========================================
+
   const activeTasks = computed(() =>
     tasks.value.filter((t) =>
       ['downloading', 'analyzing', 'merging', 'muxing'].includes(t.status)
@@ -79,8 +90,59 @@ export const useTaskStore = defineStore('task', () => {
     return { completed, total, percent };
   });
 
-  // Actions
-  function addTask(url: string, fileName?: string, saveDir?: string): DownloadTask {
+  // ==========================================
+  // Actions - 初始化
+  // ==========================================
+
+  /**
+   * 初始化 Store - 从后端加载任务
+   */
+  async function initialize(): Promise<void> {
+    if (isInitialized.value) return;
+
+    isLoading.value = true;
+    try {
+      const records = await taskService.loadAllTasks();
+      tasks.value = records.map(r => taskService.toDownloadTask(r));
+      isInitialized.value = true;
+    } catch (error) {
+      console.error('Failed to initialize task store:', error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ==========================================
+  // Actions - 任务操作（同步到后端）
+  // ==========================================
+
+  /**
+   * 添加任务 - 持久化到后端
+   */
+  async function addTask(url: string, fileName?: string, saveDir?: string): Promise<DownloadTask> {
+    const task: DownloadTask = {
+      id: generateId(),
+      url: url.trim(),
+      fileName: fileName || extractNameFromUrl(url),
+      saveDir: saveDir || '',
+      status: 'pending',
+      progress: createEmptyProgress(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // 持久化到后端
+    await taskService.saveTask(task);
+
+    // 更新缓存
+    tasks.value.push(task);
+    return task;
+  }
+
+  /**
+   * 同步添加任务（不等待后端，用于兼容旧代码）
+   */
+  function addTaskSync(url: string, fileName?: string, saveDir?: string): DownloadTask {
     const task: DownloadTask = {
       id: generateId(),
       url: url.trim(),
@@ -93,6 +155,10 @@ export const useTaskStore = defineStore('task', () => {
     };
 
     tasks.value.push(task);
+
+    // 异步保存到后端（不阻塞）
+    taskService.saveTask(task).catch(console.error);
+
     return task;
   }
 
@@ -100,76 +166,173 @@ export const useTaskStore = defineStore('task', () => {
     return tasks.value.find((t) => t.id === taskId);
   }
 
-  function updateTaskStatus(taskId: string, status: TaskStatus): void {
+  /**
+   * 更新任务状态 - 同步到后端
+   */
+  async function updateTaskStatus(taskId: string, status: TaskStatus): Promise<void> {
     const task = tasks.value.find((t) => t.id === taskId);
-    if (task) {
-      task.status = status;
-      task.updatedAt = new Date();
+    if (!task) return;
 
-      // 更新相关时间戳
-      if (status === 'downloading' && !task.startedAt) {
-        task.startedAt = new Date();
-      }
-      if (status === 'completed') {
-        task.completedAt = new Date();
-      }
+    const now = new Date();
+    task.status = status;
+    task.updatedAt = now;
+
+    if (status === 'downloading' && !task.startedAt) {
+      task.startedAt = now;
     }
+    if (status === 'completed') {
+      task.completedAt = now;
+    }
+
+    // 同步到后端（fire-and-forget）
+    taskService.updateTaskStatus(taskId, status, task.error).catch(console.error);
   }
+
+  /**
+   * 同步更新任务状态（不等待后端）
+   */
+  function updateTaskStatusSync(taskId: string, status: TaskStatus): void {
+    const task = tasks.value.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const now = new Date();
+    task.status = status;
+    task.updatedAt = now;
+
+    if (status === 'downloading' && !task.startedAt) {
+      task.startedAt = now;
+    }
+    if (status === 'completed') {
+      task.completedAt = now;
+    }
+
+    // 异步保存（不阻塞）
+    taskService.updateTaskStatus(taskId, status, task.error).catch(console.error);
+  }
+
+  /**
+   * 更新任务进度 - 批量同步到后端
+   */
+  let progressSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  const pendingProgressUpdates = new Map<string, TaskProgressData>();
 
   function updateTaskProgress(taskId: string, progress: Partial<TaskProgressData>): void {
     const task = tasks.value.find((t) => t.id === taskId);
-    if (task) {
-      task.progress = {
-        ...task.progress,
-        ...progress,
-      };
-      task.updatedAt = new Date();
+    if (!task) return;
+
+    task.progress = { ...task.progress, ...progress };
+    task.updatedAt = new Date();
+
+    // 收集进度更新，批量同步
+    pendingProgressUpdates.set(taskId, task.progress);
+
+    // 防抖同步（每 2 秒同步一次）
+    if (!progressSyncTimer) {
+      progressSyncTimer = setTimeout(() => {
+        flushProgressUpdates();
+        progressSyncTimer = null;
+      }, 2000);
+    }
+  }
+
+  /**
+   * 刷新进度更新到后端
+   */
+  async function flushProgressUpdates(): Promise<void> {
+    if (pendingProgressUpdates.size === 0) return;
+
+    const updates = Array.from(pendingProgressUpdates.entries());
+    pendingProgressUpdates.clear();
+
+    for (const [taskId, progress] of updates) {
+      taskService.updateTaskProgress(taskId, progress).catch(console.error);
     }
   }
 
   function updateTaskError(taskId: string, error: string): void {
     const task = tasks.value.find((t) => t.id === taskId);
-    if (task) {
-      task.error = error;
-      task.status = 'failed';
-      task.updatedAt = new Date();
-    }
+    if (!task) return;
+
+    task.error = error;
+    task.status = 'failed';
+    task.updatedAt = new Date();
+
+    // 同步到后端
+    taskService.updateTaskStatus(taskId, 'failed', error).catch(console.error);
   }
 
   function updateTaskOutput(taskId: string, outputPath: string): void {
     const task = tasks.value.find((t) => t.id === taskId);
-    if (task) {
-      task.outputPath = outputPath;
-      task.updatedAt = new Date();
-    }
+    if (!task) return;
+
+    task.outputPath = outputPath;
+    task.updatedAt = new Date();
+
+    // 同步到后端
+    taskService.saveTask(task).catch(console.error);
   }
 
   function retryTask(taskId: string): void {
     const task = tasks.value.find((t) => t.id === taskId);
-    if (task) {
-      task.status = 'pending';
-      task.error = undefined;
-      task.progress = createEmptyProgress();
-      task.updatedAt = new Date();
-    }
+    if (!task) return;
+
+    task.status = 'pending';
+    task.error = undefined;
+    task.progress = createEmptyProgress();
+    task.updatedAt = new Date();
+
+    // 同步到后端
+    taskService.updateTaskStatus(taskId, 'pending').catch(console.error);
   }
 
-  function removeTask(taskId: string): void {
+  /**
+   * 删除任务 - 同步到后端
+   */
+  async function removeTask(taskId: string): Promise<void> {
     const index = tasks.value.findIndex((t) => t.id === taskId);
-    if (index !== -1) {
-      tasks.value.splice(index, 1);
-    }
+    if (index === -1) return;
+
+    // 先删除后端数据
+    await taskService.deleteTask(taskId);
+
+    // 再更新缓存
+    tasks.value.splice(index, 1);
   }
 
-  function clearCompleted(): void {
+  /**
+   * 同步删除任务（不等待后端）
+   */
+  function removeTaskSync(taskId: string): void {
+    const index = tasks.value.findIndex((t) => t.id === taskId);
+    if (index === -1) return;
+
+    // 更新缓存
+    tasks.value.splice(index, 1);
+
+    // 异步删除后端数据
+    taskService.deleteTask(taskId).catch(console.error);
+  }
+
+  /**
+   * 清除已完成的任务
+   */
+  async function clearCompleted(): Promise<void> {
+    await taskService.clearFinishedTasks();
     tasks.value = tasks.value.filter((t) => t.status !== 'completed');
   }
 
   function clearFailed(): void {
+    const failedIds = tasks.value.filter((t) => t.status === 'failed').map(t => t.id);
     tasks.value = tasks.value.filter((t) => t.status !== 'failed');
+
+    // 异步删除后端数据
+    for (const id of failedIds) {
+      taskService.deleteTask(id).catch(console.error);
+    }
   }
 
-  function clearAll(): void {
+  async function clearAll(): Promise<void> {
+    await taskService.clearAllTasks();
     tasks.value = [];
   }
 
@@ -188,6 +351,8 @@ export const useTaskStore = defineStore('task', () => {
     // State
     tasks,
     maxConcurrent,
+    isLoading,
+    isInitialized,
 
     // Getters
     activeTasks,
@@ -200,14 +365,18 @@ export const useTaskStore = defineStore('task', () => {
     totalProgress,
 
     // Actions
+    initialize,
     addTask,
+    addTaskSync,
     getTask,
     updateTaskStatus,
+    updateTaskStatusSync,
     updateTaskProgress,
     updateTaskError,
     updateTaskOutput,
     retryTask,
     removeTask,
+    removeTaskSync,
     clearCompleted,
     clearFailed,
     clearAll,

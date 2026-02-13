@@ -3,7 +3,7 @@
  */
 
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { AppSettings } from '@/types';
 import { DEFAULT_SETTINGS } from '@/utils/constants';
 import { configService } from '@/services';
@@ -12,14 +12,21 @@ export const useSettingsStore = defineStore('settings', () => {
   // State
   const settings = ref<AppSettings>(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
   const isLoading = ref(false);
+  const isLoaded = ref(false);  // 标记是否已从存储加载
   const isDirty = ref(false);
   const error = ref<string | null>(null);
 
-  // Watch for changes - 使用防抖保存
+  // Computed
+  const theme = computed(() => settings.value.ui.theme);
+
+  // Watch for changes - 使用防抖保存（仅在已加载后生效）
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   watch(
     settings,
     () => {
+      // 只有在已加载后才触发自动保存，避免初始化时覆盖用户设置
+      if (!isLoaded.value) return;
+
       isDirty.value = true;
       // 自动保存（防抖）
       if (saveTimeout) clearTimeout(saveTimeout);
@@ -31,6 +38,14 @@ export const useSettingsStore = defineStore('settings', () => {
   );
 
   // Actions
+  /**
+   * 直接设置配置（用于从存储加载后更新）
+   */
+  function setSettings(newSettings: AppSettings): void {
+    settings.value = newSettings;
+    isDirty.value = false;
+  }
+
   async function loadSettings(): Promise<void> {
     isLoading.value = true;
     error.value = null;
@@ -39,11 +54,13 @@ export const useSettingsStore = defineStore('settings', () => {
       // 从 Tauri 后端加载配置
       const loaded = await configService.loadSettings();
       settings.value = loaded;
+      isLoaded.value = true;  // 标记已加载
     } catch (e) {
       error.value = e instanceof Error ? e.message : '加载配置失败';
       console.error('Failed to load settings:', e);
       // 加载失败时使用默认配置
       settings.value = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      isLoaded.value = true;  // 即使失败也标记为已加载，避免阻止后续操作
     } finally {
       isLoading.value = false;
       isDirty.value = false;
@@ -195,10 +212,15 @@ export const useSettingsStore = defineStore('settings', () => {
     // State
     settings,
     isLoading,
+    isLoaded,
     isDirty,
     error,
 
+    // Computed
+    theme,
+
     // Actions
+    setSettings,
     loadSettings,
     saveSettings,
     resetSettings,
