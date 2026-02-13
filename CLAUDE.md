@@ -39,19 +39,19 @@ src-tauri/              # Tauri 后端
 
 ```bash
 # 安装依赖
-pnpm install
+npm install
 
 # 开发模式
-pnpm tauri dev
+npm run tauri dev
 
 # 构建
-pnpm tauri build
+npm run tauri build
 
 # 类型检查
-pnpm type-check
+npm run type-check
 
 # 代码检查
-pnpm lint
+npm run lint
 ```
 
 ## 核心设计原则
@@ -60,11 +60,11 @@ pnpm lint
 
 所有 UI 必须遵循三层信息模型：
 
-| 层级 | 可见性 | 内容 |
-|------|--------|------|
+| 层级    | 可见性   | 内容                         |
+| ------- | -------- | ---------------------------- |
 | Level 1 | 始终可见 | URL 输入、下载按钮、任务状态 |
-| Level 2 | 悬停展开 | 任务详情、快速操作 |
-| Level 3 | 导航进入 | 完整设置、流选择器 |
+| Level 2 | 悬停展开 | 任务详情、快速操作           |
+| Level 3 | 导航进入 | 完整设置、流选择器           |
 
 **规则**：默认只显示 Level 1，避免信息过载。
 
@@ -88,11 +88,11 @@ pnpm lint
 <script setup lang="ts">
 // ✅ 使用 Composition API + <script setup>
 interface Props {
-  title: string
+  title: string;
 }
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
-const emit = defineEmits<{ (e: 'click'): void }>()
+const emit = defineEmits<{ (e: "click"): void }>();
 </script>
 ```
 
@@ -101,21 +101,21 @@ const emit = defineEmits<{ (e: 'click'): void }>()
 ```typescript
 // ✅ 显式类型定义
 interface Task {
-  id: string
-  url: string
+  id: string;
+  url: string;
 }
 
 // ❌ 禁止 any 类型
-function process(data: any) { }  // 禁止
+function process(data: any) {} // 禁止
 ```
 
 ### 文件命名
 
-| 类型 | 规范 | 示例 |
-|------|------|------|
-| 组件 | PascalCase.vue | `TaskCard.vue` |
-| 组合式函数 | camelCase.ts | `useDownloader.ts` |
-| Store | camelCase.ts | `taskStore.ts` |
+| 类型       | 规范           | 示例               |
+| ---------- | -------------- | ------------------ |
+| 组件       | PascalCase.vue | `TaskCard.vue`     |
+| 组合式函数 | camelCase.ts   | `useDownloader.ts` |
+| Store      | camelCase.ts   | `taskStore.ts`     |
 
 ## 架构规则
 
@@ -143,7 +143,7 @@ export const useTaskStore = defineStore('task', () => {
 
 ```typescript
 // utils/commandBuilder.ts
-export function buildCommandArgs(task: Task, settings: Settings): string[]
+export function buildCommandArgs(task: Task, settings: Settings): string[];
 ```
 
 ## UI 规范
@@ -201,8 +201,13 @@ chore: 构建/工具
 
 详细设计文档位于 `docs/design/`:
 
+- `00-overview.md` - 项目概述
 - `01-tech-stack.md` - 技术选型
 - `02-features.md` - 功能规格
 - `03-ui-design.md` - 界面设计
 - `04-architecture.md` - 项目架构
 - `05-development-plan.md` - 开发计划
+
+## 参考文档
+
+- [n_m3u8dl-re-reference.md](docs/n_m3u8dl-re-reference.md) - N_m3u8DL-RE 命令行工具参数参考
