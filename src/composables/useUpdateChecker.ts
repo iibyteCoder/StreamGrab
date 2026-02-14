@@ -11,7 +11,7 @@ import { useToast } from './useToast';
 const CURRENT_VERSION = __APP_VERSION__;
 
 // GitHub 仓库信息
-const GITHUB_REPO = 'streamgrab/streamgrab'; // 替换为实际的仓库地址
+const GITHUB_REPO = 'iibyteCoder/StreamGrab';
 
 // 更新信息接口
 interface ReleaseInfo {
