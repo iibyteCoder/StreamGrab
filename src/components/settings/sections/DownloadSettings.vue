@@ -1,57 +1,77 @@
 <script setup lang="ts">
 /**
- * DownloadSettings - 下载设置组件
+ * DownloadSettings - 下载设置 UI 组件
+ * 只负责 UI 展示
  */
 
 import { computed } from 'vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { AppIcon } from '@/components/common';
 import {
   SettingSwitch,
   SettingInput,
   SettingSlider,
+  SettingSelect,
 } from '..';
-
-interface Settings {
-  download: {
-    threadCount: number;
-    retryCount: number;
-    timeout: number;
-    maxSpeed: string;
-    autoSelect: boolean;
-    selectVideo: string;
-    selectAudio: string;
-    selectSubtitle: string;
-    checkSegmentsCount: boolean;
-    delAfterDone: boolean;
-    skipMerge: boolean;
-    writeMetaJson: boolean;
-    binaryMerge: boolean;
-    concurrentDownload: boolean;
-  };
-}
+import type { DownloadSettings } from '@/types';
 
 interface Props {
-  settings: Settings;
+  settings: { download: DownloadSettings };
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: any): void;
+  (e: 'update:settings', value: Partial<DownloadSettings>): void;
 }>();
 
 // 格式化线程数显示
 const threadCountDisplay = computed(() => `${props.settings.download.threadCount} 线程`);
 
 // 更新设置
-const updateDownload = (value: any) => {
+const updateDownload = (value: Partial<DownloadSettings>) => {
   emit('update:settings', value);
 };
+
+// 广告过滤关键字
+const adKeywords = computed(() => props.settings.download.adFilter.keywords);
+
+// 添加广告关键字
+const addAdKeyword = () => {
+  const keywords = [...adKeywords.value, ''];
+  updateDownload({ adFilter: { ...props.settings.download.adFilter, keywords } });
+};
+
+// 删除广告关键字
+const removeAdKeyword = (index: number) => {
+  const keywords = adKeywords.value.filter((_, i) => i !== index);
+  updateDownload({ adFilter: { ...props.settings.download.adFilter, keywords } });
+};
+
+// 更新广告关键字
+const updateAdKeyword = (index: number, value: string) => {
+  const keywords = [...adKeywords.value];
+  keywords[index] = value;
+  updateDownload({ adFilter: { ...props.settings.download.adFilter, keywords } });
+};
+
+// 切换广告过滤
+const toggleAdFilter = (enabled: boolean) => {
+  updateDownload({ adFilter: { ...props.settings.download.adFilter, enabled } });
+};
+
+// 字幕格式选项
+const subFormatOptions = [
+  { value: 'SRT', label: 'SRT' },
+  { value: 'VTT', label: 'WebVTT' },
+];
 </script>
 
 <template>
   <div class="space-y-4">
+    <!-- 下载参数 -->
     <Card>
       <CardHeader>
         <CardTitle class="text-base">下载参数</CardTitle>
@@ -93,11 +113,12 @@ const updateDownload = (value: any) => {
           label="最大下载速度"
           placeholder="0 = 不限制"
           class="w-32"
-          @update:model-value="updateDownload({ maxSpeed: $event })"
+          @update:model-value="updateDownload({ maxSpeed: String($event) })"
         />
       </CardContent>
     </Card>
 
+    <!-- 流选择 -->
     <Card>
       <CardHeader>
         <CardTitle class="text-base">流选择</CardTitle>
@@ -118,7 +139,7 @@ const updateDownload = (value: any) => {
           label="视频流选择"
           placeholder="例如: res=1080"
           class="flex-1"
-          @update:model-value="updateDownload({ selectVideo: $event })"
+          @update:model-value="updateDownload({ selectVideo: String($event) })"
         />
 
         <SettingInput
@@ -126,7 +147,7 @@ const updateDownload = (value: any) => {
           label="音频流选择"
           placeholder="例如: lang=zh"
           class="flex-1"
-          @update:model-value="updateDownload({ selectAudio: $event })"
+          @update:model-value="updateDownload({ selectAudio: String($event) })"
         />
 
         <SettingInput
@@ -134,11 +155,101 @@ const updateDownload = (value: any) => {
           label="字幕流选择"
           placeholder="例如: lang=zh"
           class="flex-1"
-          @update:model-value="updateDownload({ selectSubtitle: $event })"
+          @update:model-value="updateDownload({ selectSubtitle: String($event) })"
         />
       </CardContent>
     </Card>
 
+    <!-- 流排除 -->
+    <Card>
+      <CardHeader>
+        <CardTitle class="text-base">流排除</CardTitle>
+        <CardDescription>通过正则表达式排除不需要的流</CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <SettingInput
+          :model-value="settings.download.dropVideo"
+          label="排除视频流"
+          placeholder="例如: codecs=av01"
+          class="flex-1"
+          @update:model-value="updateDownload({ dropVideo: String($event) })"
+        />
+
+        <SettingInput
+          :model-value="settings.download.dropAudio"
+          label="排除音频流"
+          placeholder="例如: lang=ja"
+          class="flex-1"
+          @update:model-value="updateDownload({ dropAudio: String($event) })"
+        />
+
+        <SettingInput
+          :model-value="settings.download.dropSubtitle"
+          label="排除字幕流"
+          placeholder="例如: name=forced"
+          class="flex-1"
+          @update:model-value="updateDownload({ dropSubtitle: String($event) })"
+        />
+      </CardContent>
+    </Card>
+
+    <!-- 广告过滤 -->
+    <Card>
+      <CardHeader>
+        <CardTitle class="text-base">广告过滤</CardTitle>
+        <CardDescription>通过 URL 关键字跳过广告分片</CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <SettingSwitch
+          :model-value="settings.download.adFilter.enabled"
+          label="启用广告过滤"
+          description="匹配关键字的分片将被跳过"
+          @update:model-value="toggleAdFilter($event)"
+        />
+
+        <Separator v-if="settings.download.adFilter.enabled" />
+
+        <div v-if="settings.download.adFilter.enabled" class="space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium">过滤关键字（正则表达式）</span>
+            <Button variant="outline" size="sm" @click="addAdKeyword">
+              <AppIcon name="Plus" :size="14" class="mr-1" />
+              添加
+            </Button>
+          </div>
+
+          <div v-if="adKeywords.length === 0" class="text-sm text-muted-foreground py-2">
+            暂无过滤关键字
+          </div>
+
+          <div v-else class="space-y-2">
+            <div
+              v-for="(_, index) in adKeywords"
+              :key="index"
+              class="flex items-center gap-2"
+            >
+              <input
+                :value="adKeywords[index]"
+                type="text"
+                placeholder="例如: ad\.domain\.com"
+                class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+                @input="updateAdKeyword(index, ($event.target as HTMLInputElement).value)"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-9 w-9 text-destructive hover:text-destructive"
+                @click="removeAdKeyword(index)"
+              >
+                <AppIcon name="Trash2" :size="16" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- 下载选项 -->
     <Card>
       <CardHeader>
         <CardTitle class="text-base">下载选项</CardTitle>
@@ -178,6 +289,36 @@ const updateDownload = (value: any) => {
           :model-value="settings.download.concurrentDownload"
           label="并发下载"
           @update:model-value="updateDownload({ concurrentDownload: $event })"
+        />
+      </CardContent>
+    </Card>
+
+    <!-- 字幕设置 -->
+    <Card>
+      <CardHeader>
+        <CardTitle class="text-base">字幕设置</CardTitle>
+        <CardDescription>配置字幕下载相关选项</CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <SettingSelect
+          :model-value="settings.download.subFormat"
+          label="字幕格式"
+          :options="subFormatOptions"
+          @update:model-value="updateDownload({ subFormat: $event as 'SRT' | 'VTT' })"
+        />
+
+        <SettingSwitch
+          :model-value="settings.download.autoSubtitleFix"
+          label="自动修正时间轴"
+          description="自动修正字幕时间轴偏移"
+          @update:model-value="updateDownload({ autoSubtitleFix: $event })"
+        />
+
+        <SettingSwitch
+          :model-value="settings.download.subOnly"
+          label="仅下载字幕"
+          description="只下载字幕文件，不下载视频"
+          @update:model-value="updateDownload({ subOnly: $event })"
         />
       </CardContent>
     </Card>

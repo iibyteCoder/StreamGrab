@@ -4,11 +4,14 @@
  */
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   SettingSwitch,
   SettingSelect,
   SettingPath,
 } from '..';
+import { useUpdateChecker } from '@/composables';
+import { AppIcon } from '@/components/common';
 
 interface Settings {
   general: {
@@ -25,11 +28,14 @@ interface Props {
   settings: Settings;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'update:settings', value: any): void;
 }>();
+
+// 更新检查器
+const { isChecking, updateAvailable, currentVersion, latestVersion, checkForUpdate, openDownloadPage } = useUpdateChecker();
 
 // 语言选项
 const languageOptions = [
@@ -41,6 +47,11 @@ const languageOptions = [
 // 更新设置
 const updateGeneral = (value: any) => {
   emit('update:settings', value);
+};
+
+// 手动检查更新
+const handleCheckUpdate = async () => {
+  await checkForUpdate(true);
 };
 </script>
 
@@ -103,6 +114,38 @@ const updateGeneral = (value: any) => {
           description="启动时自动检查新版本"
           @update:model-value="updateGeneral({ checkUpdate: $event })"
         />
+
+        <!-- 版本信息和检查更新 -->
+        <div class="flex items-center justify-between pt-2 border-t">
+          <div class="text-sm text-muted-foreground">
+            <span>当前版本: </span>
+            <span class="font-mono">{{ currentVersion }}</span>
+            <span v-if="updateAvailable && latestVersion" class="ml-2 text-primary">
+              (最新: {{ latestVersion }})
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="updateAvailable"
+              variant="default"
+              size="sm"
+              @click="openDownloadPage"
+            >
+              <AppIcon name="Download" :size="16" class="mr-2" />
+              下载更新
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="isChecking"
+              @click="handleCheckUpdate"
+            >
+              <AppIcon v-if="isChecking" name="Loader2" :size="16" class="mr-2 animate-spin" />
+              <AppIcon v-else name="RefreshCw" :size="16" class="mr-2" />
+              {{ isChecking ? '检查中...' : '检查更新' }}
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   </div>

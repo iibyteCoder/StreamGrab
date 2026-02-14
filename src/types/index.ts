@@ -43,18 +43,11 @@ export interface TaskProgressData {
   currentAction: string;
 }
 
-// 任务进度 (旧接口，保持兼容)
-export interface TaskProgress {
-  downloadedSegments: number;
-  totalSegments: number;
-  percentage: number;
-  speed: number; // bytes/s
-  speedFormatted: string;
-  downloadedBytes: number;
-  totalBytes: number;
-  elapsedTime: number; // seconds
-  estimatedTime: number; // seconds
-  currentAction: string;
+// 任务日志条目
+export interface TaskLogEntry {
+  timestamp: Date;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
 }
 
 // 任务配置
@@ -368,6 +361,16 @@ export interface ScheduledTask {
   scheduledTime: Date;
   repeat: "none" | "daily" | "weekly";
   enabled: boolean;
+}
+
+// ============================================
+// 流选择类型
+// ============================================
+
+export interface StreamSelection {
+  videoIds: string[];
+  audioIds: string[];
+  subtitleIds: string[];
 }
 
 // ============================================

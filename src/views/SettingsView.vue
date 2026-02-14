@@ -7,7 +7,7 @@
 
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowLeft, Folder, Download, Video, Network, Key, Radio, Settings2, Palette } from 'lucide-vue-next';
+import { ArrowLeft, Folder, Download, Video, Network, Key, Radio, Settings2, Palette, FileText } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSettings, useToast } from '@/composables';
@@ -21,6 +21,7 @@ import {
   AdvancedSettings,
   UISettings,
 } from '@/components/settings/sections';
+import { TemplateManager } from '@/components/template';
 
 const router = useRouter();
 const {
@@ -86,6 +87,10 @@ const handleReset = async () => {
               <Folder class="h-4 w-4" />
               常规
             </TabsTrigger>
+            <TabsTrigger value="templates" class="gap-2 px-4 py-2 text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+              <FileText class="h-4 w-4" />
+              模板
+            </TabsTrigger>
             <TabsTrigger value="download" class="gap-2 px-4 py-2 text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               <Download class="h-4 w-4" />
               下载
@@ -121,6 +126,11 @@ const handleReset = async () => {
         <!-- 常规设置 -->
         <TabsContent value="general" class="p-4 mt-0">
           <GeneralSettings :settings="settings" @update:settings="updateGeneral($event)" />
+        </TabsContent>
+
+        <!-- 配置模板 -->
+        <TabsContent value="templates" class="p-4 mt-0">
+          <TemplateManager />
         </TabsContent>
 
         <!-- 下载设置 -->

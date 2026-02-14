@@ -7,6 +7,7 @@ import { ref, computed, watch } from 'vue';
 import type { AppSettings } from '@/types';
 import { DEFAULT_SETTINGS } from '@/utils/constants';
 import { configService } from '@/services';
+import { setLocale } from '@/locales';
 
 export const useSettingsStore = defineStore('settings', () => {
   // State
@@ -55,6 +56,8 @@ export const useSettingsStore = defineStore('settings', () => {
       const loaded = await configService.loadSettings();
       settings.value = loaded;
       isLoaded.value = true;  // 标记已加载
+      // 应用语言设置
+      setLocale(loaded.general.language);
     } catch (e) {
       error.value = e instanceof Error ? e.message : '加载配置失败';
       console.error('Failed to load settings:', e);
@@ -147,6 +150,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // 语言
   function setLanguage(lang: AppSettings['general']['language']): void {
     settings.value.general.language = lang;
+    setLocale(lang);
   }
 
   // 主题

@@ -82,6 +82,16 @@ export function useTasks() {
   };
 
   /**
+   * 更新任务配置
+   */
+  const updateTaskConfig = (
+    taskId: string,
+    config: Partial<DownloadTask['config']>
+  ): void => {
+    store.updateTaskConfig(taskId, config);
+  };
+
+  /**
    * 移除任务
    */
   const removeTask = (taskId: string): void => {
@@ -187,6 +197,7 @@ export function useTasks() {
     getTask,
     updateTaskStatus,
     updateTaskProgress,
+    updateTaskConfig,
     removeTask,
     clearCompleted,
     clearAll,

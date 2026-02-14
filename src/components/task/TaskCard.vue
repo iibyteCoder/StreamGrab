@@ -4,11 +4,13 @@
  * 显示单个下载任务的信息和操作
  */
 
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { AppProgress } from '@/components/common';
 import { useTasks, useDownloader } from '@/composables';
+import { useTaskStore } from '@/stores';
 import { formatSpeed, formatFileSize, formatDuration } from '@/utils/format';
 import { TASK_STATUS_CONFIG } from '@/utils/constants';
+import { LogViewer } from '@/components/task';
 import type { DownloadTask } from '@/types';
 
 interface Props {
@@ -27,6 +29,16 @@ const emit = defineEmits<{
 
 const { removeTask } = useTasks();
 const { startDownload, stopDownload, pauseDownload, resumeDownload, retryDownload } = useDownloader();
+const taskStore = useTaskStore();
+
+// 日志查看器状态
+const showLogViewer = ref(false);
+
+// 检查是否有日志
+const hasLogs = computed(() => {
+  const logs = taskStore.getTaskLogs(props.task.id);
+  return logs.length > 0;
+});
 
 // 状态配置
 const statusConfig = computed(() => {
@@ -157,6 +169,18 @@ const handleContextmenu = (event: MouseEvent) => {
 
       <!-- 操作按钮 -->
       <div class="flex items-center gap-1">
+        <!-- 查看日志 -->
+        <button
+          v-if="hasLogs || task.status === 'downloading'"
+          class="p-1.5 rounded hover:bg-bg-elevated text-text-secondary hover:text-text-primary transition-colors"
+          title="查看日志"
+          @click.stop="showLogViewer = true"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </button>
+
         <!-- 下载中：暂停 -->
         <button
           v-if="task.status === 'downloading'"
@@ -228,6 +252,12 @@ const handleContextmenu = (event: MouseEvent) => {
     >
       {{ task.error }}
     </div>
+
+    <!-- 日志查看器 -->
+    <LogViewer
+      v-model:open="showLogViewer"
+      :task-id="task.id"
+    />
   </div>
 </template>
 

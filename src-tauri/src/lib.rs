@@ -5,6 +5,7 @@
 mod commands;
 mod db;
 mod process;
+mod tray;
 
 use tauri::Manager;
 
@@ -17,6 +18,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             // 开发模式下启用日志
             if cfg!(debug_assertions) {
@@ -37,6 +39,25 @@ pub fn run() {
             let database = Database::initialize(&config_dir)
                 .expect("Failed to initialize database");
             app.manage(database);
+
+            // 创建系统托盘
+            let _tray = tray::create_tray(app.handle())
+                .map_err(|e| log::error!("Failed to create tray: {}", e));
+
+            // 监听窗口关闭事件，最小化到托盘而不是退出
+            if let Some(window) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // 阻止默认关闭行为
+                        api.prevent_close();
+                        // 最小化到托盘
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.hide();
+                        }
+                    }
+                });
+            }
 
             log::info!("StreamGrab starting...");
 

@@ -10,12 +10,13 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "type-check": "vue-tsc --noEmit",
+    "type-check": "vue-tsc -b",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "format": "prettier --write src/"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@vueuse/core": "^14.2.1",
@@ -28,6 +29,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "vue": "^3.5.25",
+    "vue-i18n": "^11.2.8",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {

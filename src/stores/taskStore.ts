@@ -6,10 +6,13 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { DownloadTask, TaskStatus, TaskProgressData } from '@/types';
+import type { DownloadTask, TaskStatus, TaskProgressData, TaskLogEntry } from '@/types';
 import { extractFileName } from '@/utils/format';
 import { MAX_CONCURRENT_TASKS } from '@/utils/constants';
 import { taskService } from '@/services';
+
+// 最大日志条目数（每个任务）
+const MAX_LOG_ENTRIES = 500;
 
 /**
  * 生成唯一 ID
@@ -47,6 +50,7 @@ export const useTaskStore = defineStore('task', () => {
   // ==========================================
 
   const tasks = ref<DownloadTask[]>([]);
+  const taskLogs = ref<Map<string, TaskLogEntry[]>>(new Map());
   const maxConcurrent = ref(MAX_CONCURRENT_TASKS);
   const isLoading = ref(false);
   const isInitialized = ref(false);
@@ -189,28 +193,6 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
-   * 同步更新任务状态（不等待后端）
-   */
-  function updateTaskStatusSync(taskId: string, status: TaskStatus): void {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
-
-    const now = new Date();
-    task.status = status;
-    task.updatedAt = now;
-
-    if (status === 'downloading' && !task.startedAt) {
-      task.startedAt = now;
-    }
-    if (status === 'completed') {
-      task.completedAt = now;
-    }
-
-    // 异步保存（不阻塞）
-    taskService.updateTaskStatus(taskId, status, task.error).catch(console.error);
-  }
-
-  /**
    * 更新任务进度 - 批量同步到后端
    */
   let progressSyncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -272,6 +254,20 @@ export const useTaskStore = defineStore('task', () => {
     taskService.saveTask(task).catch(console.error);
   }
 
+  /**
+   * 更新任务配置 - 同步到后端
+   */
+  function updateTaskConfig(taskId: string, config: Partial<DownloadTask['config']>): void {
+    const task = tasks.value.find((t) => t.id === taskId);
+    if (!task) return;
+
+    task.config = { ...task.config, ...config };
+    task.updatedAt = new Date();
+
+    // 同步到后端
+    taskService.saveTask(task).catch(console.error);
+  }
+
   function retryTask(taskId: string): void {
     const task = tasks.value.find((t) => t.id === taskId);
     if (!task) return;
@@ -297,20 +293,6 @@ export const useTaskStore = defineStore('task', () => {
 
     // 再更新缓存
     tasks.value.splice(index, 1);
-  }
-
-  /**
-   * 同步删除任务（不等待后端）
-   */
-  function removeTaskSync(taskId: string): void {
-    const index = tasks.value.findIndex((t) => t.id === taskId);
-    if (index === -1) return;
-
-    // 更新缓存
-    tasks.value.splice(index, 1);
-
-    // 异步删除后端数据
-    taskService.deleteTask(taskId).catch(console.error);
   }
 
   /**
@@ -347,9 +329,50 @@ export const useTaskStore = defineStore('task', () => {
     maxConcurrent.value = Math.max(1, Math.min(MAX_CONCURRENT_TASKS, value));
   }
 
+  // ==========================================
+  // Actions - 日志管理（仅内存）
+  // ==========================================
+
+  /**
+   * 添加任务日志
+   */
+  function addTaskLog(taskId: string, level: TaskLogEntry['level'], message: string): void {
+    let logs = taskLogs.value.get(taskId);
+    if (!logs) {
+      logs = [];
+      taskLogs.value.set(taskId, logs);
+    }
+
+    logs.push({
+      timestamp: new Date(),
+      level,
+      message,
+    });
+
+    // 限制日志条目数
+    if (logs.length > MAX_LOG_ENTRIES) {
+      logs.splice(0, logs.length - MAX_LOG_ENTRIES);
+    }
+  }
+
+  /**
+   * 获取任务日志
+   */
+  function getTaskLogs(taskId: string): TaskLogEntry[] {
+    return taskLogs.value.get(taskId) || [];
+  }
+
+  /**
+   * 清除任务日志
+   */
+  function clearTaskLogs(taskId: string): void {
+    taskLogs.value.delete(taskId);
+  }
+
   return {
     // State
     tasks,
+    taskLogs,
     maxConcurrent,
     isLoading,
     isInitialized,
@@ -370,17 +393,21 @@ export const useTaskStore = defineStore('task', () => {
     addTaskSync,
     getTask,
     updateTaskStatus,
-    updateTaskStatusSync,
     updateTaskProgress,
     updateTaskError,
     updateTaskOutput,
+    updateTaskConfig,
     retryTask,
     removeTask,
-    removeTaskSync,
     clearCompleted,
     clearFailed,
     clearAll,
     reorderTasks,
     setMaxConcurrent,
+
+    // Log Actions
+    addTaskLog,
+    getTaskLogs,
+    clearTaskLogs,
   };
 });

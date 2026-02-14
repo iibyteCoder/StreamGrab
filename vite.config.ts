@@ -10,6 +10,9 @@ export default defineConfig({
       "@": resolve(__dirname, "src"),
     },
   },
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || "0.1.0"),
+  },
   // Tauri expects a fixed port, fail if that port is not available
   server: {
     port: 5173,

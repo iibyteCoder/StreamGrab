@@ -94,6 +94,11 @@ export function buildCommandArgs(
     args.push('--use-ffmpeg-concat-demuxer');
   }
 
+  // 外部媒体导入
+  if (settings.mux.muxImports.length > 0) {
+    args.push(...buildMuxImportArgs(settings.mux.muxImports));
+  }
+
   // 网络设置
   if (settings.network.useSystemProxy) {
     args.push('--use-system-proxy');
@@ -124,6 +129,18 @@ export function buildCommandArgs(
   if (!config.checkSegmentsCount) {
     args.push('--check-segments-count', 'false');
   }
+  if (settings.download.binaryMerge) {
+    args.push('--binary-merge');
+  }
+  if (settings.download.writeMetaJson) {
+    args.push('--write-meta-json');
+  }
+  if (settings.download.concurrentDownload) {
+    args.push('-mt');
+  }
+  if (settings.advanced.ffmpegPath) {
+    args.push('--ffmpeg-binary-path', settings.advanced.ffmpegPath);
+  }
 
   // 字幕设置
   if (settings.download.subOnly) {
@@ -137,7 +154,10 @@ export function buildCommandArgs(
   }
 
   // 解密设置
-  if (config.key) {
+  // 密钥数组优先，其次使用单个密钥
+  if (settings.decryption.keys.length > 0) {
+    args.push(...buildKeyArgs(settings.decryption.keys));
+  } else if (config.key) {
     args.push('--key', config.key);
   }
   if (settings.decryption.keyTextFile) {

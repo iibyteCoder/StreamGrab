@@ -18,7 +18,7 @@ interface Props {
   theme: string;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'update:settings', value: any): void;

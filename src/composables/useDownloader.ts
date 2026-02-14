@@ -82,24 +82,45 @@ export function useDownloader() {
       // 更新任务状态为解析中
       taskStore.updateTaskStatus(task.id, 'analyzing');
 
-      // 获取任务配置
+      // 获取任务配置 - 合并任务级配置和应用级设置
       const taskData = taskStore.getTask(task.id);
+      const taskConfig = taskData?.config || {};
       const config: TaskConfig = {
+        // 基础配置
         saveDir: taskData?.saveDir || task.saveDir || settingsStore.settings.general.saveDir,
         saveName: task.fileName,
         threadCount: settingsStore.settings.download.threadCount,
         retryCount: settingsStore.settings.download.retryCount,
         timeout: settingsStore.settings.download.timeout,
         maxSpeed: settingsStore.settings.download.maxSpeed,
-        autoSelect: settingsStore.settings.download.autoSelect,
-        selectVideo: settingsStore.settings.download.selectVideo,
-        selectAudio: settingsStore.settings.download.selectAudio,
-        selectSubtitle: settingsStore.settings.download.selectSubtitle,
+
+        // 流选择 - 任务级可覆盖
+        autoSelect: taskConfig.autoSelect ?? settingsStore.settings.download.autoSelect,
+        selectVideo: taskConfig.selectVideo ?? settingsStore.settings.download.selectVideo,
+        selectAudio: taskConfig.selectAudio ?? settingsStore.settings.download.selectAudio,
+        selectSubtitle: taskConfig.selectSubtitle ?? settingsStore.settings.download.selectSubtitle,
+
+        // 流排除
+        dropVideo: settingsStore.settings.download.dropVideo,
+        dropAudio: settingsStore.settings.download.dropAudio,
+        dropSubtitle: settingsStore.settings.download.dropSubtitle,
+
+        // 命名模板
+        savePattern: settingsStore.settings.download.savePattern,
+
+        // 混流
         muxFormat: settingsStore.settings.mux.format,
         muxAfterDone: !settingsStore.settings.download.skipMerge,
         skipMerge: settingsStore.settings.download.skipMerge,
         delAfterDone: settingsStore.settings.download.delAfterDone,
         checkSegmentsCount: settingsStore.settings.download.checkSegmentsCount,
+
+        // 其他选项
+        customRange: taskConfig.customRange,
+        startAt: taskConfig.startAt,
+        key: taskConfig.key,
+        headers: settingsStore.settings.network.headers.filter(h => h.enabled),
+        proxy: settingsStore.settings.network.customProxy || undefined,
       };
 
       // 订阅任务事件
@@ -288,11 +309,13 @@ export function useDownloader() {
         break;
       }
 
-      case 'log':
-        // 处理日志（可选：显示在任务详情中）
-        // const logData = data as { level: string; message: string };
-        // 可以存储到任务的日志列表中
+      case 'log': {
+        // 存储日志到任务
+        const logData = data as { level: string; message: string };
+        const level = logData.level as 'info' | 'warn' | 'error' | 'debug';
+        taskStore.addTaskLog(taskId, level || 'info', logData.message);
         break;
+      }
     }
   };
 
@@ -319,8 +342,8 @@ export function useDownloader() {
    * 添加任务并自动启动（如果设置允许）
    */
   const addAndStartTask = async (url: string, fileName?: string, saveDir?: string): Promise<DownloadTask> => {
-    // 添加任务到 store
-    const task = taskStore.addTask(url, fileName, saveDir);
+    // 添加任务到 store（异步保存到后端）
+    const task = await taskStore.addTask(url, fileName, saveDir);
 
     // 如果设置了自动开始下载，尝试启动
     if (settingsStore.settings.general.autoStartDownload) {

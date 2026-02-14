@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * UrlInputPanel - URL 输入面板组件
- * 支持多行输入、批量添加、文件导入
+ * 支持多行输入、批量添加、文件导入、定时开始
  */
 
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { AppIcon } from '@/components/common';
@@ -23,15 +23,31 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
-  (e: 'download'): void;
+  (e: 'download', options?: { startAt?: Date }): void;
 }>();
 
 const toast = useToast();
+
+// 高级选项展开状态
+const showAdvanced = ref(false);
+
+// 定时开始时间
+const scheduledDate = ref<string>('');
+const scheduledTime = ref<string>('');
 
 // 计算有效的 URL 数量
 const urlCount = computed(() => {
   if (!props.modelValue.trim()) return 0;
   return parseUrls(props.modelValue).length;
+});
+
+// 计算定时开始时间
+const scheduledStartAt = computed((): Date | undefined => {
+  if (!scheduledDate.value) return undefined;
+  const dateTime = scheduledTime.value || '00:00';
+  const dateStr = `${scheduledDate.value}T${dateTime}`;
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? undefined : date;
 });
 
 /**
@@ -57,7 +73,6 @@ const handleImportFile = async () => {
 
     if (!selected) return;
 
-    // open with multiple: false returns string | null
     const filePath = selected;
     if (!filePath) return;
 
@@ -67,14 +82,12 @@ const handleImportFile = async () => {
       return;
     }
 
-    // 解析 URL
     const urls = parseUrls(content);
     if (urls.length === 0) {
       toast.warning('文件中未找到有效的链接');
       return;
     }
 
-    // 追加到输入框
     let newValue = props.modelValue;
     if (newValue.trim()) {
       newValue += '\n';
@@ -92,7 +105,19 @@ const handleImportFile = async () => {
  * 处理下载
  */
 const handleDownload = () => {
-  emit('download');
+  const options: { startAt?: Date } = {};
+  if (scheduledStartAt.value) {
+    options.startAt = scheduledStartAt.value;
+  }
+  emit('download', options);
+};
+
+/**
+ * 清除定时设置
+ */
+const clearSchedule = () => {
+  scheduledDate.value = '';
+  scheduledTime.value = '';
 };
 </script>
 
@@ -105,10 +130,49 @@ const handleDownload = () => {
       class="min-h-[80px] resize-none"
       @keydown.ctrl.enter="handleDownload"
     />
+
+    <!-- 高级选项 -->
+    <div class="space-y-2">
+      <button
+        class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        @click="showAdvanced = !showAdvanced"
+      >
+        <AppIcon :name="showAdvanced ? 'ChevronDown' : 'ChevronRight'" :size="12" />
+        高级选项
+      </button>
+
+      <div v-if="showAdvanced" class="flex items-center gap-3 p-2 rounded-md bg-muted/50">
+        <span class="text-xs text-muted-foreground whitespace-nowrap">定时开始:</span>
+        <input
+          v-model="scheduledDate"
+          type="date"
+          class="h-7 px-2 text-xs rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <input
+          v-model="scheduledTime"
+          type="time"
+          class="h-7 px-2 text-xs rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <button
+          v-if="scheduledDate"
+          class="text-xs text-muted-foreground hover:text-foreground"
+          @click="clearSchedule"
+        >
+          清除
+        </button>
+      </div>
+    </div>
+
+    <!-- 操作栏 -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <span class="text-xs text-muted-foreground">
-          <template v-if="urlCount > 0">已输入 {{ urlCount }} 个链接</template>
+          <template v-if="urlCount > 0">
+            已输入 {{ urlCount }} 个链接
+            <span v-if="scheduledStartAt" class="text-primary ml-1">
+              · 定时 {{ scheduledStartAt.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+            </span>
+          </template>
           <template v-else>Ctrl + Enter 快速添加</template>
         </span>
         <Button variant="ghost" size="sm" class="h-6 px-2 text-xs" @click="handleImportFile">

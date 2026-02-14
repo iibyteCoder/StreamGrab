@@ -7,3 +7,4 @@ export { useTaskStore } from './taskStore';
 export { useSettingsStore } from './settingsStore';
 export { useUiStore } from './uiStore';
 export { useHistoryStore } from './historyStore';
+export { useTemplateStore } from './templateStore';

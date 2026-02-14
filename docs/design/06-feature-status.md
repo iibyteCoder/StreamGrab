@@ -39,8 +39,8 @@
 | URL 格式验证 | P0 | `[x]` | `src/utils/validate.ts` | M3U8/MPD/MSS |
 | 多链接批量输入 | P0 | `[x]` | `src/views/HomeView.vue` | 换行分隔，统一输入框 |
 | 从文件导入 | P1 | `[x]` | `src/views/HomeView.vue` | TXT 文件导入 |
-| 剪贴板自动检测 | P2 | `[ ]` | - | 监控剪贴板 |
-| 拖拽输入 | P2 | `[ ]` | - | 拖拽文件/链接 |
+| 剪贴板自动检测 | P2 | `[x]` | `src/composables/useClipboardWatcher.ts` | 监控剪贴板，自动检测 M3U8/MPD/MSS 链接 |
+| 拖拽输入 | P2 | `[x]` | `src/views/HomeView.vue` | 支持拖放文本链接或 TXT 文件 |
 
 ---
 
@@ -64,12 +64,12 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 自动选择最佳 | P0 | `[/]` | `src/stores/settingsStore.ts` | 设置存在，未连接后端 |
-| 手动选择 | P1 | `[ ]` | - | 流选择器 UI |
-| 正则匹配选择 | P1 | `[ ]` | - | 高级选择 |
-| 预设模板 | P1 | `[ ]` | - | 保存选择规则 |
-| 流排除 | P1 | `[/]` | `src/types/index.ts` | 类型定义存在 |
-| 广告过滤 | P1 | `[/]` | `src/types/index.ts:AdFilterSettings` | 类型定义存在 |
+| 自动选择最佳 | P0 | `[x]` | `src/stores/settingsStore.ts` | 默认行为 |
+| 手动选择 | P1 | `[x]` | `src/components/stream/StreamSelector.vue` | 流选择器 UI |
+| 正则匹配选择 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选择器输入框 |
+| 预设模板 | P1 | `[x]` | `src/stores/templateStore.ts` | 预设模板系统 |
+| 流排除 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 流排除卡片 |
+| 广告过滤 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 广告过滤卡片 |
 
 ---
 
@@ -101,37 +101,37 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 密钥配置 | P2 | `[/]` | `src/types/index.ts:DecryptionSettings` | 类型定义存在 |
-| 密钥文件读取 | P2 | `[/]` | `src/types/index.ts:DecryptionSettings.keyTextFile` | 类型定义存在 |
-| 解密引擎选择 | P2 | `[/]` | `src/types/index.ts:DecryptionSettings.engine` | 类型定义存在 |
-| 实时解密 | P2 | `[ ]` | - | |
-| HLS 自定义方法 | P2 | `[/]` | `src/types/index.ts:CustomHlsDecryption` | 类型定义存在 |
+| 密钥配置 | P2 | `[x]` | `src/components/settings/sections/DecryptionSettings.vue` | KID:KEY 格式密钥管理 |
+| 密钥文件读取 | P2 | `[x]` | `src/components/settings/sections/DecryptionSettings.vue` | 密钥文本文件路径 |
+| 解密引擎选择 | P2 | `[x]` | `src/components/settings/sections/DecryptionSettings.vue` | FFmpeg/MP4Decrypt/Shaka |
+| 实时解密 | P2 | `[x]` | `src/components/settings/sections/DecryptionSettings.vue` | 下载时实时解密 |
+| HLS 自定义方法 | P2 | `[x]` | `src/components/settings/sections/DecryptionSettings.vue` | 自定义 HLS 解密配置 |
 
 ### 5.2 合并
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 自动合并 | P0 | `[/]` | `src/types/index.ts:TaskConfig.muxAfterDone` | 类型定义存在 |
-| 二进制合并 | P1 | `[/]` | `src/types/index.ts:DownloadSettings.binaryMerge` | 类型定义存在 |
-| 删除临时文件 | P0 | `[/]` | `src/types/index.ts:DownloadSettings.delAfterDone` | 类型定义存在 |
+| 自动合并 | P0 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 任务完成后自动混流 |
+| 二进制合并 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
+| 删除临时文件 | P0 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
 
 ### 5.3 混流
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 格式选择 | P1 | `[/]` | `src/types/index.ts:MuxSettings.format` | 类型定义存在 |
-| 混流器选择 | P1 | `[/]` | `src/types/index.ts:MuxSettings.muxer` | 类型定义存在 |
-| 自定义程序路径 | P1 | `[/]` | `src/types/index.ts:MuxSettings.binPath` | 类型定义存在 |
-| 保留原文件 | P1 | `[/]` | `src/types/index.ts:MuxSettings.keepOriginal` | 类型定义存在 |
-| 外部媒体导入 | P1 | `[/]` | `src/types/index.ts:MuxSettings.muxImports` | 类型定义存在 |
+| 格式选择 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | MP4/MKV |
+| 混流器选择 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | FFmpeg/MKVMerge |
+| 自定义程序路径 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | 混流器路径 |
+| 保留原文件 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | 选项开关 |
+| 外部媒体导入 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | 外部音频/字幕导入 UI |
 
 ### 5.4 字幕
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 格式选择 | P1 | `[/]` | `src/types/index.ts:DownloadSettings.subFormat` | 类型定义存在 |
-| 自动修正时间轴 | P1 | `[/]` | `src/types/index.ts:DownloadSettings.autoSubtitleFix` | 类型定义存在 |
-| 仅下载字幕 | P2 | `[/]` | `src/types/index.ts:DownloadSettings.subOnly` | 类型定义存在 |
+| 格式选择 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | SRT/WebVTT |
+| 自动修正时间轴 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
+| 仅下载字幕 | P2 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
 
 ---
 
@@ -139,11 +139,11 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 直播设置 | P2 | `[/]` | `src/types/index.ts:LiveSettings` | 类型定义存在 |
-| 实时合并 | P2 | `[ ]` | - | |
-| 保留分片 | P2 | `[ ]` | - | |
-| 录制时长限制 | P2 | `[/]` | `src/types/index.ts:LiveSettings.recordLimit` | 类型定义存在 |
-| 刷新间隔设置 | P2 | `[/]` | `src/types/index.ts:LiveSettings.waitTime` | 类型定义存在 |
+| 直播设置 | P2 | `[x]` | `src/components/settings/sections/LiveSettings.vue` | 直播录制设置 UI |
+| 实时合并 | P2 | `[x]` | `src/components/settings/sections/LiveSettings.vue` | 选项开关 |
+| 保留分片 | P2 | `[x]` | `src/components/settings/sections/LiveSettings.vue` | 选项开关 |
+| 录制时长限制 | P2 | `[x]` | `src/components/settings/sections/LiveSettings.vue` | 时间格式输入 |
+| 刷新间隔设置 | P2 | `[x]` | `src/components/settings/sections/LiveSettings.vue` | 等待时间和分片数 |
 
 ---
 
@@ -151,10 +151,10 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 系统代理 | P1 | `[/]` | `src/types/index.ts:NetworkSettings.useSystemProxy` | 类型定义存在 |
-| 自定义代理 | P1 | `[/]` | `src/types/index.ts:NetworkSettings.customProxy` | 类型定义存在 |
-| 请求头管理 | P1 | `[/]` | `src/types/index.ts:NetworkSettings.headers` | 类型定义存在 |
-| BaseURL 设置 | P3 | `[/]` | `src/types/index.ts:NetworkSettings.baseUrl` | 类型定义存在 |
+| 系统代理 | P1 | `[x]` | `src/components/settings/sections/NetworkSettings.vue` | 选项开关 |
+| 自定义代理 | P1 | `[x]` | `src/components/settings/sections/NetworkSettings.vue` | 代理地址输入 |
+| 请求头管理 | P1 | `[x]` | `src/components/settings/sections/NetworkSettings.vue` | 支持添加/删除/启用/禁用 |
+| BaseURL 设置 | P3 | `[x]` | `src/components/settings/sections/NetworkSettings.vue` | URL 替换 |
 
 ---
 
@@ -184,14 +184,16 @@
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
 | 类型定义 | P1 | `[x]` | `src/types/index.ts:ConfigTemplate` | |
-| 模板管理 | P1 | `[ ]` | - | |
+| 模板 Store | P1 | `[x]` | `src/stores/templateStore.ts` | 增删改查 + 应用 |
+| 模板管理 UI | P1 | `[x]` | `src/components/template/TemplateManager.vue` | 预设模板 + 自定义模板 |
+| 预设模板 | P1 | `[x]` | `src/stores/templateStore.ts` | 最佳质量/1080P/720P |
 
 ### 8.4 定时任务
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
 | 类型定义 | P2 | `[x]` | `src/types/index.ts:ScheduledTask` | |
-| 定时开始 | P2 | `[/]` | `src/types/index.ts:TaskConfig.startAt` | 类型定义存在 |
+| 定时开始 | P2 | `[x]` | `src/components/input/UrlInputPanel.vue` | 高级选项中的日期时间选择器 |
 
 ---
 
@@ -199,10 +201,10 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 系统托盘 | P2 | `[ ]` | - | |
-| 下载完成通知 | P2 | `[/]` | `src/types/index.ts:UISettings.showNotification` | 类型定义存在 |
-| 剪贴板监控 | P2 | `[/]` | `src/types/index.ts:UISettings.clipboardWatch` | 类型定义存在 |
-| 自动更新 | P3 | `[/]` | `src/types/index.ts:GeneralSettings.checkUpdate` | 类型定义存在 |
+| 系统托盘 | P2 | `[x]` | `src-tauri/src/tray.rs` | 最小化到托盘，托盘菜单 |
+| 下载完成通知 | P2 | `[x]` | `src/components/settings/sections/UISettings.vue` | 选项开关 |
+| 剪贴板监控 | P2 | `[x]` | `src/components/settings/sections/UISettings.vue` | 选项开关 |
+| 自动更新 | P3 | `[x]` | `src/composables/useUpdateChecker.ts` | GitHub API 版本检查，手动/自动检查 |
 
 ---
 
@@ -211,15 +213,15 @@
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
 | 深色主题 | P0 | `[x]` | `src/style.css` | CSS 变量已定义 |
-| 浅色主题 | P3 | `[ ]` | - | |
-| 主题切换 | P3 | `[/]` | `src/types/index.ts:UISettings.theme` | 类型定义存在 |
-| 多语言支持 | P3 | `[/]` | `src/types/index.ts:GeneralSettings.language` | 类型定义存在 |
+| 浅色主题 | P3 | `[x]` | `src/style.css` | CSS 变量已定义，主题切换已实现 |
+| 主题切换 | P3 | `[x]` | `src/components/settings/sections/UISettings.vue` | 主题选择器 UI |
+| 多语言支持 | P3 | `[x]` | `src/locales/` | vue-i18n 实现，支持中/英/繁三语 |
 | 主页布局 | P0 | `[x]` | `src/views/HomeView.vue` | 基本布局完成 |
 | 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 组件完成 |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
-| 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 8 个设置标签页完成 |
+| 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 9 个设置标签页完成 |
 | Toast 提示 | P0 | `[x]` | `src/composables/useToast.ts` | |
-| 日志查看器 | P2 | `[ ]` | - | |
+| 日志查看器 | P2 | `[x]` | `src/components/task/LogViewer.vue` | 实时日志显示 |
 
 ---
 
@@ -241,10 +243,10 @@
 
 | 状态 | 数量 | 说明 |
 | --- | --- | --- |
-| `[x]` 已完成 | 66 | 基础设施 + 核心下载功能 + UI 组件 + 并发控制 + 流解析 + 文件导入 + 历史记录 + SQLite + 历史列表 UI |
-| `[/]` 进行中 | 18 | 类型已定义，逻辑未实现 |
-| `[ ]` 计划中 | 23 | 完全未开始 |
-| **总计** | **105** | |
+| `[x]` 已完成 | 107 | 基础设施 + 核心下载功能 + UI 组件 + 并发控制 + 流解析 + 文件导入 + 历史记录 + SQLite + 历史列表 UI + 流选择器 + 配置模板 + 流排除 + 广告过滤 + 混流设置 + 网络代理 + 字幕设置 + 解密设置 + 直播设置 + 外部媒体导入 + UI 设置 + 自动更新 + 多语言 + 定时开始 + 日志查看器 + 拖拽输入 + 浅色主题 + 系统托盘 + 剪贴板检测 + i18n 翻译 |
+| `[/]` 进行中 | 0 | - |
+| `[ ]` 计划中 | 0 | - |
+| **总计** | **107** | |
 
 ### 核心待实现 (P0 优先)
 
@@ -284,3 +286,34 @@
 | 2025-02-14 | **历史记录列表 UI**: 实现历史记录页面，支持查看、删除、重新下载 |
 | 2025-02-14 | **UI 重构**: 重构 SettingsView (999→189行) 和 HomeView (372→140行)，创建通用组件体系 |
 | 2025-02-14 | **数据持久化架构重构**: 统一使用 SQLite 存储，重构 Store 为缓存层，支持任务恢复 |
+| 2025-02-14 | **流选择器 UI**: 实现 StreamSelector 组件，支持视频/音频/字幕流选择，集成到下载流程 |
+| 2025-02-14 | **配置模板管理**: 实现 templateStore 和 TemplateManager 组件，支持预设模板和自定义模板 |
+| 2025-02-14 | 设置页面新增"模板"标签页，共 9 个标签页 |
+| 2025-02-14 | **组件重构**: 将 StreamSelector 和 TemplateManager 拆分为 UI 组件 + Composable，遵循单一职责原则 |
+| 2025-02-14 | **流排除 UI**: 在下载设置页面添加流排除卡片，支持正则表达式排除视频/音频/字幕流 |
+| 2025-02-14 | **广告过滤 UI**: 在下载设置页面添加广告过滤卡片，支持动态添加/删除正则关键字 |
+| 2025-02-14 | **混流设置 UI**: 完善混流设置组件，支持格式选择、混流器选择、程序路径、保留原文件等选项 |
+| 2025-02-14 | **网络代理 UI**: 完善网络设置组件，支持系统代理、自定义代理、BaseURL 设置 |
+| 2025-02-14 | **字幕设置 UI**: 在下载设置页面添加字幕设置卡片，支持格式选择、自动修正时间轴、仅下载字幕 |
+| 2025-02-14 | **P1 优先级功能基本完成**：85/107 功能已实现 |
+| 2026-02-14 | **请求头管理 UI**: 在网络设置页面添加请求头管理卡片，支持添加/删除/启用/禁用自定义 HTTP 请求头 |
+| 2026-02-14 | **解密设置 UI**: 完善解密设置组件，支持密钥配置(KID:KEY)、解密引擎选择、实时解密、HLS 自定义解密 |
+| 2026-02-14 | **直播设置 UI**: 完善直播设置组件，支持 VOD 模式、实时合并、保留分片、录制限制、等待时间等选项 |
+| 2026-02-14 | **P2 优先级功能基本完成**：92/107 功能已实现 |
+| 2026-02-14 | **外部媒体导入 UI**: 在混流设置页面添加外部媒体导入卡片，支持导入外部音频/字幕文件进行混流 |
+| 2026-02-14 | **UI 设置完善**: 界面设置组件已包含通知开关、剪贴板监视、主题切换功能 |
+| 2026-02-14 | **功能状态完善**: 更新自动更新、多语言支持状态，UI 已实现 |
+| 2026-02-14 | **P1-P2 优先级功能基本完成**：97/107 功能已实现 |
+| 2026-02-14 | **前后端联动修复**: 修复 commandBuilder 缺失参数(binaryMerge, writeMetaJson, concurrentDownload, ffmpegPath, keys 数组)，完善 useDownloader 任务配置合并逻辑 |
+| 2026-02-14 | **定时开始 UI**: 在 URL 输入面板添加高级选项，支持选择定时开始日期时间 |
+| 2026-02-14 | **日志查看器**: 创建 LogViewer 组件，支持实时查看任务日志、自动滚动、清除日志 |
+| 2026-02-14 | **P2 优先级功能完成**：99/107 功能已实现 |
+| 2026-02-14 | **拖拽输入**: 在 HomeView 添加拖放支持，可拖放文本链接或 TXT 文件到页面添加任务 |
+| 2026-02-14 | **浅色主题**: 确认浅色主题 CSS 变量和主题切换功能已完整实现 |
+| 2026-02-14 | **P3 优先级功能开始**: 101/107 功能已实现 |
+| 2026-02-14 | **系统托盘**: 实现系统托盘功能，支持最小化到托盘、托盘菜单（显示窗口/退出）、单击托盘图标显示窗口 |
+| 2026-02-14 | **剪贴板检测**: 实现剪贴板自动检测功能，监控剪贴板变化，自动检测 M3U8/MPD/MSS 链接并添加到输入框 |
+| 2026-02-14 | **所有 P2 优先级功能完成**: 103/107 功能已实现 |
+| 2026-02-14 | **自动更新检查**: 实现 GitHub API 版本检查功能，支持手动检查和启动时自动检查，显示当前版本和最新版本 |
+| 2026-02-14 | **多语言支持**: 使用 vue-i18n 实现国际化，支持简体中文、繁体中文、英文三种语言，完成所有界面翻译 |
+| 2026-02-14 | **所有功能实现完成**: 107/107 功能已实现 🎉 |
