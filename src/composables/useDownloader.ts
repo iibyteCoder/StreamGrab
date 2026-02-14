@@ -5,7 +5,7 @@
  */
 
 import { ref, onUnmounted } from 'vue';
-import { useTaskStore, useSettingsStore, useHistoryStore } from '@/stores';
+import { useTaskStore, useSettingsStore } from '@/stores';
 import { downloadService, type DownloadEvent, type UnlistenFn } from '@/services';
 import { useToast } from './useToast';
 import type { DownloadTask, TaskConfig, StreamInfo } from '@/types';
@@ -16,7 +16,6 @@ import type { DownloadTask, TaskConfig, StreamInfo } from '@/types';
 export function useDownloader() {
   const taskStore = useTaskStore();
   const settingsStore = useSettingsStore();
-  const historyStore = useHistoryStore();
   const toast = useToast();
 
   // 正在启动的任务
@@ -290,18 +289,11 @@ export function useDownloader() {
       }
 
       case 'complete': {
-        // 下载完成
+        // 下载完成 - 任务状态变为 completed 后会自动出现在历史记录中
         taskStore.updateTaskStatus(taskId, 'completed');
         const completeData = data as { outputPath: string };
         taskStore.updateTaskOutput(taskId, completeData.outputPath);
         toast.success('下载完成!');
-
-        // 保存历史记录
-        const task = taskStore.getTask(taskId);
-        if (task) {
-          const record = historyStore.createRecordFromTask(task);
-          historyStore.addRecord(record);
-        }
 
         unsubscribeTask(taskId);
         // 任务完成后尝试启动下一个等待中的任务

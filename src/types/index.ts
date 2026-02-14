@@ -336,6 +336,7 @@ export interface HistoryRecord {
   file_size: number;
   duration: number;
   completed_at: string;
+  task_id?: string;
 }
 
 // ============================================

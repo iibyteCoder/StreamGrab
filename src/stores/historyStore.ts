@@ -1,40 +1,55 @@
 /**
  * 历史记录状态管理
+ *
+ * 注意：历史记录就是已完成的任务（completed 状态）
+ * 数据来源于 taskStore，不需要单独的 history 表
  */
 
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { invokeTauri } from '@/services/tauri';
-import type { HistoryRecord } from '@/types';
+import { computed } from 'vue';
+import { useTaskStore } from './taskStore';
+import type { HistoryRecord, DownloadTask } from '@/types';
+
+/**
+ * 将 DownloadTask 转换为 HistoryRecord 格式
+ */
+function taskToHistoryRecord(task: DownloadTask): HistoryRecord {
+  return {
+    id: task.id,
+    url: task.url,
+    file_name: task.fileName,
+    save_path: task.outputPath || '',
+    file_size: task.progress.totalSize || 0,
+    duration: 0,
+    completed_at: task.completedAt?.toISOString() || new Date().toISOString(),
+    task_id: task.id,
+  };
+}
 
 export const useHistoryStore = defineStore('history', () => {
-  // State
-  const records = ref<HistoryRecord[]>([]);
-  const isLoading = ref(false);
-  const isInitialized = ref(false);
+  // 引用 taskStore
+  const taskStore = useTaskStore();
 
-  // Getters
+  // Getters - 直接从 taskStore 获取已完成的任务
+  const records = computed<HistoryRecord[]>(() => {
+    return taskStore.completedTasks
+      .map(taskToHistoryRecord)
+      .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
+  });
+
+  const isLoading = computed(() => taskStore.isLoading);
+  const isInitialized = computed(() => taskStore.isInitialized);
   const hasRecords = computed(() => records.value.length > 0);
   const recentRecords = computed(() => records.value.slice(0, 10));
 
   // Actions
 
   /**
-   * 初始化 - 从后端加载历史记录
+   * 初始化 - 确保 taskStore 已初始化
    */
   async function initialize(): Promise<void> {
-    if (isInitialized.value) return;
-
-    isLoading.value = true;
-    try {
-      const data = await invokeTauri<HistoryRecord[]>('load_history');
-      records.value = data;
-      isInitialized.value = true;
-    } catch (error) {
-      console.error('Failed to load history:', error);
-      records.value = [];
-    } finally {
-      isLoading.value = false;
+    if (!taskStore.isInitialized) {
+      await taskStore.initialize();
     }
   }
 
@@ -46,69 +61,21 @@ export const useHistoryStore = defineStore('history', () => {
   }
 
   /**
-   * 添加历史记录
-   */
-  async function addRecord(record: HistoryRecord): Promise<void> {
-    try {
-      await invokeTauri('add_history_record', { record });
-      // 添加到本地列表开头
-      records.value.unshift(record);
-      // 限制显示数量
-      if (records.value.length > 100) {
-        records.value.pop();
-      }
-    } catch (error) {
-      console.error('Failed to add history record:', error);
-    }
-  }
-
-  /**
-   * 清除所有历史记录
-   */
-  async function clearHistory(): Promise<void> {
-    try {
-      await invokeTauri('clear_history');
-      records.value = [];
-    } catch (error) {
-      console.error('Failed to clear history:', error);
-    }
-  }
-
-  /**
-   * 删除单条历史记录
+   * 删除历史记录（实际上是删除已完成的任务）
    */
   async function deleteRecord(id: string): Promise<void> {
-    try {
-      await invokeTauri('delete_history_record', { id });
-      records.value = records.value.filter(r => r.id !== id);
-    } catch (error) {
-      console.error('Failed to delete history record:', error);
-    }
+    await taskStore.removeTask(id);
   }
 
   /**
-   * 从任务创建历史记录
+   * 清除所有历史记录（实际上是清除所有已完成的任务）
    */
-  function createRecordFromTask(task: {
-    id: string;
-    url: string;
-    fileName: string;
-    outputPath?: string;
-    progress: { totalSize: number };
-  }): HistoryRecord {
-    return {
-      id: task.id,
-      url: task.url,
-      file_name: task.fileName,
-      save_path: task.outputPath || '',
-      file_size: task.progress.totalSize,
-      duration: 0,
-      completed_at: new Date().toISOString(),
-    };
+  async function clearHistory(): Promise<void> {
+    await taskStore.clearCompleted();
   }
 
   return {
-    // State
+    // State（计算属性，来源于 taskStore）
     records,
     isLoading,
     isInitialized,
@@ -120,9 +87,7 @@ export const useHistoryStore = defineStore('history', () => {
     // Actions
     initialize,
     loadHistory,
-    addRecord,
-    clearHistory,
     deleteRecord,
-    createRecordFromTask,
+    clearHistory,
   };
 });
