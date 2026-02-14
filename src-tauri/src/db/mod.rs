@@ -6,13 +6,11 @@ mod schema;
 mod settings;
 mod keys;
 mod task;
-mod history;
 
 pub use schema::*;
 pub use settings::*;
 pub use keys::*;
 pub use task::*;
-pub use history::*;
 
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -25,7 +23,6 @@ pub struct Database {
     pub settings: SettingsDb,
     pub keys: KeysDb,
     pub tasks: TaskDb,
-    pub history: HistoryDb,
 }
 
 impl Database {
@@ -51,8 +48,7 @@ impl Database {
         // 初始化表结构
         initialize_database(&conn)?;
 
-        // 创建各模块管理器（使用同一个连接）
-        // 注意：这里需要为每个模块创建独立的连接，因为 Mutex 不能跨线程共享
+        // 创建各模块管理器
         let settings = SettingsDb::new(
             Connection::open(&db_path)
                 .map_err(|e| format!("Failed to open settings connection: {}", e))?
@@ -68,18 +64,12 @@ impl Database {
                 .map_err(|e| format!("Failed to open tasks connection: {}", e))?
         )?;
 
-        let history = HistoryDb::new(
-            Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open history connection: {}", e))?
-        )?;
-
         log::info!("Database initialized successfully");
 
         Ok(Arc::new(Self {
             settings,
             keys,
             tasks,
-            history,
         }))
     }
 }

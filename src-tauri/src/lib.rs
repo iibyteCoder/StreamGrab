@@ -85,11 +85,6 @@ pub fn run() {
             delete_file_or_folder,
             select_directory,
             select_file,
-            // 历史记录命令
-            load_history,
-            add_history_record,
-            clear_history,
-            delete_history_record,
             // 任务命令
             load_all_tasks,
             load_recoverable_tasks,

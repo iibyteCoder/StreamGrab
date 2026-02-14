@@ -76,29 +76,6 @@ fn create_tables(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Failed to create tasks created_at index: {}", e))?;
 
-    // 历史记录表
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS history (
-            id TEXT PRIMARY KEY,
-            url TEXT NOT NULL,
-            file_name TEXT NOT NULL,
-            save_path TEXT NOT NULL,
-            file_size INTEGER NOT NULL,
-            duration REAL NOT NULL,
-            completed_at TEXT NOT NULL,
-            task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL
-        )",
-        [],
-    )
-    .map_err(|e| format!("Failed to create history table: {}", e))?;
-
-    // 历史记录索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_history_completed_at ON history(completed_at DESC)",
-        [],
-    )
-    .map_err(|e| format!("Failed to create history completed_at index: {}", e))?;
-
     // 配置模板表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS config_templates (

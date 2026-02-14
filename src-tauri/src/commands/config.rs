@@ -10,7 +10,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{Database, HistoryRecord};
+use crate::db::Database;
 
 // ============================================
 // 配置相关命令（使用 SQLite）
@@ -256,50 +256,4 @@ pub async fn select_file(
 pub struct FileFilter {
     pub name: String,
     pub extensions: Vec<String>,
-}
-
-// ============================================
-// 历史记录相关命令（使用 SQLite）
-// ============================================
-
-/// 加载历史记录
-#[tauri::command]
-pub async fn load_history(app: AppHandle) -> Result<Vec<HistoryRecord>, String> {
-    log::info!("Loading history records");
-
-    let db = get_db(&app)?;
-    db.history.load_all()
-}
-
-/// 添加历史记录
-#[tauri::command]
-pub async fn add_history_record(
-    record: HistoryRecord,
-    app: AppHandle,
-) -> Result<(), String> {
-    log::info!("Adding history record: {}", record.id);
-
-    let db = get_db(&app)?;
-    db.history.add(&record)
-}
-
-/// 清除历史记录
-#[tauri::command]
-pub async fn clear_history(app: AppHandle) -> Result<(), String> {
-    log::info!("Clearing history records");
-
-    let db = get_db(&app)?;
-    db.history.clear()
-}
-
-/// 删除单条历史记录
-#[tauri::command]
-pub async fn delete_history_record(
-    id: String,
-    app: AppHandle,
-) -> Result<(), String> {
-    log::info!("Deleting history record: {}", id);
-
-    let db = get_db(&app)?;
-    db.history.delete(&id)
 }

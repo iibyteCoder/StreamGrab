@@ -174,40 +174,6 @@ export async function checkFfmpegAvailable(): Promise<boolean> {
 }
 
 // ============================================
-// 历史记录命令
-// ============================================
-
-export interface HistoryRecord {
-  id: string;
-  url: string;
-  fileName: string;
-  savePath: string;
-  fileSize: number;
-  completedAt: string;
-}
-
-/**
- * 加载历史记录
- */
-export async function loadHistory(): Promise<HistoryRecord[]> {
-  return tauriInvoke('load_history');
-}
-
-/**
- * 保存历史记录
- */
-export async function saveHistory(records: HistoryRecord[]): Promise<void> {
-  return tauriInvoke('save_history', { records });
-}
-
-/**
- * 清除历史记录
- */
-export async function clearHistory(): Promise<void> {
-  return tauriInvoke('clear_history');
-}
-
-// ============================================
 // 导出
 // ============================================
 
@@ -231,10 +197,6 @@ export const tauriApi = {
   fileExists,
   getN_m3u8dlVersion,
   checkFfmpegAvailable,
-  // 历史记录
-  loadHistory,
-  saveHistory,
-  clearHistory,
 };
 
 // 别名导出，方便其他模块使用
