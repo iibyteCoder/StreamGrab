@@ -6,6 +6,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
 
 use serde::{Deserialize, Serialize};
 
@@ -169,21 +170,85 @@ pub async fn file_exists(path: String) -> Result<bool, String> {
     Ok(PathBuf::from(&path).exists())
 }
 
+/// 删除文件或文件夹
+/// 如果是文件夹，会递归删除所有内容
+#[tauri::command]
+pub async fn delete_file_or_folder(path: String) -> Result<(), String> {
+    log::info!("Deleting: {}", path);
+
+    let path = PathBuf::from(&path);
+
+    if !path.exists() {
+        return Err("文件或文件夹不存在".to_string());
+    }
+
+    if path.is_file() {
+        fs::remove_file(&path)
+            .map_err(|e| format!("删除文件失败: {}", e))?;
+    } else if path.is_dir() {
+        fs::remove_dir_all(&path)
+            .map_err(|e| format!("删除文件夹失败: {}", e))?;
+    }
+
+    log::info!("Successfully deleted: {:?}", path);
+    Ok(())
+}
+
 /// 选择目录
 #[tauri::command]
-pub async fn select_directory(_app: AppHandle) -> Result<Option<String>, String> {
-    // TODO: 使用 tauri-plugin-dialog 实现
-    Ok(None)
+pub async fn select_directory(app: AppHandle) -> Result<Option<String>, String> {
+    log::info!("Opening directory picker");
+
+    let folder_path = app.dialog()
+        .file()
+        .blocking_pick_folder();
+
+    match folder_path {
+        Some(path) => {
+            let path_str = path.to_string();
+            log::info!("Selected directory: {}", path_str);
+            Ok(Some(path_str))
+        }
+        None => {
+            log::info!("Directory selection cancelled");
+            Ok(None)
+        }
+    }
 }
 
 /// 选择文件
 #[tauri::command]
 pub async fn select_file(
-    _app: AppHandle,
-    _filters: Option<Vec<FileFilter>>,
+    app: AppHandle,
+    filters: Option<Vec<FileFilter>>,
 ) -> Result<Option<String>, String> {
-    // TODO: 使用 tauri-plugin-dialog 实现
-    Ok(None)
+    log::info!("Opening file picker with filters: {:?}", filters);
+
+    let mut dialog = app.dialog().file();
+
+    // 添加文件过滤器
+    if let Some(filter_list) = filters {
+        for filter in filter_list {
+            dialog = dialog.add_filter(
+                filter.name,
+                &filter.extensions.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+            );
+        }
+    }
+
+    let file_path = dialog.blocking_pick_file();
+
+    match file_path {
+        Some(path) => {
+            let path_str = path.to_string();
+            log::info!("Selected file: {}", path_str);
+            Ok(Some(path_str))
+        }
+        None => {
+            log::info!("File selection cancelled");
+            Ok(None)
+        }
+    }
 }
 
 /// 文件过滤器

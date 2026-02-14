@@ -31,7 +31,7 @@ pub struct Database {
 impl Database {
     /// 初始化数据库
     ///
-    /// 创建数据库文件、表结构，执行数据迁移
+    /// 创建数据库文件、表结构
     pub fn initialize(app_config_dir: &PathBuf) -> Result<Arc<Self>, String> {
         // 确保配置目录存在
         std::fs::create_dir_all(app_config_dir)
@@ -48,8 +48,8 @@ impl Database {
         conn.execute_batch("PRAGMA foreign_keys = ON;")
             .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
 
-        // 初始化表结构和迁移
-        initialize_database(&conn, app_config_dir)?;
+        // 初始化表结构
+        initialize_database(&conn)?;
 
         // 创建各模块管理器（使用同一个连接）
         // 注意：这里需要为每个模块创建独立的连接，因为 Mutex 不能跨线程共享

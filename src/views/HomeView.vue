@@ -365,7 +365,7 @@ const handleStartAll = async () => {
     <!-- 任务列表区域 -->
     <div class="flex-1 min-h-0 overflow-y-auto">
       <div class="p-4">
-        <TaskList />
+        <TaskList hide-completed />
       </div>
     </div>
 

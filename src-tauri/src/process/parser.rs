@@ -24,6 +24,12 @@ pub struct OutputParser {
     error_regex: Regex,
     /// 完成正则
     complete_regex: Regex,
+    /// 文件大小正则: 匹配 "1.25 GiB" 或 "500 MiB" 等
+    size_regex: Regex,
+    /// 分片进度正则: 匹配 "100/200" 或 "50 of 100"
+    segments_regex: Regex,
+    /// ETA 正则: 匹配剩余时间
+    eta_regex: Regex,
 }
 
 impl OutputParser {
@@ -38,7 +44,16 @@ impl OutputParser {
             // 匹配错误
             error_regex: Regex::new(r"(?i)(error|failed|exception|错误)").unwrap(),
             // 匹配完成
-            complete_regex: Regex::new(r"(?i)(download\s+complete|下载完成|done)")
+            complete_regex: Regex::new(r"(?i)(download\s+complete|下载完成|done|merged)")
+                .unwrap(),
+            // 匹配文件大小: 1.25 GiB, 500 MiB 等
+            size_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*(GiB|GB|MiB|MB|KiB|KB|B)")
+                .unwrap(),
+            // 匹配分片进度: 100/200 或 50 of 100
+            segments_regex: Regex::new(r"(\d+)\s*(?:/|of)\s*(\d+)")
+                .unwrap(),
+            // 匹配 ETA: 剩余时间
+            eta_regex: Regex::new(r"(?i)(?:ETA|剩余)[:\s]*(\d+):(\d+):(\d+)|(\d+):(\d+)|(\d+)\s*s(?:ec)?")
                 .unwrap(),
         }
     }
@@ -114,8 +129,17 @@ impl OutputParser {
         // 解析速度值（转换为字节/秒）
         let speed = speed_str
             .as_ref()
-            .map(|s| self.parse_speed_to_bytes(s))
+            .map(|s| self.parse_size_to_bytes(s))
             .unwrap_or(0);
+
+        // 尝试提取文件大小
+        let (downloaded_size, total_size) = self.parse_sizes(line);
+
+        // 尝试提取分片进度
+        let (downloaded_segments, total_segments) = self.parse_segments(line);
+
+        // 尝试提取 ETA
+        let eta = self.parse_eta(line);
 
         Some(ParsedEvent {
             event_type: "progress".to_string(),
@@ -123,11 +147,93 @@ impl OutputParser {
                 "percent": percent,
                 "speed": speed,
                 "speedStr": speed_str,
-                "downloadedSize": 0,  // 需要更复杂的解析
-                "totalSize": 0,       // 需要更复杂的解析
-                "eta": 0              // 需要更复杂的解析
+                "downloadedSize": downloaded_size,
+                "totalSize": total_size,
+                "downloadedSegments": downloaded_segments,
+                "totalSegments": total_segments,
+                "eta": eta
             }),
         })
+    }
+
+    /// 解析文件大小信息
+    /// 返回 (已下载大小, 总大小)
+    fn parse_sizes(&self, line: &str) -> (u64, u64) {
+        // 尝试匹配 "X / Y GiB" 或 "X/Y MiB" 格式
+        let size_pairs: Vec<_> = self.size_regex.captures_iter(line).collect();
+
+        if size_pairs.len() >= 2 {
+            // 如果有两个大小值，第一个是已下载，第二个是总大小
+            let downloaded = self.size_captures_to_bytes(&size_pairs[0]);
+            let total = self.size_captures_to_bytes(&size_pairs[1]);
+            return (downloaded, total);
+        } else if size_pairs.len() == 1 {
+            // 只有一个大小值，根据进度百分比估算总大小
+            let downloaded = self.size_captures_to_bytes(&size_pairs[0]);
+            // 尝试从进度百分比提取
+            if let Some(percent_caps) = self.progress_regex.captures(line) {
+                if let Ok(percent) = percent_caps[1].parse::<f64>() {
+                    if percent > 0.0 {
+                        let total = (downloaded as f64 / percent * 100.0) as u64;
+                        return (downloaded, total);
+                    }
+                }
+            }
+            return (downloaded, 0);
+        }
+
+        (0, 0)
+    }
+
+    /// 将正则捕获组转换为字节数
+    fn size_captures_to_bytes(&self, caps: &regex::Captures) -> u64 {
+        let num: f64 = caps[1].parse().unwrap_or(0.0);
+        let unit = &caps[2];
+
+        match unit.to_lowercase().as_str() {
+            "gib" | "gb" => (num * 1024.0 * 1024.0 * 1024.0) as u64,
+            "mib" | "mb" => (num * 1024.0 * 1024.0) as u64,
+            "kib" | "kb" => (num * 1024.0) as u64,
+            _ => num as u64,
+        }
+    }
+
+    /// 解析分片进度
+    /// 返回 (已下载分片, 总分片)
+    fn parse_segments(&self, line: &str) -> (u32, u32) {
+        if let Some(caps) = self.segments_regex.captures(line) {
+            if let (Ok(downloaded), Ok(total)) = (caps[1].parse::<u32>(), caps[2].parse::<u32>()) {
+                return (downloaded, total);
+            }
+        }
+        (0, 0)
+    }
+
+    /// 解析 ETA（剩余时间）
+    /// 返回秒数
+    fn parse_eta(&self, line: &str) -> u32 {
+        if let Some(caps) = self.eta_regex.captures(line) {
+            // 尝试匹配 HH:MM:SS 格式
+            if let (Some(h), Some(m), Some(s)) = (
+                caps.get(1).and_then(|m| m.as_str().parse::<u32>().ok()),
+                caps.get(2).and_then(|m| m.as_str().parse::<u32>().ok()),
+                caps.get(3).and_then(|m| m.as_str().parse::<u32>().ok()),
+            ) {
+                return h * 3600 + m * 60 + s;
+            }
+            // 尝试匹配 MM:SS 格式
+            if let (Some(m), Some(s)) = (
+                caps.get(4).and_then(|m| m.as_str().parse::<u32>().ok()),
+                caps.get(5).and_then(|m| m.as_str().parse::<u32>().ok()),
+            ) {
+                return m * 60 + s;
+            }
+            // 尝试匹配秒数格式
+            if let Some(s) = caps.get(6).and_then(|m| m.as_str().parse::<u32>().ok()) {
+                return s;
+            }
+        }
+        0
     }
 
     /// 解析日志级别
@@ -155,13 +261,13 @@ impl OutputParser {
         })
     }
 
-    /// 将速度字符串转换为字节/秒
-    fn parse_speed_to_bytes(&self, speed_str: &str) -> u64 {
-        let lower = speed_str.to_lowercase();
+    /// 将大小字符串转换为字节（保留公开方法供速度解析使用）
+    fn parse_size_to_bytes(&self, size_str: &str) -> u64 {
+        let lower = size_str.to_lowercase();
 
         // 提取数字部分
         let num: f64 = self.progress_regex
-            .captures(speed_str)
+            .captures(size_str)
             .and_then(|caps| caps[1].parse().ok())
             .unwrap_or(0.0);
 
@@ -228,5 +334,18 @@ mod tests {
 
         let data = event.data.as_object().unwrap();
         assert_eq!(data["status"], "completed");
+    }
+
+    #[test]
+    fn test_parse_segments() {
+        let parser = OutputParser::new();
+
+        let result = parser.parse("Progress: 50/100 segments, 50.0%");
+        assert!(result.is_some());
+
+        let event = result.unwrap();
+        let data = event.data.as_object().unwrap();
+        assert_eq!(data["downloadedSegments"], 50);
+        assert_eq!(data["totalSegments"], 100);
     }
 }

@@ -289,11 +289,11 @@ pub async fn parse_url(
         if let Ok(entries) = std::fs::read_dir(&temp_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map(|e| e == "json").unwrap_or(false) {
-                    if path.file_name().map(|n| n.to_string_lossy().contains(&parse_id)).unwrap_or(false) {
-                        found = Some(path);
-                        break;
-                    }
+                if path.extension().map(|e| e == "json").unwrap_or(false)
+                    && path.file_name().map(|n| n.to_string_lossy().contains(&parse_id)).unwrap_or(false)
+                {
+                    found = Some(path);
+                    break;
                 }
             }
         }

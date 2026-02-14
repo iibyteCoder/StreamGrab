@@ -188,6 +188,47 @@ class ConfigService {
   async getDbPath(): Promise<string> {
     return await invokeTauri<string>('get_db_path');
   }
+
+  /**
+   * 在文件管理器中打开路径
+   * @param path 文件或文件夹路径
+   */
+  async openInExplorer(path: string): Promise<void> {
+    await invokeTauri('open_in_explorer', { path });
+  }
+
+  /**
+   * 检查文件是否存在
+   * @param path 文件路径
+   */
+  async fileExists(path: string): Promise<boolean> {
+    return await invokeTauri<boolean>('file_exists', { path });
+  }
+
+  /**
+   * 删除文件或文件夹
+   * @param path 文件或文件夹路径
+   */
+  async deleteFileOrFolder(path: string): Promise<void> {
+    await invokeTauri('delete_file_or_folder', { path });
+  }
+
+  /**
+   * 选择目录
+   * @returns 选中的目录路径，取消返回 null
+   */
+  async selectDirectory(): Promise<string | null> {
+    return await invokeTauri<string | null>('select_directory');
+  }
+
+  /**
+   * 选择文件
+   * @param filters 文件过滤器
+   * @returns 选中的文件路径，取消返回 null
+   */
+  async selectFile(filters?: Array<{ name: string; extensions: string[] }>): Promise<string | null> {
+    return await invokeTauri<string | null>('select_file', { filters });
+  }
 }
 
 // 导出单例

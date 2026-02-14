@@ -16,12 +16,15 @@ interface Props {
   sort?: SortOrder;
   search?: string;
   emptyText?: string;
+  /** 隐藏已完成的任务（用于首页，完成任务只在历史中显示） */
+  hideCompleted?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   filter: 'all',
   sort: 'newest',
   emptyText: '暂无下载任务',
+  hideCompleted: false,
 });
 
 const emit = defineEmits<{
@@ -43,6 +46,11 @@ const filteredTasks = computed(() => {
         task.url.toLowerCase().includes(query) ||
         task.fileName?.toLowerCase().includes(query)
     );
+  }
+
+  // 隐藏已完成的任务（首页）
+  if (props.hideCompleted) {
+    result = result.filter((task) => task.status !== 'completed');
   }
 
   // 状态过滤

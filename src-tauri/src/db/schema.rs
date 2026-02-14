@@ -1,30 +1,17 @@
-//! 数据库 Schema 定义和迁移
+//! 数据库 Schema 定义
 //!
 //! 统一使用 SQLite 存储所有应用数据
 
 use rusqlite::Connection;
-use std::path::PathBuf;
-use std::fs;
 
 /// 数据库文件名
 pub const DB_FILE_NAME: &str = "streamgrab.db";
 
-/// 旧数据库文件名（用于迁移）
-pub const OLD_DB_FILE_NAME: &str = "history.db";
-
-/// 旧配置文件名（用于迁移）
-pub const OLD_CONFIG_FILE_NAME: &str = "settings.json";
-
 /// 初始化数据库
 ///
-/// 创建所有表，执行数据迁移
-pub fn initialize_database(conn: &Connection, app_config_dir: &PathBuf) -> Result<(), String> {
-    // 创建所有表
+/// 创建所有表
+pub fn initialize_database(conn: &Connection) -> Result<(), String> {
     create_tables(conn)?;
-
-    // 执行数据迁移
-    migrate_from_legacy(conn, app_config_dir)?;
-
     Ok(())
 }
 
@@ -151,122 +138,6 @@ fn create_tables(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-/// 从旧版本迁移数据
-fn migrate_from_legacy(conn: &Connection, app_config_dir: &PathBuf) -> Result<(), String> {
-    let old_db_path = app_config_dir.join(OLD_DB_FILE_NAME);
-    let old_config_path = app_config_dir.join(OLD_CONFIG_FILE_NAME);
-    let new_db_path = app_config_dir.join(DB_FILE_NAME);
-
-    // 迁移旧的历史数据库
-    if old_db_path.exists() && old_db_path != new_db_path {
-        migrate_history_db(conn, &old_db_path)?;
-    }
-
-    // 迁移旧的 JSON 配置
-    if old_config_path.exists() {
-        migrate_settings_json(conn, &old_config_path)?;
-    }
-
-    Ok(())
-}
-
-/// 迁移旧的 history.db 数据
-fn migrate_history_db(conn: &Connection, old_db_path: &PathBuf) -> Result<(), String> {
-    log::info!("Migrating history from {:?}", old_db_path);
-
-    let old_conn = Connection::open(old_db_path)
-        .map_err(|e| format!("Failed to open old history database: {}", e))?;
-
-    // 读取旧数据
-    let mut stmt = old_conn
-        .prepare(
-            "SELECT id, url, file_name, save_path, file_size, duration, completed_at FROM history",
-        )
-        .map_err(|e| format!("Failed to prepare statement: {}", e))?;
-
-    let records = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, i64>(4)?,
-                row.get::<_, f64>(5)?,
-                row.get::<_, String>(6)?,
-            ))
-        })
-        .map_err(|e| format!("Failed to query old history: {}", e))?;
-
-    let mut count = 0;
-    for record in records {
-        let (id, url, file_name, save_path, file_size, duration, completed_at) =
-            record.map_err(|e| format!("Failed to read record: {}", e))?;
-
-        // 插入到新数据库（忽略重复）
-        let result = conn.execute(
-            "INSERT OR IGNORE INTO history (id, url, file_name, save_path, file_size, duration, completed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            rusqlite::params![id, url, file_name, save_path, file_size, duration, completed_at],
-        );
-
-        if let Ok(_) = result {
-            count += 1;
-        }
-    }
-
-    log::info!("Migrated {} history records", count);
-
-    // 重命名旧文件为备份
-    let backup_path = old_db_path.with_extension("db.bak");
-    if let Err(e) = fs::rename(old_db_path, &backup_path) {
-        log::warn!("Failed to rename old history.db: {}", e);
-    } else {
-        log::info!("Renamed old history.db to {:?}", backup_path);
-    }
-
-    Ok(())
-}
-
-/// 迁移旧的 settings.json 配置
-fn migrate_settings_json(conn: &Connection, old_config_path: &PathBuf) -> Result<(), String> {
-    log::info!("Migrating settings from {:?}", old_config_path);
-
-    let content = fs::read_to_string(old_config_path)
-        .map_err(|e| format!("Failed to read settings.json: {}", e))?;
-
-    let settings: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse settings.json: {}", e))?;
-
-    // 遍历所有配置模块并插入
-    if let serde_json::Value::Object(map) = settings {
-        let mut count = 0;
-        for (key, value) in map {
-            let value_str = serde_json::to_string(&value).unwrap_or_else(|_| "{}".to_string());
-
-            let result = conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-                rusqlite::params![key, value_str],
-            );
-
-            if let Ok(_) = result {
-                count += 1;
-            }
-        }
-        log::info!("Migrated {} settings sections", count);
-    }
-
-    // 重命名旧文件为备份
-    let backup_path = old_config_path.with_extension("json.bak");
-    if let Err(e) = fs::rename(old_config_path, &backup_path) {
-        log::warn!("Failed to rename old settings.json: {}", e);
-    } else {
-        log::info!("Renamed old settings.json to {:?}", backup_path);
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,7 +149,7 @@ mod tests {
         let db_path = dir.path().join("test.db");
         let conn = Connection::open(&db_path).unwrap();
 
-        let result = initialize_database(&conn, &dir.path().to_path_buf());
+        let result = initialize_database(&conn);
         assert!(result.is_ok());
     }
 }

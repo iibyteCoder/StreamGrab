@@ -82,6 +82,7 @@ pub fn run() {
             get_db_path,
             open_in_explorer,
             file_exists,
+            delete_file_or_folder,
             select_directory,
             select_file,
             // 历史记录命令
