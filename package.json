@@ -12,7 +12,13 @@
     "tauri:build": "tauri build",
     "type-check": "vue-tsc -b",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "lint:check": "eslint .",
+    "format": "prettier --write src/",
+    "rust:fmt": "cd src-tauri && cargo fmt",
+    "rust:fmt:check": "cd src-tauri && cargo fmt --check",
+    "rust:clippy": "cd src-tauri && cargo clippy -- -D warnings",
+    "ci:check": "npm run type-check && npm run lint:check && npm run rust:fmt:check && npm run rust:clippy",
+    "prepare": "simple-git-hooks"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
@@ -50,6 +56,22 @@
     "tailwindcss": "^3.4.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
-    "vue-tsc": "^3.1.5"
+    "vue-tsc": "^3.1.5",
+    "lint-staged": "^15.2.10",
+    "simple-git-hooks": "^2.11.1"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue}": [
+      "eslint --fix"
+    ],
+    "*.{ts,vue}": [
+      "bash -c 'npm run type-check'"
+    ],
+    "src-tauri/**/*.rs": [
+      "bash -c 'cd src-tauri && cargo fmt --check && cargo clippy -- -D warnings'"
+    ]
   }
 }
