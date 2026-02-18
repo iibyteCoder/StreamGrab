@@ -9,7 +9,7 @@ mod tray;
 
 use tauri::Manager;
 
-use commands::{config::*, download::*, task::*, keys::*};
+use commands::{config::*, download::*, keys::*, task::*};
 use db::Database;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -36,8 +36,8 @@ pub fn run() {
                 .expect("Failed to get config directory");
 
             // 初始化统一数据库
-            let database = Database::initialize(&config_dir)
-                .expect("Failed to initialize database");
+            let database =
+                Database::initialize(&config_dir).expect("Failed to initialize database");
             app.manage(database);
 
             // 创建系统托盘

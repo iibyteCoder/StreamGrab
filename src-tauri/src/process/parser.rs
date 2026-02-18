@@ -39,22 +39,20 @@ impl OutputParser {
             // 匹配进度: 45.2%
             progress_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*%").unwrap(),
             // 匹配速度: 12.5 MiB/s 或 12.5MB/s
-            speed_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*(MiB|MB|GiB|GB|KiB|KB)/s")
-                .unwrap(),
+            speed_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*(MiB|MB|GiB|GB|KiB|KB)/s").unwrap(),
             // 匹配错误
             error_regex: Regex::new(r"(?i)(error|failed|exception|错误)").unwrap(),
             // 匹配完成
-            complete_regex: Regex::new(r"(?i)(download\s+complete|下载完成|done|merged)")
-                .unwrap(),
+            complete_regex: Regex::new(r"(?i)(download\s+complete|下载完成|done|merged)").unwrap(),
             // 匹配文件大小: 1.25 GiB, 500 MiB 等
-            size_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*(GiB|GB|MiB|MB|KiB|KB|B)")
-                .unwrap(),
+            size_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*(GiB|GB|MiB|MB|KiB|KB|B)").unwrap(),
             // 匹配分片进度: 100/200 或 50 of 100
-            segments_regex: Regex::new(r"(\d+)\s*(?:/|of)\s*(\d+)")
-                .unwrap(),
+            segments_regex: Regex::new(r"(\d+)\s*(?:/|of)\s*(\d+)").unwrap(),
             // 匹配 ETA: 剩余时间
-            eta_regex: Regex::new(r"(?i)(?:ETA|剩余)[:\s]*(\d+):(\d+):(\d+)|(\d+):(\d+)|(\d+)\s*s(?:ec)?")
-                .unwrap(),
+            eta_regex: Regex::new(
+                r"(?i)(?:ETA|剩余)[:\s]*(\d+):(\d+):(\d+)|(\d+):(\d+)|(\d+)\s*s(?:ec)?",
+            )
+            .unwrap(),
         }
     }
 
@@ -117,12 +115,14 @@ impl OutputParser {
     /// 解析进度信息
     fn parse_progress(&self, line: &str) -> Option<ParsedEvent> {
         // 提取进度百分比
-        let percent = self.progress_regex
+        let percent = self
+            .progress_regex
             .captures(line)
             .and_then(|caps| caps[1].parse::<f64>().ok())?;
 
         // 提取速度
-        let speed_str = self.speed_regex
+        let speed_str = self
+            .speed_regex
             .captures(line)
             .map(|caps| format!("{} {}/s", &caps[1], &caps[2]));
 
@@ -266,7 +266,8 @@ impl OutputParser {
         let lower = size_str.to_lowercase();
 
         // 提取数字部分
-        let num: f64 = self.progress_regex
+        let num: f64 = self
+            .progress_regex
             .captures(size_str)
             .and_then(|caps| caps[1].parse().ok())
             .unwrap_or(0.0);

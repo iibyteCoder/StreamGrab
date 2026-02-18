@@ -2,14 +2,14 @@
 //!
 //! 使用 SQLite 进行统一数据持久化
 
+mod keys;
 mod schema;
 mod settings;
-mod keys;
 mod task;
 
+pub use keys::*;
 pub use schema::*;
 pub use settings::*;
-pub use keys::*;
 pub use task::*;
 
 use rusqlite::Connection;
@@ -38,8 +38,8 @@ impl Database {
         log::info!("Opening database at: {:?}", db_path);
 
         // 打开数据库连接
-        let conn = Connection::open(&db_path)
-            .map_err(|e| format!("Failed to open database: {}", e))?;
+        let conn =
+            Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
         // 启用外键约束
         conn.execute_batch("PRAGMA foreign_keys = ON;")
@@ -51,17 +51,17 @@ impl Database {
         // 创建各模块管理器
         let settings = SettingsDb::new(
             Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open settings connection: {}", e))?
+                .map_err(|e| format!("Failed to open settings connection: {}", e))?,
         )?;
 
         let keys = KeysDb::new(
             Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open keys connection: {}", e))?
+                .map_err(|e| format!("Failed to open keys connection: {}", e))?,
         )?;
 
         let tasks = TaskDb::new(
             Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open tasks connection: {}", e))?
+                .map_err(|e| format!("Failed to open tasks connection: {}", e))?,
         )?;
 
         log::info!("Database initialized successfully");

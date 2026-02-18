@@ -4,5 +4,5 @@
 
 pub mod config;
 pub mod download;
-pub mod task;
 pub mod keys;
+pub mod task;

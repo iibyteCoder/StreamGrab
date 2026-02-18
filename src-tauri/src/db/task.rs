@@ -2,7 +2,7 @@
 //!
 //! 管理下载任务状态
 
-use rusqlite::{Connection, params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
@@ -129,7 +129,8 @@ impl TaskDb {
             placeholders.join(", ")
         );
 
-        let params: Vec<&dyn rusqlite::ToSql> = statuses.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        let params: Vec<&dyn rusqlite::ToSql> =
+            statuses.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
 
         let mut stmt = conn
             .prepare(&sql)
@@ -291,8 +292,12 @@ impl TaskDb {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
 
         let placeholders: Vec<String> = statuses.iter().map(|_| "?".to_string()).collect();
-        let sql = format!("DELETE FROM tasks WHERE status IN ({})", placeholders.join(", "));
-        let params: Vec<&dyn rusqlite::ToSql> = statuses.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        let sql = format!(
+            "DELETE FROM tasks WHERE status IN ({})",
+            placeholders.join(", ")
+        );
+        let params: Vec<&dyn rusqlite::ToSql> =
+            statuses.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
 
         let rows_affected = conn
             .execute(&sql, params.as_slice())

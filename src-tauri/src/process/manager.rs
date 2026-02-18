@@ -215,7 +215,10 @@ impl ProcessManager {
                     if success {
                         complete_callback(true, None);
                     } else {
-                        complete_callback(false, Some(format!("Process exited with code: {}", exit_code)));
+                        complete_callback(
+                            false,
+                            Some(format!("Process exited with code: {}", exit_code)),
+                        );
                     }
                 }
                 Err(e) => {

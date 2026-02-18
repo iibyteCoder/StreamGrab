@@ -33,11 +33,7 @@ pub async fn start_download(
     program_path: Option<String>,
     app: AppHandle,
 ) -> Result<(), String> {
-    log::info!(
-        "Starting download: task_id={}, url={}",
-        task_id,
-        url
-    );
+    log::info!("Starting download: task_id={}, url={}", task_id, url);
 
     let manager = PROCESS_MANAGER.clone();
 
@@ -48,7 +44,9 @@ pub async fn start_download(
             path
         }
         _ => {
-            return Err("N_m3u8DL-RE 路径未配置，请在设置中配置 N_m3u8DL-RE 的绝对路径".to_string());
+            return Err(
+                "N_m3u8DL-RE 路径未配置，请在设置中配置 N_m3u8DL-RE 的绝对路径".to_string(),
+            );
         }
     };
 
@@ -64,22 +62,15 @@ pub async fn start_download(
             // 根据事件类型发送到前端
             match event.event_type.as_str() {
                 "progress" => {
-                    let _ = app_clone.emit(
-                        &format!("download:progress:{}", task_id_clone),
-                        &event.data,
-                    );
+                    let _ = app_clone
+                        .emit(&format!("download:progress:{}", task_id_clone), &event.data);
                 }
                 "status" => {
-                    let _ = app_clone.emit(
-                        &format!("download:status:{}", task_id_clone),
-                        &event.data,
-                    );
+                    let _ =
+                        app_clone.emit(&format!("download:status:{}", task_id_clone), &event.data);
                 }
                 "log" => {
-                    let _ = app_clone.emit(
-                        &format!("download:log:{}", task_id_clone),
-                        &event.data,
-                    );
+                    let _ = app_clone.emit(&format!("download:log:{}", task_id_clone), &event.data);
                 }
                 _ => {}
             }
@@ -116,13 +107,7 @@ pub async fn start_download(
     // 启动进程
     let mut manager_guard = manager.lock().await;
     manager_guard
-        .start_process(
-            task_id,
-            &program_path,
-            args,
-            on_output,
-            on_complete,
-        )
+        .start_process(task_id, &program_path, args, on_output, on_complete)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -218,7 +203,9 @@ pub async fn parse_url(
     let program = match program_path {
         Some(path) if !path.is_empty() => path,
         _ => {
-            return Err("N_m3u8DL-RE 路径未配置，请在设置中配置 N_m3u8DL-RE 的绝对路径".to_string());
+            return Err(
+                "N_m3u8DL-RE 路径未配置，请在设置中配置 N_m3u8DL-RE 的绝对路径".to_string(),
+            );
         }
     };
 
@@ -232,11 +219,11 @@ pub async fn parse_url(
     // 构建命令行参数
     let mut args: Vec<String> = vec![
         url.clone(),
-        "--skip-download".to_string(),           // 只解析不下载
-        "--write-meta-json".to_string(),         // 输出 JSON 元数据
+        "--skip-download".to_string(),               // 只解析不下载
+        "--write-meta-json".to_string(),             // 输出 JSON 元数据
         format!("--tmp-dir={}", temp_dir.display()), // 临时目录
-        format!("--save-name={}", parse_id),     // 保存名称
-        "--no-log".to_string(),                  // 禁用日志文件
+        format!("--save-name={}", parse_id),         // 保存名称
+        "--no-log".to_string(),                      // 禁用日志文件
     ];
 
     // 添加代理设置
@@ -273,7 +260,10 @@ pub async fn parse_url(
     }
 
     if !output.status.success() {
-        return Err(format!("解析失败: {}", if stderr.is_empty() { stdout } else { stderr }));
+        return Err(format!(
+            "解析失败: {}",
+            if stderr.is_empty() { stdout } else { stderr }
+        ));
     }
 
     // 读取生成的 JSON 文件
@@ -290,7 +280,10 @@ pub async fn parse_url(
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.extension().map(|e| e == "json").unwrap_or(false)
-                    && path.file_name().map(|n| n.to_string_lossy().contains(&parse_id)).unwrap_or(false)
+                    && path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().contains(&parse_id))
+                        .unwrap_or(false)
                 {
                     found = Some(path);
                     break;
@@ -325,11 +318,11 @@ fn parse_meta_json(json_path: &std::path::Path, original_url: &str) -> Result<St
         });
     }
 
-    let json_content = std::fs::read_to_string(json_path)
-        .map_err(|e| format!("读取元数据文件失败: {}", e))?;
+    let json_content =
+        std::fs::read_to_string(json_path).map_err(|e| format!("读取元数据文件失败: {}", e))?;
 
-    let meta: serde_json::Value = serde_json::from_str(&json_content)
-        .map_err(|e| format!("解析元数据 JSON 失败: {}", e))?;
+    let meta: serde_json::Value =
+        serde_json::from_str(&json_content).map_err(|e| format!("解析元数据 JSON 失败: {}", e))?;
 
     log::debug!("Parsed meta JSON: {:?}", meta);
 
@@ -341,21 +334,49 @@ fn parse_meta_json(json_path: &std::path::Path, original_url: &str) -> Result<St
     // 解析视频流
     if let Some(streams) = meta.get("Streams").and_then(|s| s.as_array()) {
         for (idx, stream) in streams.iter().enumerate() {
-            let media_type = stream.get("MediaType").and_then(|m| m.as_str()).unwrap_or("");
+            let media_type = stream
+                .get("MediaType")
+                .and_then(|m| m.as_str())
+                .unwrap_or("");
 
             let base = BaseStream {
-                id: stream.get("Id").and_then(|i| i.as_str()).unwrap_or(&idx.to_string()).to_string(),
-                bandwidth: stream.get("Bandwidth").and_then(|b| b.as_u64()).unwrap_or(0) as u32,
-                codecs: stream.get("Codecs").and_then(|c| c.as_str()).unwrap_or("").to_string(),
-                language: stream.get("Language").and_then(|l| l.as_str()).unwrap_or("").to_string(),
-                name: stream.get("Name").and_then(|n| n.as_str()).unwrap_or("").to_string(),
-                group_id: stream.get("GroupId").and_then(|g| g.as_str()).map(|s| s.to_string()),
+                id: stream
+                    .get("Id")
+                    .and_then(|i| i.as_str())
+                    .unwrap_or(&idx.to_string())
+                    .to_string(),
+                bandwidth: stream
+                    .get("Bandwidth")
+                    .and_then(|b| b.as_u64())
+                    .unwrap_or(0) as u32,
+                codecs: stream
+                    .get("Codecs")
+                    .and_then(|c| c.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                language: stream
+                    .get("Language")
+                    .and_then(|l| l.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                name: stream
+                    .get("Name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                group_id: stream
+                    .get("GroupId")
+                    .and_then(|g| g.as_str())
+                    .map(|s| s.to_string()),
                 selected: None,
             };
 
             match media_type {
                 "Video" => {
-                    let resolution = stream.get("Resolution").and_then(|r| r.as_str()).unwrap_or("");
+                    let resolution = stream
+                        .get("Resolution")
+                        .and_then(|r| r.as_str())
+                        .unwrap_or("");
                     let (width, height) = parse_resolution(resolution);
 
                     videos.push(VideoStream {
@@ -363,14 +384,25 @@ fn parse_meta_json(json_path: &std::path::Path, original_url: &str) -> Result<St
                         resolution: resolution.to_string(),
                         width,
                         height,
-                        frame_rate: stream.get("FrameRate").and_then(|f| f.as_f64()).unwrap_or(0.0) as f32,
-                        video_range: stream.get("VideoRange").and_then(|v| v.as_str()).unwrap_or("SDR").to_string(),
+                        frame_rate: stream
+                            .get("FrameRate")
+                            .and_then(|f| f.as_f64())
+                            .unwrap_or(0.0) as f32,
+                        video_range: stream
+                            .get("VideoRange")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("SDR")
+                            .to_string(),
                     });
                 }
                 "Audio" => {
                     audios.push(AudioStream {
                         base,
-                        channels: stream.get("Channels").and_then(|c| c.as_str()).unwrap_or("2").to_string(),
+                        channels: stream
+                            .get("Channels")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("2")
+                            .to_string(),
                         sample_rate: 0, // JSON 中可能没有这个字段
                         is_default: false,
                     });
@@ -390,19 +422,28 @@ fn parse_meta_json(json_path: &std::path::Path, original_url: &str) -> Result<St
 
     // 提取其他信息
     let duration = meta.get("Duration").and_then(|d| d.as_f64()).unwrap_or(0.0);
-    let is_live = meta.get("IsLive").and_then(|l| l.as_bool()).unwrap_or(false);
-    let is_encrypted = meta.get("IsEncrypted").and_then(|e| e.as_bool()).unwrap_or(false);
+    let is_live = meta
+        .get("IsLive")
+        .and_then(|l| l.as_bool())
+        .unwrap_or(false);
+    let is_encrypted = meta
+        .get("IsEncrypted")
+        .and_then(|e| e.as_bool())
+        .unwrap_or(false);
 
     // 计算分片数量
-    let segment_count = meta.get("SegmentCount")
+    let segment_count = meta
+        .get("SegmentCount")
         .and_then(|s| s.as_u64())
-        .unwrap_or(
-            videos.iter().map(|v| v.base.bandwidth).max().unwrap_or(0) as u64
-        ) as u32;
+        .unwrap_or(videos.iter().map(|v| v.base.bandwidth).max().unwrap_or(0) as u64)
+        as u32;
 
     // 如果没有解析到任何流，尝试从原始数据中提取
     if videos.is_empty() && audios.is_empty() && subtitles.is_empty() {
-        log::warn!("No streams found in meta JSON, original URL: {}", original_url);
+        log::warn!(
+            "No streams found in meta JSON, original URL: {}",
+            original_url
+        );
     }
 
     Ok(StreamInfo {

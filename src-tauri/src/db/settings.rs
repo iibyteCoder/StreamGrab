@@ -2,7 +2,7 @@
 //!
 //! 使用 key-value 形式存储各配置模块
 
-use rusqlite::{Connection, params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -61,13 +61,16 @@ impl SettingsDb {
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
         let rows = stmt
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
             .map_err(|e| format!("Failed to query settings: {}", e))?;
 
         let mut settings = HashMap::new();
         for row in rows {
             let (key, value_str) = row.map_err(|e| format!("Failed to read row: {}", e))?;
-            let value: JsonValue = serde_json::from_str(&value_str).unwrap_or(JsonValue::Object(serde_json::Map::new()));
+            let value: JsonValue = serde_json::from_str(&value_str)
+                .unwrap_or(JsonValue::Object(serde_json::Map::new()));
             settings.insert(key, value);
         }
 

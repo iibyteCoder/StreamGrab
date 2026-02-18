@@ -25,7 +25,9 @@ fn get_db(app: &AppHandle) -> Result<Arc<Database>, String> {
 
 /// 加载所有配置
 #[tauri::command]
-pub async fn load_settings(app: AppHandle) -> Result<std::collections::HashMap<String, serde_json::Value>, String> {
+pub async fn load_settings(
+    app: AppHandle,
+) -> Result<std::collections::HashMap<String, serde_json::Value>, String> {
     log::info!("Loading all settings");
 
     let db = get_db(&app)?;
@@ -81,10 +83,7 @@ pub async fn reset_all_settings(app: AppHandle) -> Result<(), String> {
 
 /// 导出配置到指定路径
 #[tauri::command]
-pub async fn export_config(
-    file_path: String,
-    app: AppHandle,
-) -> Result<(), String> {
+pub async fn export_config(file_path: String, app: AppHandle) -> Result<(), String> {
     log::info!("Exporting config to: {}", file_path);
 
     let db = get_db(&app)?;
@@ -93,25 +92,22 @@ pub async fn export_config(
     let content = serde_json::to_string_pretty(&settings)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-    fs::write(&file_path, content)
-        .map_err(|e| format!("Failed to export config: {}", e))?;
+    fs::write(&file_path, content).map_err(|e| format!("Failed to export config: {}", e))?;
 
     Ok(())
 }
 
 /// 从指定路径导入配置
 #[tauri::command]
-pub async fn import_config(
-    file_path: String,
-    app: AppHandle,
-) -> Result<(), String> {
+pub async fn import_config(file_path: String, app: AppHandle) -> Result<(), String> {
     log::info!("Importing config from: {}", file_path);
 
-    let content = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read config file: {}", e))?;
+    let content =
+        fs::read_to_string(&file_path).map_err(|e| format!("Failed to read config file: {}", e))?;
 
-    let settings: std::collections::HashMap<String, serde_json::Value> = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+    let settings: std::collections::HashMap<String, serde_json::Value> =
+        serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse config file: {}", e))?;
 
     let db = get_db(&app)?;
     db.settings.save_all(&settings)
@@ -125,7 +121,10 @@ pub async fn get_db_path(app: AppHandle) -> Result<String, String> {
         .app_config_dir()
         .map_err(|e| format!("Failed to get config directory: {}", e))?;
 
-    Ok(config_dir.join("streamgrab.db").to_string_lossy().to_string())
+    Ok(config_dir
+        .join("streamgrab.db")
+        .to_string_lossy()
+        .to_string())
 }
 
 // ============================================
@@ -183,11 +182,9 @@ pub async fn delete_file_or_folder(path: String) -> Result<(), String> {
     }
 
     if path.is_file() {
-        fs::remove_file(&path)
-            .map_err(|e| format!("删除文件失败: {}", e))?;
+        fs::remove_file(&path).map_err(|e| format!("删除文件失败: {}", e))?;
     } else if path.is_dir() {
-        fs::remove_dir_all(&path)
-            .map_err(|e| format!("删除文件夹失败: {}", e))?;
+        fs::remove_dir_all(&path).map_err(|e| format!("删除文件夹失败: {}", e))?;
     }
 
     log::info!("Successfully deleted: {:?}", path);
@@ -199,9 +196,7 @@ pub async fn delete_file_or_folder(path: String) -> Result<(), String> {
 pub async fn select_directory(app: AppHandle) -> Result<Option<String>, String> {
     log::info!("Opening directory picker");
 
-    let folder_path = app.dialog()
-        .file()
-        .blocking_pick_folder();
+    let folder_path = app.dialog().file().blocking_pick_folder();
 
     match folder_path {
         Some(path) => {
@@ -231,7 +226,11 @@ pub async fn select_file(
         for filter in filter_list {
             dialog = dialog.add_filter(
                 filter.name,
-                &filter.extensions.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                &filter
+                    .extensions
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>(),
             );
         }
     }

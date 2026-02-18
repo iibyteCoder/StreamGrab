@@ -9,7 +9,9 @@ use tauri::{
 };
 
 /// 创建系统托盘
-pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<TrayIcon<R>, Box<dyn std::error::Error>> {
+pub fn create_tray<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<TrayIcon<R>, Box<dyn std::error::Error>> {
     // 创建菜单项
     let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
@@ -68,5 +70,9 @@ fn load_tray_icon() -> Result<tauri::image::Image<'static>, Box<dyn std::error::
     let img = image::load_from_memory(icon_bytes)?;
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
-    Ok(tauri::image::Image::new_owned(rgba.into_raw(), width, height))
+    Ok(tauri::image::Image::new_owned(
+        rgba.into_raw(),
+        width,
+        height,
+    ))
 }
