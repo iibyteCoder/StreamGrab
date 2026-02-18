@@ -15,7 +15,8 @@ type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 const startResize = (direction: ResizeDirection) => async (e: MouseEvent) => {
   e.preventDefault();
   try {
-    await appWindow.startResizing(direction);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (appWindow as any).startResizing(direction);
   } catch {
     // 非 Tauri 环境忽略
   }
