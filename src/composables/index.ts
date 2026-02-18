@@ -10,3 +10,4 @@ export { useStreamSelector } from './useStreamSelector';
 export { useTemplateManager } from './useTemplateManager';
 export { useClipboardWatcher } from './useClipboardWatcher';
 export { useUpdateChecker } from './useUpdateChecker';
+export { useTaskFilter, type SortOrder, type TaskViewType } from './useTaskFilter';

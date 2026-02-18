@@ -1,11 +1,9 @@
 <script setup lang="ts">
 /**
  * DownloadSettings - 下载设置 UI 组件
- * 只负责 UI 展示
  */
 
 import { computed } from 'vue';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { AppIcon } from '@/components/common';
@@ -14,6 +12,7 @@ import {
   SettingInput,
   SettingSlider,
   SettingSelect,
+  SettingsGroup,
 } from '..';
 import type { DownloadSettings } from '@/types';
 
@@ -70,191 +69,152 @@ const subFormatOptions = [
 </script>
 
 <template>
-  <div class="space-y-4">
-    <!-- 下载参数 -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">下载参数</CardTitle>
-        <CardDescription>配置下载相关的核心参数</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingSlider
-          :model-value="settings.download.threadCount"
-          label="并发线程数"
-          :min="1"
-          :max="32"
-          :step="1"
-          :display-value="threadCountDisplay"
-          @update:model-value="updateDownload({ threadCount: $event })"
-        />
+  <div class="space-y-2">
+    <SettingsGroup title="下载参数" description="配置下载相关的核心参数">
+      <SettingSlider
+        :model-value="settings.download.threadCount"
+        label="并发线程数"
+        :min="1"
+        :max="32"
+        :step="1"
+        :display-value="threadCountDisplay"
+        @update:model-value="updateDownload({ threadCount: $event })"
+      />
 
+      <div class="grid grid-cols-3 gap-4">
         <SettingInput
           :model-value="settings.download.retryCount"
           label="重试次数"
           type="number"
           :min="0"
           :max="10"
-          class="w-24"
           @update:model-value="updateDownload({ retryCount: parseInt(String($event)) || 3 })"
         />
 
         <SettingInput
           :model-value="settings.download.timeout"
-          label="超时时间 (秒)"
+          label="超时 (秒)"
           type="number"
           :min="5"
           :max="300"
-          class="w-24"
           @update:model-value="updateDownload({ timeout: parseInt(String($event)) || 30 })"
         />
 
         <SettingInput
           :model-value="settings.download.maxSpeed"
-          label="最大下载速度"
-          placeholder="0 = 不限制"
-          class="w-32"
+          label="限速 (0=不限)"
+          placeholder="0"
           @update:model-value="updateDownload({ maxSpeed: String($event) })"
         />
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsGroup>
 
-    <!-- 流选择 -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">流选择</CardTitle>
-        <CardDescription>默认选择视频/音频/字幕流</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingSwitch
-          :model-value="settings.download.autoSelect"
-          label="自动选择最佳流"
-          description="自动选择最高质量的流"
-          @update:model-value="updateDownload({ autoSelect: $event })"
-        />
+    <SettingsGroup title="流选择" description="默认选择视频/音频/字幕流">
+      <SettingSwitch
+        :model-value="settings.download.autoSelect"
+        label="自动选择最佳流"
+        description="自动选择最高质量的流"
+        @update:model-value="updateDownload({ autoSelect: $event })"
+      />
 
-        <Separator />
+      <Separator class="my-4" />
 
-        <SettingInput
-          :model-value="settings.download.selectVideo"
-          label="视频流选择"
-          placeholder="例如: res=1080"
-          class="flex-1"
-          @update:model-value="updateDownload({ selectVideo: String($event) })"
-        />
+      <SettingInput
+        :model-value="settings.download.selectVideo"
+        label="视频流选择"
+        placeholder="例如: res=1080"
+        @update:model-value="updateDownload({ selectVideo: String($event) })"
+      />
 
-        <SettingInput
-          :model-value="settings.download.selectAudio"
-          label="音频流选择"
-          placeholder="例如: lang=zh"
-          class="flex-1"
-          @update:model-value="updateDownload({ selectAudio: String($event) })"
-        />
+      <SettingInput
+        :model-value="settings.download.selectAudio"
+        label="音频流选择"
+        placeholder="例如: lang=zh"
+        @update:model-value="updateDownload({ selectAudio: String($event) })"
+      />
 
-        <SettingInput
-          :model-value="settings.download.selectSubtitle"
-          label="字幕流选择"
-          placeholder="例如: lang=zh"
-          class="flex-1"
-          @update:model-value="updateDownload({ selectSubtitle: String($event) })"
-        />
-      </CardContent>
-    </Card>
+      <SettingInput
+        :model-value="settings.download.selectSubtitle"
+        label="字幕流选择"
+        placeholder="例如: lang=zh"
+        @update:model-value="updateDownload({ selectSubtitle: String($event) })"
+      />
+    </SettingsGroup>
 
-    <!-- 流排除 -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">流排除</CardTitle>
-        <CardDescription>通过正则表达式排除不需要的流</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingInput
-          :model-value="settings.download.dropVideo"
-          label="排除视频流"
-          placeholder="例如: codecs=av01"
-          class="flex-1"
-          @update:model-value="updateDownload({ dropVideo: String($event) })"
-        />
+    <SettingsGroup title="流排除" description="通过正则表达式排除不需要的流">
+      <SettingInput
+        :model-value="settings.download.dropVideo"
+        label="排除视频流"
+        placeholder="例如: codecs=av01"
+        @update:model-value="updateDownload({ dropVideo: String($event) })"
+      />
 
-        <SettingInput
-          :model-value="settings.download.dropAudio"
-          label="排除音频流"
-          placeholder="例如: lang=ja"
-          class="flex-1"
-          @update:model-value="updateDownload({ dropAudio: String($event) })"
-        />
+      <SettingInput
+        :model-value="settings.download.dropAudio"
+        label="排除音频流"
+        placeholder="例如: lang=ja"
+        @update:model-value="updateDownload({ dropAudio: String($event) })"
+      />
 
-        <SettingInput
-          :model-value="settings.download.dropSubtitle"
-          label="排除字幕流"
-          placeholder="例如: name=forced"
-          class="flex-1"
-          @update:model-value="updateDownload({ dropSubtitle: String($event) })"
-        />
-      </CardContent>
-    </Card>
+      <SettingInput
+        :model-value="settings.download.dropSubtitle"
+        label="排除字幕流"
+        placeholder="例如: name=forced"
+        @update:model-value="updateDownload({ dropSubtitle: String($event) })"
+      />
+    </SettingsGroup>
 
-    <!-- 广告过滤 -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">广告过滤</CardTitle>
-        <CardDescription>通过 URL 关键字跳过广告分片</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingSwitch
-          :model-value="settings.download.adFilter.enabled"
-          label="启用广告过滤"
-          description="匹配关键字的分片将被跳过"
-          @update:model-value="toggleAdFilter($event)"
-        />
+    <SettingsGroup title="广告过滤" description="通过 URL 关键字跳过广告分片">
+      <SettingSwitch
+        :model-value="settings.download.adFilter.enabled"
+        label="启用广告过滤"
+        description="匹配关键字的分片将被跳过"
+        @update:model-value="toggleAdFilter($event)"
+      />
 
-        <Separator v-if="settings.download.adFilter.enabled" />
+      <template v-if="settings.download.adFilter.enabled">
+        <Separator class="my-4" />
 
-        <div v-if="settings.download.adFilter.enabled" class="space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium">过滤关键字（正则表达式）</span>
-            <Button variant="outline" size="sm" @click="addAdKeyword">
-              <AppIcon name="Plus" :size="14" class="mr-1" />
-              添加
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium">过滤关键字（正则表达式）</span>
+          <Button variant="outline" size="sm" @click="addAdKeyword">
+            <AppIcon name="Plus" :size="14" class="mr-1" />
+            添加
+          </Button>
+        </div>
+
+        <div v-if="adKeywords.length === 0" class="text-sm text-muted-foreground py-2">
+          暂无过滤关键字
+        </div>
+
+        <div v-else class="space-y-2">
+          <div
+            v-for="(_, index) in adKeywords"
+            :key="index"
+            class="flex items-center gap-2"
+          >
+            <input
+              :value="adKeywords[index]"
+              type="text"
+              placeholder="例如: ad\.domain\.com"
+              class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+              @input="updateAdKeyword(index, ($event.target as HTMLInputElement).value)"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 text-destructive hover:text-destructive"
+              @click="removeAdKeyword(index)"
+            >
+              <AppIcon name="Trash2" :size="16" />
             </Button>
           </div>
-
-          <div v-if="adKeywords.length === 0" class="text-sm text-muted-foreground py-2">
-            暂无过滤关键字
-          </div>
-
-          <div v-else class="space-y-2">
-            <div
-              v-for="(_, index) in adKeywords"
-              :key="index"
-              class="flex items-center gap-2"
-            >
-              <input
-                :value="adKeywords[index]"
-                type="text"
-                placeholder="例如: ad\.domain\.com"
-                class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-                @input="updateAdKeyword(index, ($event.target as HTMLInputElement).value)"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-9 w-9 text-destructive hover:text-destructive"
-                @click="removeAdKeyword(index)"
-              >
-                <AppIcon name="Trash2" :size="16" />
-              </Button>
-            </div>
-          </div>
         </div>
-      </CardContent>
-    </Card>
+      </template>
+    </SettingsGroup>
 
-    <!-- 下载选项 -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">下载选项</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-3">
+    <SettingsGroup title="下载选项">
+      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
         <SettingSwitch
           :model-value="settings.download.checkSegmentsCount"
           label="检查分片数量"
@@ -290,37 +250,30 @@ const subFormatOptions = [
           label="并发下载"
           @update:model-value="updateDownload({ concurrentDownload: $event })"
         />
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsGroup>
 
-    <!-- 字幕设置 -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">字幕设置</CardTitle>
-        <CardDescription>配置字幕下载相关选项</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingSelect
-          :model-value="settings.download.subFormat"
-          label="字幕格式"
-          :options="subFormatOptions"
-          @update:model-value="updateDownload({ subFormat: $event as 'SRT' | 'VTT' })"
-        />
+    <SettingsGroup title="字幕设置" description="配置字幕下载相关选项">
+      <SettingSelect
+        :model-value="settings.download.subFormat"
+        label="字幕格式"
+        :options="subFormatOptions"
+        @update:model-value="updateDownload({ subFormat: $event as 'SRT' | 'VTT' })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.download.autoSubtitleFix"
-          label="自动修正时间轴"
-          description="自动修正字幕时间轴偏移"
-          @update:model-value="updateDownload({ autoSubtitleFix: $event })"
-        />
+      <SettingSwitch
+        :model-value="settings.download.autoSubtitleFix"
+        label="自动修正时间轴"
+        description="自动修正字幕时间轴偏移"
+        @update:model-value="updateDownload({ autoSubtitleFix: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.download.subOnly"
-          label="仅下载字幕"
-          description="只下载字幕文件，不下载视频"
-          @update:model-value="updateDownload({ subOnly: $event })"
-        />
-      </CardContent>
-    </Card>
+      <SettingSwitch
+        :model-value="settings.download.subOnly"
+        label="仅下载字幕"
+        description="只下载字幕文件，不下载视频"
+        @update:model-value="updateDownload({ subOnly: $event })"
+      />
+    </SettingsGroup>
   </div>
 </template>

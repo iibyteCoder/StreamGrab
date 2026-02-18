@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
  * TitleBar 标题栏组件
- * 自定义窗口标题栏（可选，需要 Tauri 窗口配置支持）
+ * 自定义窗口标题栏（需要 Tauri 窗口配置 decorations: false）
  */
 
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useSettings } from '@/composables';
 
 interface Props {
@@ -15,30 +16,43 @@ withDefaults(defineProps<Props>(), {
   title: 'StreamGrab',
 });
 
-const emit = defineEmits<{
-  (e: 'minimize'): void;
-  (e: 'maximize'): void;
-  (e: 'close'): void;
-}>();
-
 const { theme, setTheme } = useSettings();
 const isMaximized = ref(false);
+const appWindow = getCurrentWindow();
+
+// 检查窗口是否已最大化
+onMounted(async () => {
+  try {
+    isMaximized.value = await appWindow.isMaximized();
+  } catch {
+    // 非 Tauri 环境忽略错误
+  }
+});
 
 // 窗口控制
-const handleMinimize = () => {
-  emit('minimize');
-  // 可以调用 Tauri API: appWindow.minimize()
+const handleMinimize = async () => {
+  try {
+    await appWindow.minimize();
+  } catch {
+    // 非 Tauri 环境忽略错误
+  }
 };
 
-const handleMaximize = () => {
-  isMaximized.value = !isMaximized.value;
-  emit('maximize');
-  // 可以调用 Tauri API: appWindow.toggleMaximize()
+const handleMaximize = async () => {
+  try {
+    await appWindow.toggleMaximize();
+    isMaximized.value = await appWindow.isMaximized();
+  } catch {
+    // 非 Tauri 环境忽略错误
+  }
 };
 
-const handleClose = () => {
-  emit('close');
-  // 可以调用 Tauri API: appWindow.close()
+const handleClose = async () => {
+  try {
+    await appWindow.close();
+  } catch {
+    // 非 Tauri 环境忽略错误
+  }
 };
 
 // 主题切换

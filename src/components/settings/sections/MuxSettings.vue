@@ -1,14 +1,12 @@
 <script setup lang="ts">
 /**
  * MuxSettings - 混流设置 UI 组件
- * 只负责 UI 展示
  */
 
 import { computed } from 'vue';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AppIcon } from '@/components/common';
-import { SettingSwitch, SettingSelect, SettingInput } from '..';
+import { SettingSwitch, SettingSelect, SettingInput, SettingsGroup } from '..';
 import type { MuxSettings, MuxImport } from '@/types';
 
 interface Props {
@@ -82,44 +80,34 @@ const updateMuxImportName = (index: number, name: string) => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">混流配置</CardTitle>
-        <CardDescription>配置视频混流相关选项</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingSelect
-          :model-value="settings.mux.format"
-          label="输出格式"
-          :options="muxFormatOptions"
-          placeholder="选择格式"
-          @update:model-value="updateMux({ format: $event as 'mp4' | 'mkv' })"
-        />
+  <div class="space-y-2">
+    <SettingsGroup title="混流配置" description="配置视频混流相关选项">
+      <SettingSelect
+        :model-value="settings.mux.format"
+        label="输出格式"
+        :options="muxFormatOptions"
+        placeholder="选择格式"
+        @update:model-value="updateMux({ format: $event as 'mp4' | 'mkv' })"
+      />
 
-        <SettingSelect
-          :model-value="settings.mux.muxer"
-          label="混流器"
-          :options="muxerOptions"
-          placeholder="选择混流器"
-          @update:model-value="updateMux({ muxer: $event as 'ffmpeg' | 'mkvmerge' })"
-        />
+      <SettingSelect
+        :model-value="settings.mux.muxer"
+        label="混流器"
+        :options="muxerOptions"
+        placeholder="选择混流器"
+        @update:model-value="updateMux({ muxer: $event as 'ffmpeg' | 'mkvmerge' })"
+      />
 
-        <SettingInput
-          :model-value="settings.mux.binPath"
-          label="混流器路径"
-          placeholder="留空则使用系统 PATH"
-          class="flex-1"
-          @update:model-value="updateMux({ binPath: String($event) })"
-        />
-      </CardContent>
-    </Card>
+      <SettingInput
+        :model-value="settings.mux.binPath"
+        label="混流器路径"
+        placeholder="留空则使用系统 PATH"
+        @update:model-value="updateMux({ binPath: String($event) })"
+      />
+    </SettingsGroup>
 
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">混流选项</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-3">
+    <SettingsGroup title="混流选项">
+      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
         <SettingSwitch
           :model-value="settings.mux.keepOriginal"
           label="保留原始文件"
@@ -144,67 +132,60 @@ const updateMuxImportName = (index: number, name: string) => {
           label="使用 Concat 解复用器"
           @update:model-value="updateMux({ useConcatDemuxer: $event })"
         />
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsGroup>
 
-    <!-- 外部媒体导入 -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">外部媒体导入</CardTitle>
-        <CardDescription>导入外部音频或字幕文件进行混流</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div v-if="muxImports.length === 0" class="text-sm text-muted-foreground py-2">
-          暂无外部媒体，点击下方按钮添加
-        </div>
+    <SettingsGroup title="外部媒体导入" description="导入外部音频或字幕文件进行混流">
+      <div v-if="muxImports.length === 0" class="text-sm text-muted-foreground py-2">
+        暂无外部媒体，点击下方按钮添加
+      </div>
 
-        <div v-else class="space-y-3">
-          <div
-            v-for="(item, index) in muxImports"
-            :key="index"
-            class="space-y-2"
-          >
-            <div class="flex items-center gap-2">
-              <input
-                :value="item.path"
-                type="text"
-                placeholder="文件路径"
-                class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-                @input="updateMuxImportPath(index, ($event.target as HTMLInputElement).value)"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-9 w-9 text-destructive hover:text-destructive"
-                @click="removeMuxImport(index)"
-              >
-                <AppIcon name="Trash2" :size="16" />
-              </Button>
-            </div>
-            <div class="flex items-center gap-2">
-              <input
-                :value="item.lang || ''"
-                type="text"
-                placeholder="语言 (如: zh, en)"
-                class="w-28 h-8 px-2 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-                @input="updateMuxImportLang(index, ($event.target as HTMLInputElement).value)"
-              />
-              <input
-                :value="item.name || ''"
-                type="text"
-                placeholder="名称 (可选)"
-                class="flex-1 h-8 px-2 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-                @input="updateMuxImportName(index, ($event.target as HTMLInputElement).value)"
-              />
-            </div>
+      <div v-else class="space-y-3">
+        <div
+          v-for="(item, index) in muxImports"
+          :key="index"
+          class="space-y-2"
+        >
+          <div class="flex items-center gap-2">
+            <input
+              :value="item.path"
+              type="text"
+              placeholder="文件路径"
+              class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+              @input="updateMuxImportPath(index, ($event.target as HTMLInputElement).value)"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-9 w-9 text-destructive hover:text-destructive"
+              @click="removeMuxImport(index)"
+            >
+              <AppIcon name="Trash2" :size="16" />
+            </Button>
+          </div>
+          <div class="flex items-center gap-2">
+            <input
+              :value="item.lang || ''"
+              type="text"
+              placeholder="语言 (如: zh, en)"
+              class="w-28 h-8 px-2 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+              @input="updateMuxImportLang(index, ($event.target as HTMLInputElement).value)"
+            />
+            <input
+              :value="item.name || ''"
+              type="text"
+              placeholder="名称 (可选)"
+              class="flex-1 h-8 px-2 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+              @input="updateMuxImportName(index, ($event.target as HTMLInputElement).value)"
+            />
           </div>
         </div>
+      </div>
 
-        <Button variant="outline" size="sm" @click="addMuxImport">
-          <AppIcon name="Plus" :size="14" class="mr-1" />
-          添加外部媒体
-        </Button>
-      </CardContent>
-    </Card>
+      <Button variant="outline" size="sm" class="mt-2" @click="addMuxImport">
+        <AppIcon name="Plus" :size="14" class="mr-1" />
+        添加外部媒体
+      </Button>
+    </SettingsGroup>
   </div>
 </template>

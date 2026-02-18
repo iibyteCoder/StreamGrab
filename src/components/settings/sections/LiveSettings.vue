@@ -3,9 +3,8 @@
  * LiveSettings - 直播设置组件
  */
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { SettingSwitch, SettingInput } from '..';
+import { SettingSwitch, SettingInput, SettingsGroup } from '..';
 
 interface Settings {
   live: {
@@ -37,13 +36,9 @@ const updateLive = (value: any) => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">直播录制</CardTitle>
-        <CardDescription>配置直播流录制选项</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
+  <div class="space-y-2">
+    <SettingsGroup title="直播录制" description="配置直播流录制选项">
+      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
         <SettingSwitch
           :model-value="settings.live.performAsVod"
           label="作为 VOD 处理"
@@ -74,35 +69,34 @@ const updateLive = (value: any) => {
           label="通过音频修复 VTT"
           @update:model-value="updateLive({ fixVttByAudio: $event })"
         />
+      </div>
 
-        <Separator />
+      <Separator class="my-4" />
 
+      <div class="grid grid-cols-3 gap-4">
         <SettingInput
           :model-value="settings.live.recordLimit"
           label="录制限制"
-          placeholder="例如: 1:30:00 (1小时30分钟)"
-          class="flex-1"
+          placeholder="1:30:00"
           @update:model-value="updateLive({ recordLimit: $event })"
         />
 
         <SettingInput
           :model-value="settings.live.waitTime"
-          label="等待时间 (秒)"
+          label="等待 (秒)"
           type="number"
           :min="0"
-          class="w-24"
           @update:model-value="updateLive({ waitTime: parseInt(String($event)) || 0 })"
         />
 
         <SettingInput
           :model-value="settings.live.takeCount"
-          label="获取分片数"
+          label="分片数"
           type="number"
           :min="0"
-          class="w-24"
           @update:model-value="updateLive({ takeCount: parseInt(String($event)) || 0 })"
         />
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsGroup>
   </div>
 </template>

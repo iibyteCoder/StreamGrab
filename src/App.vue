@@ -2,20 +2,18 @@
 import { onMounted, onUnmounted } from "vue";
 import { RouterView } from "vue-router";
 import { Toaster } from "@/components/ui/toast";
-import { useSettingsStore, useTaskStore, useHistoryStore } from "@/stores";
+import { useSettingsStore, useTaskStore } from "@/stores";
 import { taskService } from "@/services";
 
 // 初始化 Stores
 const settingsStore = useSettingsStore();
 const taskStore = useTaskStore();
-const historyStore = useHistoryStore();
 
 onMounted(async () => {
   // 1. 并行初始化所有 Store（从后端加载数据）
   await Promise.all([
     settingsStore.loadSettings(),
     taskStore.initialize(),
-    historyStore.initialize(),
   ]);
 
   // 2. 应用主题

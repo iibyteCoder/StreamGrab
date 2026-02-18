@@ -11,6 +11,13 @@ use std::thread;
 
 use anyhow::{bail, Context, Result};
 
+// Windows 平台：隐藏控制台窗口的标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// 进程信息
 struct ProcessInfo {
     /// 进程 ID
@@ -74,12 +81,20 @@ impl ProcessManager {
         }
 
         // 启动子进程
-        let mut child = match Command::new(program)
-            .args(&args)
+        #[cfg(target_os = "windows")]
+        let mut cmd = Command::new(program);
+        #[cfg(not(target_os = "windows"))]
+        let mut cmd = Command::new(program);
+
+        cmd.args(&args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-        {
+            .stderr(Stdio::piped());
+
+        // Windows 平台：隐藏控制台窗口
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let mut child = match cmd.spawn() {
             Ok(child) => child,
             Err(e) => {
                 let error_msg = if program == "N_m3u8DL-RE" {
@@ -233,10 +248,11 @@ impl ProcessManager {
             // 由于子进程句柄已在等待线程中，我们使用系统调用来终止
             #[cfg(target_os = "windows")]
             {
-                // Windows: 使用 taskkill 终止进程树
+                // Windows: 使用 taskkill 终止进程树（隐藏窗口）
                 let _ = Command::new("taskkill")
                     .args(["/F", "/T", "/PID"])
                     .arg(info.pid.to_string())
+                    .creation_flags(CREATE_NO_WINDOW)
                     .output();
             }
 

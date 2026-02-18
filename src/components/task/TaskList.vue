@@ -1,164 +1,74 @@
 <script setup lang="ts">
 /**
- * TaskList 任务列表组件
- * 显示所有下载任务
+ * TaskList - 任务列表组件
+ * 纯展示组件，负责渲染任务卡片列表
  */
 
-import { computed } from 'vue';
 import TaskCard from './TaskCard.vue';
-import { useTasks } from '@/composables';
-import type { DownloadTask, TaskStatus } from '@/types';
-
-type SortOrder = 'newest' | 'oldest' | 'status';
+import TaskEmptyState from './TaskEmptyState.vue';
+import type { DownloadTask } from '@/types';
 
 interface Props {
-  filter?: TaskStatus | 'all';
-  sort?: SortOrder;
-  search?: string;
+  /** 任务列表 */
+  tasks: DownloadTask[];
+  /** 空状态类型 */
+  emptyType?: 'active' | 'completed' | 'all';
+  /** 自定义空状态文本 */
   emptyText?: string;
-  /** 隐藏已完成的任务（用于首页，完成任务只在历史中显示） */
-  hideCompleted?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  filter: 'all',
-  sort: 'newest',
-  emptyText: '暂无下载任务',
-  hideCompleted: false,
+withDefaults(defineProps<Props>(), {
+  emptyType: 'all',
 });
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'taskClick', task: DownloadTask): void;
-  (e: 'taskContextmenu', event: MouseEvent, task: DownloadTask): void;
 }>();
-
-const { tasks } = useTasks();
-
-// 过滤和排序后的任务列表
-const filteredTasks = computed(() => {
-  let result = [...tasks.value];
-
-  // 搜索过滤
-  if (props.search) {
-    const query = props.search.toLowerCase();
-    result = result.filter(
-      (task) =>
-        task.url.toLowerCase().includes(query) ||
-        task.fileName?.toLowerCase().includes(query)
-    );
-  }
-
-  // 隐藏已完成的任务（首页）
-  if (props.hideCompleted) {
-    result = result.filter((task) => task.status !== 'completed');
-  }
-
-  // 状态过滤
-  if (props.filter !== 'all') {
-    result = result.filter((task) => task.status === props.filter);
-  }
-
-  // 排序
-  switch (props.sort) {
-    case 'newest':
-      result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-      break;
-    case 'oldest':
-      result.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-      break;
-    case 'status':
-      // 按状态优先级排序：下载中 > 解析中 > 合并中 > 混流中 > 暂停 > 等待中 > 失败 > 已取消 > 已完成
-      const statusOrder: Record<TaskStatus, number> = {
-        downloading: 1,
-        analyzing: 2,
-        merging: 3,
-        muxing: 4,
-        paused: 5,
-        pending: 6,
-        failed: 7,
-        cancelled: 8,
-        completed: 9,
-      };
-      result.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
-      break;
-  }
-
-  return result;
-});
-
-// 是否为空
-const isEmpty = computed(() => filteredTasks.value.length === 0);
-
-// 处理任务点击
-const handleTaskClick = (task: DownloadTask) => {
-  emit('taskClick', task);
-};
-
-// 处理任务右键菜单
-const handleTaskContextmenu = (event: MouseEvent, task: DownloadTask) => {
-  emit('taskContextmenu', event, task);
-};
 </script>
 
 <template>
-  <div class="task-list">
+  <div class="task-list h-full">
     <!-- 任务列表 -->
     <TransitionGroup
-      v-if="!isEmpty"
+      v-if="tasks.length > 0"
       name="task-list"
       tag="div"
-      class="grid gap-3"
+      class="grid gap-2"
     >
       <TaskCard
-        v-for="task in filteredTasks"
+        v-for="task in tasks"
         :key="task.id"
         :task="task"
-        @click="handleTaskClick"
-        @contextmenu="handleTaskContextmenu"
+        @click="$emit('taskClick', $event)"
       />
     </TransitionGroup>
 
     <!-- 空状态 -->
-    <div
+    <TaskEmptyState
       v-else
-      class="flex flex-col items-center justify-center py-16 text-center"
-    >
-      <svg
-        class="w-16 h-16 text-text-muted opacity-50 mb-4"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="1.5"
-          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-        />
-      </svg>
-      <p class="text-text-muted">{{ emptyText }}</p>
-      <p class="text-text-muted text-sm mt-1">输入链接开始下载</p>
-    </div>
+      :type="emptyType"
+      :title="emptyText"
+    />
   </div>
 </template>
 
 <style scoped>
 .task-list-enter-active,
 .task-list-leave-active {
-  transition: all 0.3s ease;
+  transition: all 0.25s ease-out;
 }
 
 .task-list-enter-from {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-8px);
 }
 
 .task-list-leave-to {
   opacity: 0;
-  transform: translateX(10px);
+  transform: translateX(8px);
 }
 
 .task-list-move {
-  transition: transform 0.3s ease;
+  transition: transform 0.25s ease-out;
 }
 </style>

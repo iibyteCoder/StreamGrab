@@ -3,8 +3,7 @@
  * UISettings - 界面设置组件
  */
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { SettingSelect, SettingSwitch } from '..';
+import { SettingSelect, SettingSwitch, SettingsGroup } from '..';
 
 interface Settings {
   ui: {
@@ -44,35 +43,29 @@ const updateTheme = (value: any) => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">外观</CardTitle>
-        <CardDescription>自定义应用程序外观</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingSelect
-          :model-value="theme"
-          label="主题"
-          :options="themeOptions"
-          placeholder="选择主题"
-          @update:model-value="updateTheme($event)"
-        />
+  <div class="space-y-2">
+    <SettingsGroup title="外观" description="自定义应用程序外观">
+      <SettingSelect
+        :model-value="theme"
+        label="主题"
+        :options="themeOptions"
+        placeholder="选择主题"
+        @update:model-value="updateTheme($event)"
+      />
 
-        <SettingSwitch
-          :model-value="settings.ui.showNotification"
-          label="显示通知"
-          description="下载完成时显示系统通知"
-          @update:model-value="updateUI({ showNotification: $event })"
-        />
+      <SettingSwitch
+        :model-value="settings.ui.showNotification"
+        label="显示通知"
+        description="下载完成时显示系统通知"
+        @update:model-value="updateUI({ showNotification: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.ui.clipboardWatch"
-          label="剪贴板监视"
-          description="自动检测剪贴板中的 M3U8 链接"
-          @update:model-value="updateUI({ clipboardWatch: $event })"
-        />
-      </CardContent>
-    </Card>
+      <SettingSwitch
+        :model-value="settings.ui.clipboardWatch"
+        label="剪贴板监视"
+        description="自动检测剪贴板中的 M3U8 链接"
+        @update:model-value="updateUI({ clipboardWatch: $event })"
+      />
+    </SettingsGroup>
   </div>
 </template>

@@ -4,7 +4,6 @@
  */
 
 import { RotateCcw, AlertTriangle } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -17,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { SettingSelect, SettingInput, SettingSwitch } from '..';
+import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from '..';
 
 interface Settings {
   advanced: {
@@ -64,98 +63,79 @@ const handleReset = () => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">工具路径</CardTitle>
-        <CardDescription>配置外部工具的路径</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingInput
-          :model-value="settings.advanced.ffmpegPath"
-          label="FFmpeg 路径"
-          placeholder="留空则使用系统 PATH"
-          class="flex-1"
-          @update:model-value="updateAdvanced({ ffmpegPath: $event })"
-        />
+  <div class="space-y-2">
+    <SettingsGroup title="工具路径" description="配置外部工具的路径">
+      <SettingInput
+        :model-value="settings.advanced.ffmpegPath"
+        label="FFmpeg 路径"
+        placeholder="留空则使用系统 PATH"
+        @update:model-value="updateAdvanced({ ffmpegPath: $event })"
+      />
 
-        <SettingInput
-          :model-value="settings.advanced.n_m3u8dlPath"
-          label="N_m3u8DL-RE 路径"
-          placeholder="留空则使用系统 PATH"
-          class="flex-1"
-          @update:model-value="updateAdvanced({ n_m3u8dlPath: $event })"
-        />
-      </CardContent>
-    </Card>
+      <SettingInput
+        :model-value="settings.advanced.n_m3u8dlPath"
+        label="N_m3u8DL-RE 路径"
+        placeholder="留空则使用系统 PATH"
+        @update:model-value="updateAdvanced({ n_m3u8dlPath: $event })"
+      />
+    </SettingsGroup>
 
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">日志设置</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <SettingSelect
-          :model-value="settings.advanced.logLevel"
-          label="日志级别"
-          :options="logLevelOptions"
-          placeholder="选择级别"
-          @update:model-value="updateAdvanced({ logLevel: $event })"
-        />
+    <SettingsGroup title="日志设置">
+      <SettingSelect
+        :model-value="settings.advanced.logLevel"
+        label="日志级别"
+        :options="logLevelOptions"
+        placeholder="选择级别"
+        @update:model-value="updateAdvanced({ logLevel: $event })"
+      />
 
-        <SettingInput
-          :model-value="settings.advanced.logFilePath"
-          label="日志文件路径"
-          placeholder="留空则不写入文件"
-          class="flex-1"
-          @update:model-value="updateAdvanced({ logFilePath: $event })"
-        />
+      <SettingInput
+        :model-value="settings.advanced.logFilePath"
+        label="日志文件路径"
+        placeholder="留空则不写入文件"
+        @update:model-value="updateAdvanced({ logFilePath: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.advanced.noLog"
-          label="禁用日志"
-          @update:model-value="updateAdvanced({ noLog: $event })"
-        />
-      </CardContent>
-    </Card>
+      <SettingSwitch
+        :model-value="settings.advanced.noLog"
+        label="禁用日志"
+        @update:model-value="updateAdvanced({ noLog: $event })"
+      />
+    </SettingsGroup>
 
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">实验性功能</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-3">
-        <SettingSwitch
-          :model-value="settings.advanced.allowHlsMultiExtMap"
-          label="允许多 EXT-X-MAP"
-          description="允许 HLS 多个 EXT-X-MAP 标签"
-          @update:model-value="updateAdvanced({ allowHlsMultiExtMap: $event })"
-        />
+    <SettingsGroup title="实验性功能">
+      <SettingSwitch
+        :model-value="settings.advanced.allowHlsMultiExtMap"
+        label="允许多 EXT-X-MAP"
+        description="允许 HLS 多个 EXT-X-MAP 标签"
+        @update:model-value="updateAdvanced({ allowHlsMultiExtMap: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.advanced.disableUpdateCheck"
-          label="禁用更新检查"
-          @update:model-value="updateAdvanced({ disableUpdateCheck: $event })"
-        />
+      <SettingSwitch
+        :model-value="settings.advanced.disableUpdateCheck"
+        label="禁用更新检查"
+        @update:model-value="updateAdvanced({ disableUpdateCheck: $event })"
+      />
 
-        <SettingInput
-          :model-value="settings.advanced.urlProcessorArgs"
-          label="URL 处理器参数"
-          placeholder="传递给 URL 处理器的额外参数"
-          class="flex-1"
-          @update:model-value="updateAdvanced({ urlProcessorArgs: $event })"
-        />
-      </CardContent>
-    </Card>
+      <SettingInput
+        :model-value="settings.advanced.urlProcessorArgs"
+        label="URL 处理器参数"
+        placeholder="传递给 URL 处理器的额外参数"
+        @update:model-value="updateAdvanced({ urlProcessorArgs: $event })"
+      />
+    </SettingsGroup>
 
     <!-- 恢复默认配置 -->
-    <Card class="border-destructive/20">
-      <CardHeader>
-        <CardTitle class="flex items-center gap-2 text-base text-destructive">
+    <section class="mb-8 last:mb-0">
+      <div class="mb-4">
+        <h3 class="text-sm font-medium text-destructive flex items-center gap-2">
           <AlertTriangle class="h-4 w-4" />
           危险操作
-        </CardTitle>
-        <CardDescription>以下操作不可撤销，请谨慎使用</CardDescription>
-      </CardHeader>
-      <CardContent>
+        </h3>
+        <p class="mt-1 text-xs text-muted-foreground">以下操作不可撤销，请谨慎使用</p>
+      </div>
+
+      <div class="space-y-5 rounded-lg border border-destructive/20 bg-card/50 p-4">
         <div class="flex items-center justify-between">
           <div class="space-y-0.5">
             <p class="text-sm font-medium">恢复默认配置</p>
@@ -184,7 +164,7 @@ const handleReset = () => {
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   </div>
 </template>

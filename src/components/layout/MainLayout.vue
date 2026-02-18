@@ -7,6 +7,7 @@
 import { computed } from 'vue';
 import { useUiStore } from '@/stores';
 import TitleBar from './TitleBar.vue';
+import ResizeHandles from './ResizeHandles.vue';
 
 interface Props {
   showTitleBar?: boolean;
@@ -27,7 +28,10 @@ const sidebarClasses = computed(() => {
 </script>
 
 <template>
-  <div class="h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden">
+  <div class="app-container h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden">
+    <!-- 窗口缩放边框 -->
+    <ResizeHandles />
+
     <!-- 标题栏 -->
     <TitleBar v-if="showTitleBar" />
 
@@ -78,3 +82,13 @@ const sidebarClasses = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.app-container {
+  /* 窗口阴影 - 模拟原生窗口效果 */
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+}
+</style>
