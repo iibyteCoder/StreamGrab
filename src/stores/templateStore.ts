@@ -3,11 +3,11 @@
  * 用于保存和管理用户自定义的下载配置模板
  */
 
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import type { ConfigTemplate, AppSettings } from '@/types';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import type { ConfigTemplate, AppSettings } from "@/types";
 
-const STORAGE_KEY = 'streamgrab-config-templates';
+const STORAGE_KEY = "streamgrab-config-templates";
 
 /**
  * 生成唯一 ID
@@ -32,7 +32,7 @@ function loadTemplatesFromStorage(): ConfigTemplate[] {
       }));
     }
   } catch (error) {
-    console.error('Failed to load templates from storage:', error);
+    console.error("Failed to load templates from storage:", error);
   }
   return [];
 }
@@ -44,7 +44,7 @@ function saveTemplatesToStorage(templates: ConfigTemplate[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
   } catch (error) {
-    console.error('Failed to save templates to storage:', error);
+    console.error("Failed to save templates to storage:", error);
   }
 }
 
@@ -53,42 +53,42 @@ function saveTemplatesToStorage(templates: ConfigTemplate[]): void {
  */
 const DEFAULT_TEMPLATES: ConfigTemplate[] = [
   {
-    id: 'default-best',
-    name: '最佳质量',
-    description: '自动选择最高质量的视频和音频流',
+    id: "default-best",
+    name: "最佳质量",
+    description: "自动选择最高质量的视频和音频流",
     settings: {
       download: {
         autoSelect: true,
-        selectVideo: 'best',
-        selectAudio: 'best',
+        selectVideo: "best",
+        selectAudio: "best",
       },
     } as Partial<AppSettings>,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
-    id: 'default-1080p',
-    name: '1080P',
-    description: '选择 1080P 分辨率的视频流',
+    id: "default-1080p",
+    name: "1080P",
+    description: "选择 1080P 分辨率的视频流",
     settings: {
       download: {
         autoSelect: false,
         selectVideo: 'res="1920*"',
-        selectAudio: 'best',
+        selectAudio: "best",
       },
     } as Partial<AppSettings>,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
-    id: 'default-720p',
-    name: '720P',
-    description: '选择 720P 分辨率的视频流，适合带宽有限的场景',
+    id: "default-720p",
+    name: "720P",
+    description: "选择 720P 分辨率的视频流，适合带宽有限的场景",
     settings: {
       download: {
         autoSelect: false,
         selectVideo: 'res="1280*"',
-        selectAudio: 'best',
+        selectAudio: "best",
       },
     } as Partial<AppSettings>,
     createdAt: new Date(),
@@ -96,7 +96,7 @@ const DEFAULT_TEMPLATES: ConfigTemplate[] = [
   },
 ];
 
-export const useTemplateStore = defineStore('template', () => {
+export const useTemplateStore = defineStore("template", () => {
   // State
   const templates = ref<ConfigTemplate[]>([]);
   const isInitialized = ref(false);
@@ -105,11 +105,11 @@ export const useTemplateStore = defineStore('template', () => {
   const templateCount = computed(() => templates.value.length);
 
   const customTemplates = computed(() =>
-    templates.value.filter((t) => !t.id.startsWith('default-'))
+    templates.value.filter((t) => !t.id.startsWith("default-")),
   );
 
   const presetTemplates = computed(() =>
-    templates.value.filter((t) => t.id.startsWith('default-'))
+    templates.value.filter((t) => t.id.startsWith("default-")),
   );
 
   // Actions
@@ -144,7 +144,7 @@ export const useTemplateStore = defineStore('template', () => {
   function addTemplate(
     name: string,
     description: string,
-    settings: Partial<AppSettings>
+    settings: Partial<AppSettings>,
   ): ConfigTemplate {
     const now = new Date();
     const template: ConfigTemplate = {
@@ -167,13 +167,13 @@ export const useTemplateStore = defineStore('template', () => {
    */
   function updateTemplate(
     id: string,
-    updates: Partial<Pick<ConfigTemplate, 'name' | 'description' | 'settings'>>
+    updates: Partial<Pick<ConfigTemplate, "name" | "description" | "settings">>,
   ): boolean {
     const index = templates.value.findIndex((t) => t.id === id);
     if (index === -1) return false;
 
     // 不允许修改默认模板
-    if (id.startsWith('default-')) return false;
+    if (id.startsWith("default-")) return false;
 
     const template = templates.value[index]!;
     templates.value[index] = {
@@ -197,7 +197,7 @@ export const useTemplateStore = defineStore('template', () => {
     if (index === -1) return false;
 
     // 不允许删除默认模板
-    if (id.startsWith('default-')) return false;
+    if (id.startsWith("default-")) return false;
 
     templates.value.splice(index, 1);
     saveToStorage();
@@ -215,7 +215,7 @@ export const useTemplateStore = defineStore('template', () => {
     return addTemplate(
       `${template.name} (副本)`,
       template.description,
-      template.settings
+      template.settings,
     );
   }
 
@@ -224,7 +224,7 @@ export const useTemplateStore = defineStore('template', () => {
    */
   function applyTemplate(
     templateId: string,
-    currentSettings: AppSettings
+    currentSettings: AppSettings,
   ): AppSettings {
     const template = getTemplate(templateId);
     if (!template) return currentSettings;
@@ -232,7 +232,9 @@ export const useTemplateStore = defineStore('template', () => {
     // 深度合并设置
     const newSettings = JSON.parse(JSON.stringify(currentSettings));
 
-    for (const key of Object.keys(template.settings) as Array<keyof AppSettings>) {
+    for (const key of Object.keys(template.settings) as Array<
+      keyof AppSettings
+    >) {
       if (template.settings[key]) {
         newSettings[key] = {
           ...newSettings[key],
@@ -249,7 +251,9 @@ export const useTemplateStore = defineStore('template', () => {
    */
   function saveToStorage(): void {
     // 只保存用户模板
-    const userTemplates = templates.value.filter((t) => !t.id.startsWith('default-'));
+    const userTemplates = templates.value.filter(
+      (t) => !t.id.startsWith("default-"),
+    );
     saveTemplatesToStorage(userTemplates);
   }
 

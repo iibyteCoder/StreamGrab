@@ -3,15 +3,15 @@
  * 检查 GitHub Releases 获取最新版本
  */
 
-import { ref, onMounted } from 'vue';
-import { useSettingsStore } from '@/stores';
-import { useToast } from './useToast';
+import { ref, onMounted } from "vue";
+import { useSettingsStore } from "@/stores";
+import { useToast } from "./useToast";
 
 // 当前应用版本（从 package.json 读取）
 const CURRENT_VERSION = __APP_VERSION__;
 
 // GitHub 仓库信息
-const GITHUB_REPO = 'iibyteCoder/StreamGrab';
+const GITHUB_REPO = "iibyteCoder/StreamGrab";
 
 // 更新信息接口
 interface ReleaseInfo {
@@ -25,8 +25,8 @@ interface ReleaseInfo {
  * @returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal
  */
 function compareVersions(v1: string, v2: string): number {
-  const parts1 = v1.replace(/^v/, '').split('.').map(Number);
-  const parts2 = v2.replace(/^v/, '').split('.').map(Number);
+  const parts1 = v1.replace(/^v/, "").split(".").map(Number);
+  const parts2 = v2.replace(/^v/, "").split(".").map(Number);
 
   for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
     const p1 = parts1[i] || 0;
@@ -63,9 +63,9 @@ export function useUpdateChecker() {
         `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
         {
           headers: {
-            'Accept': 'application/vnd.github.v3+json',
+            Accept: "application/vnd.github.v3+json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -80,7 +80,7 @@ export function useUpdateChecker() {
         notes: data.body,
       };
     } catch (e) {
-      console.error('Failed to fetch latest version:', e);
+      console.error("Failed to fetch latest version:", e);
       return null;
     }
   }
@@ -98,7 +98,7 @@ export function useUpdateChecker() {
 
       if (!release) {
         if (showNoUpdateToast) {
-          toast.warning('检查更新失败，请稍后重试');
+          toast.warning("检查更新失败，请稍后重试");
         }
         return false;
       }
@@ -117,14 +117,14 @@ export function useUpdateChecker() {
           duration: 5000,
         });
       } else if (showNoUpdateToast) {
-        toast.success('当前已是最新版本');
+        toast.success("当前已是最新版本");
       }
 
       return updateAvailable.value;
     } catch (e) {
-      console.error('Update check failed:', e);
+      console.error("Update check failed:", e);
       if (showNoUpdateToast) {
-        toast.error('检查更新失败');
+        toast.error("检查更新失败");
       }
       return false;
     } finally {
@@ -137,9 +137,9 @@ export function useUpdateChecker() {
    */
   function openDownloadPage() {
     if (releaseUrl.value) {
-      window.open(releaseUrl.value, '_blank');
+      window.open(releaseUrl.value, "_blank");
     } else {
-      window.open(`https://github.com/${GITHUB_REPO}/releases`, '_blank');
+      window.open(`https://github.com/${GITHUB_REPO}/releases`, "_blank");
     }
   }
 

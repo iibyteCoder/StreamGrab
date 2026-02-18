@@ -1,1 +1,1 @@
-export { default as TemplateManager } from './TemplateManager.vue';
+export { default as TemplateManager } from "./TemplateManager.vue";

@@ -3,8 +3,8 @@
  * LiveSettings - 直播设置组件
  */
 
-import { Separator } from '@/components/ui/separator';
-import { SettingSwitch, SettingInput, SettingsGroup } from '..';
+import { Separator } from "@/components/ui/separator";
+import { SettingSwitch, SettingInput, SettingsGroup } from "..";
 
 interface Settings {
   live: {
@@ -26,12 +26,12 @@ interface Props {
 defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: any): void;
+  (e: "update:settings", value: any): void;
 }>();
 
 // 更新设置
 const updateLive = (value: any) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 </script>
 
@@ -86,7 +86,9 @@ const updateLive = (value: any) => {
           label="等待 (秒)"
           type="number"
           :min="0"
-          @update:model-value="updateLive({ waitTime: parseInt(String($event)) || 0 })"
+          @update:model-value="
+            updateLive({ waitTime: parseInt(String($event)) || 0 })
+          "
         />
 
         <SettingInput
@@ -94,7 +96,9 @@ const updateLive = (value: any) => {
           label="分片数"
           type="number"
           :min="0"
-          @update:model-value="updateLive({ takeCount: parseInt(String($event)) || 0 })"
+          @update:model-value="
+            updateLive({ takeCount: parseInt(String($event)) || 0 })
+          "
         />
       </div>
     </SettingsGroup>

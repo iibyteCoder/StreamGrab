@@ -4,8 +4,8 @@
  * 基于 lucide-vue-next 图标库
  */
 
-import * as Icons from 'lucide-vue-next';
-import { computed } from 'vue';
+import * as Icons from "lucide-vue-next";
+import { computed } from "vue";
 
 // Lucide 图标名称类型（从 lucide-vue-next 导入的图标组件名）
 type IconName = keyof typeof Icons;
@@ -19,8 +19,8 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   size: 20,
-  color: 'currentColor',
-  className: '',
+  color: "currentColor",
+  className: "",
 });
 
 // 动态图标组件

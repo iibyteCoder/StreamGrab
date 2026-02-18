@@ -3,13 +3,13 @@
  */
 
 // 通用组件
-export * from './common';
+export * from "./common";
 
 // 布局组件
-export * from './layout';
+export * from "./layout";
 
 // 输入组件
-export * from './input';
+export * from "./input";
 
 // 任务组件
-export * from './task';
+export * from "./task";

@@ -4,17 +4,17 @@
  * 提供搜索和排序功能
  */
 
-import { computed } from 'vue';
-import { Input } from '@/components/ui/input';
+import { computed } from "vue";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { AppIcon } from '@/components/common';
-import type { SortOrder } from '@/composables/useTaskFilter';
+} from "@/components/ui/select";
+import { AppIcon } from "@/components/common";
+import type { SortOrder } from "@/composables/useTaskFilter";
 
 interface Props {
   search: string;
@@ -23,28 +23,28 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  placeholder: '搜索任务...',
+  placeholder: "搜索任务...",
 });
 
 const emit = defineEmits<{
-  (e: 'update:search', value: string): void;
-  (e: 'update:sort', value: SortOrder): void;
+  (e: "update:search", value: string): void;
+  (e: "update:sort", value: SortOrder): void;
 }>();
 
 const sortOptions: { value: SortOrder; label: string }[] = [
-  { value: 'newest', label: '最新优先' },
-  { value: 'oldest', label: '最早优先' },
-  { value: 'status', label: '按状态' },
+  { value: "newest", label: "最新优先" },
+  { value: "oldest", label: "最早优先" },
+  { value: "status", label: "按状态" },
 ];
 
 const localSearch = computed({
   get: () => props.search,
-  set: (value) => emit('update:search', value),
+  set: (value) => emit("update:search", value),
 });
 
 const localSort = computed({
   get: () => props.sort,
-  set: (value) => emit('update:sort', value),
+  set: (value) => emit("update:sort", value),
 });
 </script>
 

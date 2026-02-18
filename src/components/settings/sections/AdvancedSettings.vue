@@ -3,8 +3,8 @@
  * AdvancedSettings - 高级设置组件
  */
 
-import { RotateCcw, AlertTriangle } from 'lucide-vue-next';
-import { Button } from '@/components/ui/button';
+import { RotateCcw, AlertTriangle } from "lucide-vue-next";
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,8 +15,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from '..';
+} from "@/components/ui/alert-dialog";
+import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from "..";
 
 interface Settings {
   advanced: {
@@ -38,27 +38,27 @@ interface Props {
 defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: any): void;
-  (e: 'reset'): void;
+  (e: "update:settings", value: any): void;
+  (e: "reset"): void;
 }>();
 
 // 日志级别选项
 const logLevelOptions = [
-  { value: 'DEBUG', label: '调试' },
-  { value: 'INFO', label: '信息' },
-  { value: 'WARN', label: '警告' },
-  { value: 'ERROR', label: '错误' },
-  { value: 'OFF', label: '关闭' },
+  { value: "DEBUG", label: "调试" },
+  { value: "INFO", label: "信息" },
+  { value: "WARN", label: "警告" },
+  { value: "ERROR", label: "错误" },
+  { value: "OFF", label: "关闭" },
 ];
 
 // 更新设置
 const updateAdvanced = (value: any) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 
 // 重置设置
 const handleReset = () => {
-  emit('reset');
+  emit("reset");
 };
 </script>
 
@@ -128,14 +128,20 @@ const handleReset = () => {
     <!-- 恢复默认配置 -->
     <section class="mb-8 last:mb-0">
       <div class="mb-4">
-        <h3 class="text-sm font-medium text-destructive flex items-center gap-2">
+        <h3
+          class="text-sm font-medium text-destructive flex items-center gap-2"
+        >
           <AlertTriangle class="h-4 w-4" />
           危险操作
         </h3>
-        <p class="mt-1 text-xs text-muted-foreground">以下操作不可撤销，请谨慎使用</p>
+        <p class="mt-1 text-xs text-muted-foreground">
+          以下操作不可撤销，请谨慎使用
+        </p>
       </div>
 
-      <div class="space-y-5 rounded-lg border border-destructive/20 bg-card/50 p-4">
+      <div
+        class="space-y-5 rounded-lg border border-destructive/20 bg-card/50 p-4"
+      >
         <div class="flex items-center justify-between">
           <div class="space-y-0.5">
             <p class="text-sm font-medium">恢复默认配置</p>
@@ -143,7 +149,11 @@ const handleReset = () => {
           </div>
           <AlertDialog>
             <AlertDialogTrigger as-child>
-              <Button variant="outline" size="sm" class="text-destructive border-destructive/30 hover:bg-destructive/10">
+              <Button
+                variant="outline"
+                size="sm"
+                class="text-destructive border-destructive/30 hover:bg-destructive/10"
+              >
                 <RotateCcw class="mr-2 h-4 w-4" />
                 恢复默认
               </Button>

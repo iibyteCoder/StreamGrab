@@ -4,12 +4,23 @@
  * 子路由页面，只负责内容渲染
  */
 
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { Button } from '@/components/ui/button';
-import { AppIcon } from '@/components/common';
-import { TaskList, TaskFilterBar, AddTaskDialog, TaskDetailPanel } from '@/components/task';
-import { useTasks, useDownloader, useSettings, useClipboardWatcher, useTaskFilter } from '@/composables';
-import type { DownloadTask } from '@/types';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { Button } from "@/components/ui/button";
+import { AppIcon } from "@/components/common";
+import {
+  TaskList,
+  TaskFilterBar,
+  AddTaskDialog,
+  TaskDetailPanel,
+} from "@/components/task";
+import {
+  useTasks,
+  useDownloader,
+  useSettings,
+  useClipboardWatcher,
+  useTaskFilter,
+} from "@/composables";
+import type { DownloadTask } from "@/types";
 
 const taskStore = useTasks();
 const { tasks, clearCompleted } = taskStore;
@@ -27,11 +38,11 @@ const showDetailPanel = ref(false);
 const selectedTaskId = ref<string | null>(null);
 
 // Tab 状态
-const activeTab = ref<'active' | 'completed'>('active');
+const activeTab = ref<"active" | "completed">("active");
 
 // Tab 滑块动画
 const tabRefs = ref<Record<string, HTMLElement | null>>({});
-const sliderStyle = ref({ width: '0px', transform: 'translateX(0px)' });
+const sliderStyle = ref({ width: "0px", transform: "translateX(0px)" });
 
 const updateSlider = async () => {
   await nextTick();
@@ -54,7 +65,14 @@ onMounted(() => {
 });
 
 // 过滤器
-const { search, sort, activeTasks, completedTasks, activeCount, completedCount } = useTaskFilter(tasks);
+const {
+  search,
+  sort,
+  activeTasks,
+  completedTasks,
+  activeCount,
+  completedCount,
+} = useTaskFilter(tasks);
 
 // 初始化
 onMounted(async () => {
@@ -74,7 +92,9 @@ const handleTaskClick = (task: DownloadTask) => {
 <template>
   <div class="h-full flex flex-col">
     <!-- 工具栏 -->
-    <div class="border-b px-6 py-3 shrink-0 bg-card/50 flex items-center justify-between">
+    <div
+      class="border-b px-6 py-3 shrink-0 bg-card/50 flex items-center justify-between"
+    >
       <!-- Tab 切换 -->
       <div class="relative flex items-center p-1 bg-muted/50 rounded-lg">
         <!-- 滑动背景块 -->
@@ -85,10 +105,12 @@ const handleTaskClick = (task: DownloadTask) => {
 
         <!-- Tab 按钮 -->
         <button
-          :ref="(el) => tabRefs.active = el as HTMLElement"
+          :ref="(el) => (tabRefs.active = el as HTMLElement)"
           :class="[
             'relative z-10 px-4 py-1.5 text-sm rounded-md transition-colors',
-            activeTab === 'active' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+            activeTab === 'active'
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           ]"
           @click="activeTab = 'active'"
         >
@@ -101,10 +123,12 @@ const handleTaskClick = (task: DownloadTask) => {
           </span>
         </button>
         <button
-          :ref="(el) => tabRefs.completed = el as HTMLElement"
+          :ref="(el) => (tabRefs.completed = el as HTMLElement)"
           :class="[
             'relative z-10 px-4 py-1.5 text-sm rounded-md transition-colors',
-            activeTab === 'completed' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+            activeTab === 'completed'
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           ]"
           @click="activeTab = 'completed'"
         >
@@ -120,7 +144,11 @@ const handleTaskClick = (task: DownloadTask) => {
 
       <!-- 过滤器 + 添加按钮 -->
       <div class="flex items-center gap-3">
-        <TaskFilterBar v-model:search="search" v-model:sort="sort" class="w-64" />
+        <TaskFilterBar
+          v-model:search="search"
+          v-model:sort="sort"
+          class="w-64"
+        />
         <Button @click="showAddDialog = true">
           <AppIcon name="Plus" :size="16" class="mr-2" />
           添加任务
@@ -147,7 +175,10 @@ const handleTaskClick = (task: DownloadTask) => {
       </div>
 
       <!-- 任务详情面板（在列表区域内侧滑） -->
-      <TaskDetailPanel v-model:open="showDetailPanel" :task-id="selectedTaskId" />
+      <TaskDetailPanel
+        v-model:open="showDetailPanel"
+        :task-id="selectedTaskId"
+      />
     </div>
 
     <!-- 底部操作 -->

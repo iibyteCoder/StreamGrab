@@ -46,7 +46,7 @@ export interface TaskProgressData {
 // 任务日志条目
 export interface TaskLogEntry {
   timestamp: Date;
-  level: 'info' | 'warn' | 'error' | 'debug';
+  level: "info" | "warn" | "error" | "debug";
   message: string;
 }
 
@@ -400,9 +400,21 @@ export interface LogEntry {
 export const DEFAULT_SAVE_PATTERN_PRESETS = [
   { id: "basic", name: "基础", template: "<SaveName>" },
   { id: "resolution", name: "包含分辨率", template: "<SaveName>_<Resolution>" },
-  { id: "bandwidth", name: "包含带宽", template: "<SaveName>_<Resolution>_<Bandwidth>kbps" },
-  { id: "multi-audio", name: "多音轨", template: "<SaveName>_<Language>_<Channels>ch" },
-  { id: "full", name: "完整信息", template: "<MediaType>_<Resolution>_<Codecs>_<Language>" },
+  {
+    id: "bandwidth",
+    name: "包含带宽",
+    template: "<SaveName>_<Resolution>_<Bandwidth>kbps",
+  },
+  {
+    id: "multi-audio",
+    name: "多音轨",
+    template: "<SaveName>_<Language>_<Channels>ch",
+  },
+  {
+    id: "full",
+    name: "完整信息",
+    template: "<MediaType>_<Resolution>_<Codecs>_<Language>",
+  },
 ];
 
 export const DEFAULT_AD_FILTER_PRESETS = [

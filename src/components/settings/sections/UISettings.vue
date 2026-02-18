@@ -3,7 +3,7 @@
  * UISettings - 界面设置组件
  */
 
-import { SettingSelect, SettingSwitch, SettingsGroup } from '..';
+import { SettingSelect, SettingSwitch, SettingsGroup } from "..";
 
 interface Settings {
   ui: {
@@ -20,25 +20,25 @@ interface Props {
 defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: any): void;
-  (e: 'update:theme', value: any): void;
+  (e: "update:settings", value: any): void;
+  (e: "update:theme", value: any): void;
 }>();
 
 // 主题选项
 const themeOptions = [
-  { value: 'light', label: '浅色' },
-  { value: 'dark', label: '深色' },
-  { value: 'system', label: '跟随系统' },
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+  { value: "system", label: "跟随系统" },
 ];
 
 // 更新设置
 const updateUI = (value: any) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 
 // 更新主题
 const updateTheme = (value: any) => {
-  emit('update:theme', value);
+  emit("update:theme", value);
 };
 </script>
 

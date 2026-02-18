@@ -3,11 +3,11 @@
  * MuxSettings - 混流设置 UI 组件
  */
 
-import { computed } from 'vue';
-import { Button } from '@/components/ui/button';
-import { AppIcon } from '@/components/common';
-import { SettingSwitch, SettingSelect, SettingInput, SettingsGroup } from '..';
-import type { MuxSettings, MuxImport } from '@/types';
+import { computed } from "vue";
+import { Button } from "@/components/ui/button";
+import { AppIcon } from "@/components/common";
+import { SettingSwitch, SettingSelect, SettingInput, SettingsGroup } from "..";
+import type { MuxSettings, MuxImport } from "@/types";
 
 interface Props {
   settings: { mux: MuxSettings };
@@ -16,19 +16,19 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: Partial<MuxSettings>): void;
+  (e: "update:settings", value: Partial<MuxSettings>): void;
 }>();
 
 // 混流格式选项
 const muxFormatOptions = [
-  { value: 'mp4', label: 'MP4' },
-  { value: 'mkv', label: 'MKV' },
+  { value: "mp4", label: "MP4" },
+  { value: "mkv", label: "MKV" },
 ];
 
 // 混流器选项
 const muxerOptions = [
-  { value: 'ffmpeg', label: 'FFmpeg' },
-  { value: 'mkvmerge', label: 'MKVMerge' },
+  { value: "ffmpeg", label: "FFmpeg" },
+  { value: "mkvmerge", label: "MKVMerge" },
 ];
 
 // 外部媒体列表
@@ -36,12 +36,12 @@ const muxImports = computed(() => props.settings.mux.muxImports);
 
 // 更新设置
 const updateMux = (value: Partial<MuxSettings>) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 
 // 添加外部媒体
 const addMuxImport = () => {
-  const newImports: MuxImport[] = [...muxImports.value, { path: '' }];
+  const newImports: MuxImport[] = [...muxImports.value, { path: "" }];
   updateMux({ muxImports: newImports });
 };
 
@@ -95,7 +95,9 @@ const updateMuxImportName = (index: number, name: string) => {
         label="混流器"
         :options="muxerOptions"
         placeholder="选择混流器"
-        @update:model-value="updateMux({ muxer: $event as 'ffmpeg' | 'mkvmerge' })"
+        @update:model-value="
+          updateMux({ muxer: $event as 'ffmpeg' | 'mkvmerge' })
+        "
       />
 
       <SettingInput
@@ -135,24 +137,31 @@ const updateMuxImportName = (index: number, name: string) => {
       </div>
     </SettingsGroup>
 
-    <SettingsGroup title="外部媒体导入" description="导入外部音频或字幕文件进行混流">
-      <div v-if="muxImports.length === 0" class="text-sm text-muted-foreground py-2">
+    <SettingsGroup
+      title="外部媒体导入"
+      description="导入外部音频或字幕文件进行混流"
+    >
+      <div
+        v-if="muxImports.length === 0"
+        class="text-sm text-muted-foreground py-2"
+      >
         暂无外部媒体，点击下方按钮添加
       </div>
 
       <div v-else class="space-y-3">
-        <div
-          v-for="(item, index) in muxImports"
-          :key="index"
-          class="space-y-2"
-        >
+        <div v-for="(item, index) in muxImports" :key="index" class="space-y-2">
           <div class="flex items-center gap-2">
             <input
               :value="item.path"
               type="text"
               placeholder="文件路径"
               class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-              @input="updateMuxImportPath(index, ($event.target as HTMLInputElement).value)"
+              @input="
+                updateMuxImportPath(
+                  index,
+                  ($event.target as HTMLInputElement).value,
+                )
+              "
             />
             <Button
               variant="ghost"
@@ -169,14 +178,24 @@ const updateMuxImportName = (index: number, name: string) => {
               type="text"
               placeholder="语言 (如: zh, en)"
               class="w-28 h-8 px-2 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-              @input="updateMuxImportLang(index, ($event.target as HTMLInputElement).value)"
+              @input="
+                updateMuxImportLang(
+                  index,
+                  ($event.target as HTMLInputElement).value,
+                )
+              "
             />
             <input
               :value="item.name || ''"
               type="text"
               placeholder="名称 (可选)"
               class="flex-1 h-8 px-2 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-              @input="updateMuxImportName(index, ($event.target as HTMLInputElement).value)"
+              @input="
+                updateMuxImportName(
+                  index,
+                  ($event.target as HTMLInputElement).value,
+                )
+              "
             />
           </div>
         </div>

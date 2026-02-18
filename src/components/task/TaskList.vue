@@ -4,25 +4,25 @@
  * 纯展示组件，负责渲染任务卡片列表
  */
 
-import TaskCard from './TaskCard.vue';
-import TaskEmptyState from './TaskEmptyState.vue';
-import type { DownloadTask } from '@/types';
+import TaskCard from "./TaskCard.vue";
+import TaskEmptyState from "./TaskEmptyState.vue";
+import type { DownloadTask } from "@/types";
 
 interface Props {
   /** 任务列表 */
   tasks: DownloadTask[];
   /** 空状态类型 */
-  emptyType?: 'active' | 'completed' | 'all';
+  emptyType?: "active" | "completed" | "all";
   /** 自定义空状态文本 */
   emptyText?: string;
 }
 
 withDefaults(defineProps<Props>(), {
-  emptyType: 'all',
+  emptyType: "all",
 });
 
 defineEmits<{
-  (e: 'taskClick', task: DownloadTask): void;
+  (e: "taskClick", task: DownloadTask): void;
 }>();
 </script>
 
@@ -44,11 +44,7 @@ defineEmits<{
     </TransitionGroup>
 
     <!-- 空状态 -->
-    <TaskEmptyState
-      v-else
-      :type="emptyType"
-      :title="emptyText"
-    />
+    <TaskEmptyState v-else :type="emptyType" :title="emptyText" />
   </div>
 </template>
 

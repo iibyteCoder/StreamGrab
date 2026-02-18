@@ -4,17 +4,17 @@
  * 显示下载任务的实时日志
  */
 
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from "vue";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { AppIcon } from '@/components/common';
-import { useTaskStore } from '@/stores';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AppIcon } from "@/components/common";
+import { useTaskStore } from "@/stores";
 
 interface Props {
   open: boolean;
@@ -24,7 +24,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:open', value: boolean): void;
+  (e: "update:open", value: boolean): void;
 }>();
 
 const taskStore = useTaskStore();
@@ -49,18 +49,18 @@ const logs = computed(() => {
 
 // 日志级别颜色
 const levelColors: Record<string, string> = {
-  info: 'text-foreground',
-  warn: 'text-yellow-500',
-  error: 'text-red-500',
-  debug: 'text-muted-foreground',
+  info: "text-foreground",
+  warn: "text-yellow-500",
+  error: "text-red-500",
+  debug: "text-muted-foreground",
 };
 
 // 格式化时间
 const formatTime = (date: Date): string => {
-  return date.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
 };
 
@@ -70,12 +70,14 @@ watch(
   async () => {
     if (autoScroll.value) {
       await nextTick();
-      const viewport = scrollAreaRef.value?.$el?.querySelector('[data-radix-scroll-area-viewport]');
+      const viewport = scrollAreaRef.value?.$el?.querySelector(
+        "[data-radix-scroll-area-viewport]",
+      );
       if (viewport) {
         viewport.scrollTop = viewport.scrollHeight;
       }
     }
-  }
+  },
 );
 
 // 清除日志
@@ -87,7 +89,7 @@ const clearLogs = () => {
 
 // 关闭对话框
 const closeDialog = () => {
-  emit('update:open', false);
+  emit("update:open", false);
 };
 </script>
 
@@ -132,7 +134,10 @@ const closeDialog = () => {
 
       <div class="flex-1 min-h-0 border rounded-md bg-muted/30">
         <ScrollArea ref="scrollAreaRef" class="h-[400px]">
-          <div v-if="logs.length === 0" class="flex items-center justify-center h-full text-muted-foreground text-sm">
+          <div
+            v-if="logs.length === 0"
+            class="flex items-center justify-center h-full text-muted-foreground text-sm"
+          >
             暂无日志
           </div>
           <div v-else class="p-2 font-mono text-xs space-y-0.5">
@@ -177,11 +182,11 @@ const closeDialog = () => {
         </ScrollArea>
       </div>
 
-      <div class="flex justify-between items-center pt-2 text-xs text-muted-foreground">
+      <div
+        class="flex justify-between items-center pt-2 text-xs text-muted-foreground"
+      >
         <span>共 {{ logs.length }} 条日志</span>
-        <Button variant="outline" size="sm" @click="closeDialog">
-          关闭
-        </Button>
+        <Button variant="outline" size="sm" @click="closeDialog"> 关闭 </Button>
       </div>
     </DialogContent>
   </Dialog>

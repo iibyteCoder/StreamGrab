@@ -3,21 +3,21 @@
  * 抽取任务列表的过滤、搜索、排序逻辑
  */
 
-import { ref, computed, type MaybeRef } from 'vue';
-import { toValue } from 'vue';
-import type { DownloadTask, TaskStatus } from '@/types';
+import { ref, computed, type MaybeRef } from "vue";
+import { toValue } from "vue";
+import type { DownloadTask, TaskStatus } from "@/types";
 
 /** 排序类型 */
-export type SortOrder = 'newest' | 'oldest' | 'status';
+export type SortOrder = "newest" | "oldest" | "status";
 
 /** 任务视图类型 */
-export type TaskViewType = 'active' | 'completed';
+export type TaskViewType = "active" | "completed";
 
 /** 过滤状态 */
 interface FilterState {
   search: string;
   sort: SortOrder;
-  status: TaskStatus | 'all';
+  status: TaskStatus | "all";
 }
 
 /** 状态排序优先级 */
@@ -40,31 +40,37 @@ const STATUS_PRIORITY: Record<TaskStatus, number> = {
  */
 export function useTaskFilter(
   tasks: MaybeRef<DownloadTask[]>,
-  initialFilter?: Partial<FilterState>
+  initialFilter?: Partial<FilterState>,
 ) {
   // 过滤状态
-  const search = ref(initialFilter?.search ?? '');
-  const sort = ref<SortOrder>(initialFilter?.sort ?? 'newest');
-  const statusFilter = ref<TaskStatus | 'all'>(initialFilter?.status ?? 'all');
+  const search = ref(initialFilter?.search ?? "");
+  const sort = ref<SortOrder>(initialFilter?.sort ?? "newest");
+  const statusFilter = ref<TaskStatus | "all">(initialFilter?.status ?? "all");
 
   /**
    * 搜索过滤
    */
-  const filterBySearch = (taskList: DownloadTask[], query: string): DownloadTask[] => {
+  const filterBySearch = (
+    taskList: DownloadTask[],
+    query: string,
+  ): DownloadTask[] => {
     if (!query.trim()) return taskList;
     const lowerQuery = query.toLowerCase();
     return taskList.filter(
       (task) =>
         task.url.toLowerCase().includes(lowerQuery) ||
-        task.fileName?.toLowerCase().includes(lowerQuery)
+        task.fileName?.toLowerCase().includes(lowerQuery),
     );
   };
 
   /**
    * 状态过滤
    */
-  const filterByStatus = (taskList: DownloadTask[], status: TaskStatus | 'all'): DownloadTask[] => {
-    if (status === 'all') return taskList;
+  const filterByStatus = (
+    taskList: DownloadTask[],
+    status: TaskStatus | "all",
+  ): DownloadTask[] => {
+    if (status === "all") return taskList;
     return taskList.filter((task) => task.status === status);
   };
 
@@ -72,30 +78,35 @@ export function useTaskFilter(
    * 过滤活跃任务（非已完成）
    */
   const filterActive = (taskList: DownloadTask[]): DownloadTask[] => {
-    return taskList.filter((task) => task.status !== 'completed');
+    return taskList.filter((task) => task.status !== "completed");
   };
 
   /**
    * 过滤已完成任务
    */
   const filterCompleted = (taskList: DownloadTask[]): DownloadTask[] => {
-    return taskList.filter((task) => task.status === 'completed');
+    return taskList.filter((task) => task.status === "completed");
   };
 
   /**
    * 排序任务
    */
-  const sortTasks = (taskList: DownloadTask[], order: SortOrder): DownloadTask[] => {
+  const sortTasks = (
+    taskList: DownloadTask[],
+    order: SortOrder,
+  ): DownloadTask[] => {
     const result = [...taskList];
     switch (order) {
-      case 'newest':
+      case "newest":
         result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
         break;
-      case 'oldest':
+      case "oldest":
         result.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         break;
-      case 'status':
-        result.sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]);
+      case "status":
+        result.sort(
+          (a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status],
+        );
         break;
     }
     return result;
@@ -153,9 +164,9 @@ export function useTaskFilter(
    * 重置过滤器
    */
   const resetFilter = (): void => {
-    search.value = '';
-    sort.value = 'newest';
-    statusFilter.value = 'all';
+    search.value = "";
+    sort.value = "newest";
+    statusFilter.value = "all";
   };
 
   return {

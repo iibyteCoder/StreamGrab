@@ -3,8 +3,8 @@
  * SettingInput - 输入框设置项组件
  */
 
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   modelValue?: string | number;
@@ -14,13 +14,13 @@ interface Props {
   disabled?: boolean;
   min?: number;
   max?: number;
-  class?: string;
+  inputClass?: string;
 }
 
 defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string | number): void;
+  (e: "update:modelValue", value: string | number): void;
 }>();
 </script>
 
@@ -34,7 +34,7 @@ const emit = defineEmits<{
       :disabled="disabled"
       :min="min"
       :max="max"
-      :class="class"
+      :class="inputClass"
       @update:model-value="emit('update:modelValue', $event)"
     />
   </div>

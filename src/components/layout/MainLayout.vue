@@ -4,16 +4,16 @@
  * 应用的主要布局结构
  */
 
-import { computed } from 'vue';
-import { useUiStore } from '@/stores';
-import TitleBar from './TitleBar.vue';
-import ResizeHandles from './ResizeHandles.vue';
+import { computed } from "vue";
+import { useUiStore } from "@/stores";
+import TitleBar from "./TitleBar.vue";
+import ResizeHandles from "./ResizeHandles.vue";
 
 interface Props {
   showTitleBar?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   showTitleBar: true,
 });
 
@@ -21,14 +21,16 @@ const uiStore = useUiStore();
 
 const sidebarClasses = computed(() => {
   return [
-    'flex-shrink-0 h-full bg-bg-surface border-r border-border-default transition-all duration-300',
-    uiStore.isSidebarCollapsed ? 'w-0 overflow-hidden' : 'w-48',
+    "flex-shrink-0 h-full bg-bg-surface border-r border-border-default transition-all duration-300",
+    uiStore.isSidebarCollapsed ? "w-0 overflow-hidden" : "w-48",
   ];
 });
 </script>
 
 <template>
-  <div class="app-container h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden">
+  <div
+    class="app-container h-screen flex flex-col bg-bg-base text-text-primary overflow-hidden"
+  >
     <!-- 窗口缩放边框 -->
     <ResizeHandles />
 

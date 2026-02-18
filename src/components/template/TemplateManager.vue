@@ -4,18 +4,18 @@
  * 只负责 UI 展示，业务逻辑在 useTemplateManager 中
  */
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { AppIcon } from '@/components/common';
-import { useTemplateManager } from '@/composables/useTemplateManager';
+} from "@/components/ui/dialog";
+import { AppIcon } from "@/components/common";
+import { useTemplateManager } from "@/composables/useTemplateManager";
 
 const manager = useTemplateManager();
 
@@ -33,7 +33,9 @@ const handleSave = () => {
     <div class="flex items-center justify-between">
       <div>
         <h3 class="text-lg font-medium">配置模板</h3>
-        <p class="text-sm text-muted-foreground">保存常用的下载配置，快速应用到新任务</p>
+        <p class="text-sm text-muted-foreground">
+          保存常用的下载配置，快速应用到新任务
+        </p>
       </div>
       <Button @click="manager.createFromCurrentSettings()">
         <AppIcon name="Plus" :size="16" class="mr-1.5" />
@@ -57,8 +59,16 @@ const handleSave = () => {
             </div>
             <span class="text-xs text-muted-foreground">预设</span>
           </div>
-          <p class="text-sm text-muted-foreground mb-3 line-clamp-2">{{ template.description }}</p>
-          <Button variant="outline" size="sm" class="w-full" @click="manager.applyTemplate(template)">应用</Button>
+          <p class="text-sm text-muted-foreground mb-3 line-clamp-2">
+            {{ template.description }}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            class="w-full"
+            @click="manager.applyTemplate(template)"
+            >应用</Button
+          >
         </div>
       </div>
     </div>
@@ -67,10 +77,15 @@ const handleSave = () => {
     <div>
       <h4 class="text-sm font-medium text-muted-foreground mb-3">
         自定义模板
-        <span v-if="manager.customTemplates.value.length > 0" class="ml-1">({{ manager.customTemplates.value.length }})</span>
+        <span v-if="manager.customTemplates.value.length > 0" class="ml-1"
+          >({{ manager.customTemplates.value.length }})</span
+        >
       </h4>
 
-      <div v-if="manager.customTemplates.value.length === 0" class="text-center py-8 text-muted-foreground">
+      <div
+        v-if="manager.customTemplates.value.length === 0"
+        class="text-center py-8 text-muted-foreground"
+      >
         <AppIcon name="FileBox" :size="40" class="mx-auto mb-3 opacity-50" />
         <p>暂无自定义模板</p>
         <p class="text-sm mt-1">点击上方按钮从当前设置创建模板</p>
@@ -84,14 +99,30 @@ const handleSave = () => {
         >
           <div class="flex items-start justify-between mb-2">
             <div class="flex items-center gap-2">
-              <AppIcon name="FileText" :size="16" class="text-muted-foreground" />
+              <AppIcon
+                name="FileText"
+                :size="16"
+                class="text-muted-foreground"
+              />
               <span class="font-medium">{{ template.name }}</span>
             </div>
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="manager.duplicateTemplate(template)">
+            <div
+              class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7"
+                @click="manager.duplicateTemplate(template)"
+              >
                 <AppIcon name="Copy" :size="14" />
               </Button>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="manager.editTemplate(template)">
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7"
+                @click="manager.editTemplate(template)"
+              >
                 <AppIcon name="Pencil" :size="14" />
               </Button>
               <Button
@@ -104,12 +135,19 @@ const handleSave = () => {
               </Button>
             </div>
           </div>
-          <p class="text-sm text-muted-foreground mb-3 line-clamp-2">{{ template.description || '无描述' }}</p>
+          <p class="text-sm text-muted-foreground mb-3 line-clamp-2">
+            {{ template.description || "无描述" }}
+          </p>
           <div class="flex items-center justify-between">
             <span class="text-xs text-muted-foreground">
               {{ new Date(template.updatedAt).toLocaleDateString() }}
             </span>
-            <Button variant="outline" size="sm" @click="manager.applyTemplate(template)">应用</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              @click="manager.applyTemplate(template)"
+              >应用</Button
+            >
           </div>
         </div>
       </div>
@@ -119,20 +157,33 @@ const handleSave = () => {
     <Dialog v-model:open="manager.showEditDialog.value">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{{ manager.editingTemplate.value ? '编辑模板' : '创建模板' }}</DialogTitle>
+          <DialogTitle>{{
+            manager.editingTemplate.value ? "编辑模板" : "创建模板"
+          }}</DialogTitle>
         </DialogHeader>
 
         <div class="space-y-4 py-4">
           <div class="space-y-2">
             <Label for="name">模板名称</Label>
-            <Input id="name" v-model="manager.editForm.value.name" placeholder="例如：B站 1080P" />
+            <Input
+              id="name"
+              v-model="manager.editForm.value.name"
+              placeholder="例如：B站 1080P"
+            />
           </div>
           <div class="space-y-2">
             <Label for="description">描述</Label>
-            <Input id="description" v-model="manager.editForm.value.description" placeholder="可选，用于说明模板用途" />
+            <Input
+              id="description"
+              v-model="manager.editForm.value.description"
+              placeholder="可选，用于说明模板用途"
+            />
           </div>
 
-          <div v-if="!manager.editingTemplate.value" class="text-sm text-muted-foreground">
+          <div
+            v-if="!manager.editingTemplate.value"
+            class="text-sm text-muted-foreground"
+          >
             <p>将保存当前的所有下载设置到此模板：</p>
             <ul class="list-disc list-inside mt-2 space-y-1 text-xs">
               <li>下载设置（线程数、重试次数等）</li>
@@ -146,8 +197,12 @@ const handleSave = () => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="manager.closeEditDialog()">取消</Button>
-          <Button @click="handleSave">{{ manager.editingTemplate.value ? '保存' : '创建' }}</Button>
+          <Button variant="outline" @click="manager.closeEditDialog()"
+            >取消</Button
+          >
+          <Button @click="handleSave">{{
+            manager.editingTemplate.value ? "保存" : "创建"
+          }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -159,11 +214,16 @@ const handleSave = () => {
           <DialogTitle>确认删除</DialogTitle>
         </DialogHeader>
         <p class="text-sm text-muted-foreground">
-          确定要删除模板 "{{ manager.deletingTemplate.value?.name }}" 吗？此操作不可恢复。
+          确定要删除模板 "{{ manager.deletingTemplate.value?.name }}"
+          吗？此操作不可恢复。
         </p>
         <DialogFooter>
-          <Button variant="outline" @click="manager.closeDeleteDialog()">取消</Button>
-          <Button variant="destructive" @click="manager.deleteTemplate()">删除</Button>
+          <Button variant="outline" @click="manager.closeDeleteDialog()"
+            >取消</Button
+          >
+          <Button variant="destructive" @click="manager.deleteTemplate()"
+            >删除</Button
+          >
         </DialogFooter>
       </DialogContent>
     </Dialog>

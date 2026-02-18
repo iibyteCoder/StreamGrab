@@ -3,10 +3,10 @@
  * 封装设置的加载、保存和更新
  */
 
-import { computed, watch, onMounted, onUnmounted } from 'vue';
-import { useSettingsStore } from '@/stores';
-import { configService } from '@/services';
-import type { AppSettings } from '@/types';
+import { computed, watch, onMounted, onUnmounted } from "vue";
+import { useSettingsStore } from "@/stores";
+import { configService } from "@/services";
+import type { AppSettings } from "@/types";
 
 /**
  * 设置组合式函数
@@ -30,7 +30,7 @@ export function useSettings() {
     try {
       await store.loadSettings();
     } catch (e) {
-      console.error('Failed to load settings:', e);
+      console.error("Failed to load settings:", e);
       throw e;
     }
   };
@@ -42,7 +42,7 @@ export function useSettings() {
     try {
       await store.saveSettings();
     } catch (e) {
-      console.error('Failed to save settings:', e);
+      console.error("Failed to save settings:", e);
       throw e;
     }
   };
@@ -54,7 +54,7 @@ export function useSettings() {
     try {
       await store.resetSettings();
     } catch (e) {
-      console.error('Failed to reset settings:', e);
+      console.error("Failed to reset settings:", e);
       throw e;
     }
   };
@@ -62,63 +62,65 @@ export function useSettings() {
   /**
    * 更新通用设置
    */
-  const updateGeneral = (updates: Partial<AppSettings['general']>): void => {
+  const updateGeneral = (updates: Partial<AppSettings["general"]>): void => {
     store.updateGeneral(updates);
   };
 
   /**
    * 更新下载设置
    */
-  const updateDownload = (updates: Partial<AppSettings['download']>): void => {
+  const updateDownload = (updates: Partial<AppSettings["download"]>): void => {
     store.updateDownload(updates);
   };
 
   /**
    * 更新混流设置
    */
-  const updateMux = (updates: Partial<AppSettings['mux']>): void => {
+  const updateMux = (updates: Partial<AppSettings["mux"]>): void => {
     store.updateMux(updates);
   };
 
   /**
    * 更新网络设置
    */
-  const updateNetwork = (updates: Partial<AppSettings['network']>): void => {
+  const updateNetwork = (updates: Partial<AppSettings["network"]>): void => {
     store.updateNetwork(updates);
   };
 
   /**
    * 更新解密设置
    */
-  const updateDecryption = (updates: Partial<AppSettings['decryption']>): void => {
+  const updateDecryption = (
+    updates: Partial<AppSettings["decryption"]>,
+  ): void => {
     store.updateDecryption(updates);
   };
 
   /**
    * 更新直播设置
    */
-  const updateLive = (updates: Partial<AppSettings['live']>): void => {
+  const updateLive = (updates: Partial<AppSettings["live"]>): void => {
     store.updateLive(updates);
   };
 
   /**
    * 更新高级设置
    */
-  const updateAdvanced = (updates: Partial<AppSettings['advanced']>): void => {
+  const updateAdvanced = (updates: Partial<AppSettings["advanced"]>): void => {
     store.updateAdvanced(updates);
   };
 
   /**
    * 更新 UI 设置
    */
-  const updateUi = (updates: Partial<AppSettings['ui']>): void => {
+  const updateUi = (updates: Partial<AppSettings["ui"]>): void => {
     store.updateUi(updates);
   };
 
   /**
    * 设置主题
    */
-  const setTheme = (newTheme: 'light' | 'dark' | 'system'): void => {
+  const setTheme = (newTheme: "light" | "dark" | "system"): void => {
     store.setTheme(newTheme);
   };
 
@@ -135,7 +137,7 @@ export function useSettings() {
   const importConfig = async (filePath: string): Promise<void> => {
     const imported = await configService.importConfig(filePath);
     store.setSettings(imported);
-    store.initTheme();  // 导入后重新应用主题
+    store.initTheme(); // 导入后重新应用主题
   };
 
   /**
@@ -159,7 +161,7 @@ export function useSettings() {
           saveSettings().catch(console.error);
         }, debounceMs);
       },
-      { deep: true }
+      { deep: true },
     );
   };
 
@@ -180,7 +182,7 @@ export function useSettings() {
         await loadSettings();
         store.initTheme();
       } catch (e) {
-        console.error('Failed to initialize settings:', e);
+        console.error("Failed to initialize settings:", e);
       }
     }
   });

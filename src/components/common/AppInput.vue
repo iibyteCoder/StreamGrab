@@ -3,11 +3,11 @@
  * Input 输入框组件
  */
 
-import { computed, ref } from 'vue';
+import { computed, ref } from "vue";
 
 interface Props {
   modelValue?: string;
-  type?: 'text' | 'password' | 'url' | 'number';
+  type?: "text" | "password" | "url" | "number";
   placeholder?: string;
   disabled?: boolean;
   readonly?: boolean;
@@ -18,9 +18,9 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValue: '',
-  type: 'text',
-  placeholder: '',
+  modelValue: "",
+  type: "text",
+  placeholder: "",
   disabled: false,
   readonly: false,
   error: false,
@@ -28,36 +28,38 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void;
-  (e: 'input', event: Event): void;
-  (e: 'change', event: Event): void;
-  (e: 'focus', event: FocusEvent): void;
-  (e: 'blur', event: FocusEvent): void;
-  (e: 'clear'): void;
-  (e: 'enter', event: KeyboardEvent): void;
+  (e: "update:modelValue", value: string): void;
+  (e: "input", event: Event): void;
+  (e: "change", event: Event): void;
+  (e: "focus", event: FocusEvent): void;
+  (e: "blur", event: FocusEvent): void;
+  (e: "clear"): void;
+  (e: "enter", event: KeyboardEvent): void;
 }>();
 
 const inputRef = ref<HTMLInputElement>();
 
 const inputClasses = computed(() => {
   const base = [
-    'w-full px-3 py-2 rounded-lg border transition-all duration-150',
-    'bg-bg-surface text-text-primary placeholder:text-text-muted',
-    'focus:outline-none focus:ring-2 focus:ring-accent-primary/50 focus:border-accent-primary',
+    "w-full px-3 py-2 rounded-lg border transition-all duration-150",
+    "bg-bg-surface text-text-primary placeholder:text-text-muted",
+    "focus:outline-none focus:ring-2 focus:ring-accent-primary/50 focus:border-accent-primary",
   ];
 
   if (props.error) {
-    base.push('border-accent-error focus:ring-accent-error/50 focus:border-accent-error');
+    base.push(
+      "border-accent-error focus:ring-accent-error/50 focus:border-accent-error",
+    );
   } else {
-    base.push('border-border-default hover:border-border-hover');
+    base.push("border-border-default hover:border-border-hover");
   }
 
   if (props.disabled) {
-    base.push('opacity-50 cursor-not-allowed');
+    base.push("opacity-50 cursor-not-allowed");
   }
 
   if (props.clearable && props.modelValue) {
-    base.push('pr-10');
+    base.push("pr-10");
   }
 
   return base;
@@ -65,31 +67,31 @@ const inputClasses = computed(() => {
 
 const handleInput = (event: Event) => {
   const value = (event.target as HTMLInputElement).value;
-  emit('update:modelValue', value);
-  emit('input', event);
+  emit("update:modelValue", value);
+  emit("input", event);
 };
 
 const handleChange = (event: Event) => {
-  emit('change', event);
+  emit("change", event);
 };
 
 const handleFocus = (event: FocusEvent) => {
-  emit('focus', event);
+  emit("focus", event);
 };
 
 const handleBlur = (event: FocusEvent) => {
-  emit('blur', event);
+  emit("blur", event);
 };
 
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Enter') {
-    emit('enter', event);
+  if (event.key === "Enter") {
+    emit("enter", event);
   }
 };
 
 const handleClear = () => {
-  emit('update:modelValue', '');
-  emit('clear');
+  emit("update:modelValue", "");
+  emit("clear");
   inputRef.value?.focus();
 };
 

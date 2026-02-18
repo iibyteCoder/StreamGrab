@@ -4,12 +4,12 @@
  * 为无装饰窗口提供边角和边缘缩放功能
  */
 
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const appWindow = getCurrentWindow();
 
 // 缩放方向映射
-type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 // 启动缩放
 const startResize = (direction: ResizeDirection) => async (e: MouseEvent) => {

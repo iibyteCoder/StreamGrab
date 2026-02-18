@@ -3,10 +3,10 @@
  * 负责配置模板的业务逻辑
  */
 
-import { ref, computed, onMounted } from 'vue';
-import { useTemplateStore, useSettingsStore } from '@/stores';
-import { useToast } from './useToast';
-import type { ConfigTemplate, AppSettings } from '@/types';
+import { ref, computed, onMounted } from "vue";
+import { useTemplateStore, useSettingsStore } from "@/stores";
+import { useToast } from "./useToast";
+import type { ConfigTemplate, AppSettings } from "@/types";
 
 /**
  * 模板管理组合式函数
@@ -24,8 +24,8 @@ export function useTemplateManager() {
 
   // 表单数据
   const editForm = ref({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
   });
 
   // 初始化
@@ -42,14 +42,14 @@ export function useTemplateManager() {
   // 从当前设置创建新模板
   const createFromCurrentSettings = () => {
     editingTemplate.value = null;
-    editForm.value = { name: '', description: '' };
+    editForm.value = { name: "", description: "" };
     showEditDialog.value = true;
   };
 
   // 编辑模板
   const editTemplate = (template: ConfigTemplate) => {
-    if (template.id.startsWith('default-')) {
-      toast.warning('无法编辑预设模板');
+    if (template.id.startsWith("default-")) {
+      toast.warning("无法编辑预设模板");
       return;
     }
     editingTemplate.value = template;
@@ -75,7 +75,7 @@ export function useTemplateManager() {
   // 保存模板
   const saveTemplate = () => {
     if (!editForm.value.name.trim()) {
-      toast.warning('请输入模板名称');
+      toast.warning("请输入模板名称");
       return false;
     }
 
@@ -85,26 +85,26 @@ export function useTemplateManager() {
         description: editForm.value.description,
       });
       if (success) {
-        toast.success('模板已更新');
+        toast.success("模板已更新");
       } else {
-        toast.error('更新失败');
+        toast.error("更新失败");
       }
       return success;
     } else {
       templateStore.addTemplate(
         editForm.value.name,
         editForm.value.description,
-        extractCurrentSettings()
+        extractCurrentSettings(),
       );
-      toast.success('模板已创建');
+      toast.success("模板已创建");
       return true;
     }
   };
 
   // 确认删除
   const confirmDelete = (template: ConfigTemplate) => {
-    if (template.id.startsWith('default-')) {
-      toast.warning('无法删除预设模板');
+    if (template.id.startsWith("default-")) {
+      toast.warning("无法删除预设模板");
       return;
     }
     deletingTemplate.value = template;
@@ -116,9 +116,9 @@ export function useTemplateManager() {
     if (deletingTemplate.value) {
       const success = templateStore.deleteTemplate(deletingTemplate.value.id);
       if (success) {
-        toast.success('模板已删除');
+        toast.success("模板已删除");
       } else {
-        toast.error('删除失败');
+        toast.error("删除失败");
       }
     }
     showDeleteDialog.value = false;
@@ -129,9 +129,9 @@ export function useTemplateManager() {
   const duplicateTemplate = (template: ConfigTemplate) => {
     const newTemplate = templateStore.duplicateTemplate(template.id);
     if (newTemplate) {
-      toast.success('模板已复制');
+      toast.success("模板已复制");
     } else {
-      toast.error('复制失败');
+      toast.error("复制失败");
     }
   };
 
@@ -139,7 +139,7 @@ export function useTemplateManager() {
   const applyTemplate = (template: ConfigTemplate) => {
     const newSettings = templateStore.applyTemplate(
       template.id,
-      settingsStore.settings
+      settingsStore.settings,
     );
     settingsStore.setSettings(newSettings);
     toast.success(`已应用模板: ${template.name}`);

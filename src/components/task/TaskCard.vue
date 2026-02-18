@@ -4,14 +4,19 @@
  * 紧凑但信息丰富的任务展示
  */
 
-import { computed, ref, onMounted, watch } from 'vue';
-import { AppProgress } from '@/components/common';
-import { useTasks, useDownloader } from '@/composables';
-import { useTaskStore } from '@/stores';
-import { configService } from '@/services';
-import { formatSpeed, formatFileSize, formatDuration, formatDate } from '@/utils/format';
-import { TASK_STATUS_CONFIG } from '@/utils/constants';
-import { LogViewer } from '@/components/task';
+import { computed, ref, onMounted, watch } from "vue";
+import { AppProgress } from "@/components/common";
+import { useTasks, useDownloader } from "@/composables";
+import { useTaskStore } from "@/stores";
+import { configService } from "@/services";
+import {
+  formatSpeed,
+  formatFileSize,
+  formatDuration,
+  formatDate,
+} from "@/utils/format";
+import { TASK_STATUS_CONFIG } from "@/utils/constants";
+import { LogViewer } from "@/components/task";
 import {
   Dialog,
   DialogContent,
@@ -19,10 +24,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { AppIcon } from '@/components/common';
-import type { DownloadTask } from '@/types';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { AppIcon } from "@/components/common";
+import type { DownloadTask } from "@/types";
 
 interface Props {
   task: DownloadTask;
@@ -31,11 +36,17 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'click', task: DownloadTask): void;
+  (e: "click", task: DownloadTask): void;
 }>();
 
 const { removeTask } = useTasks();
-const { startDownload, stopDownload, pauseDownload, resumeDownload, retryDownload } = useDownloader();
+const {
+  startDownload,
+  stopDownload,
+  pauseDownload,
+  resumeDownload,
+  retryDownload,
+} = useDownloader();
 const taskStore = useTaskStore();
 
 // 对话框状态
@@ -58,83 +69,89 @@ const checkFileExists = async () => {
 };
 
 onMounted(() => {
-  if (props.task.status === 'completed') checkFileExists();
+  if (props.task.status === "completed") checkFileExists();
 });
 
-watch(() => props.task.status, (newStatus) => {
-  if (newStatus === 'completed') checkFileExists();
-});
+watch(
+  () => props.task.status,
+  (newStatus) => {
+    if (newStatus === "completed") checkFileExists();
+  },
+);
 
 // 计算属性
 const hasLogs = computed(() => taskStore.getTaskLogs(props.task.id).length > 0);
 
-const statusConfig = computed(() =>
-  TASK_STATUS_CONFIG[props.task.status] || TASK_STATUS_CONFIG.pending
+const statusConfig = computed(
+  () => TASK_STATUS_CONFIG[props.task.status] || TASK_STATUS_CONFIG.pending,
 );
 
 const statusIcon = computed(() => {
   const icons: Record<string, string> = {
-    pending: 'Clock',
-    analyzing: 'Search',
-    downloading: 'Download',
-    paused: 'Pause',
-    merging: 'Combine',
-    muxing: 'Combine',
-    completed: 'CheckCircle',
-    failed: 'XCircle',
-    cancelled: 'X',
+    pending: "Clock",
+    analyzing: "Search",
+    downloading: "Download",
+    paused: "Pause",
+    merging: "Combine",
+    muxing: "Combine",
+    completed: "CheckCircle",
+    failed: "XCircle",
+    cancelled: "X",
   };
-  return icons[props.task.status] || 'Clock';
+  return icons[props.task.status] || "Clock";
 });
 
-type ProgressVariant = 'default' | 'success' | 'warning' | 'error';
+type ProgressVariant = "default" | "success" | "warning" | "error";
 
 const progressVariant = computed((): ProgressVariant => {
   const map: Record<string, ProgressVariant> = {
-    completed: 'success',
-    failed: 'error',
-    downloading: 'default',
+    completed: "success",
+    failed: "error",
+    downloading: "default",
   };
-  return map[props.task.status] || 'default';
+  return map[props.task.status] || "default";
 });
 
 // 下载速度
 const speedText = computed(() =>
-  props.task.status === 'downloading' ? formatSpeed(props.task.progress.speed) : ''
+  props.task.status === "downloading"
+    ? formatSpeed(props.task.progress.speed)
+    : "",
 );
 
 // 文件大小
 const sizeText = computed(() => {
   const { downloadedSize, totalSize } = props.task.progress;
-  if (totalSize > 0) return `${formatFileSize(downloadedSize)} / ${formatFileSize(totalSize)}`;
+  if (totalSize > 0)
+    return `${formatFileSize(downloadedSize)} / ${formatFileSize(totalSize)}`;
   if (downloadedSize > 0) return formatFileSize(downloadedSize);
-  return '';
+  return "";
 });
 
 // 剩余时间
 const etaText = computed(() =>
-  props.task.status === 'downloading' && props.task.progress.eta
+  props.task.status === "downloading" && props.task.progress.eta
     ? formatDuration(props.task.progress.eta)
-    : ''
+    : "",
 );
 
 // 分片进度
 const segmentsText = computed(() => {
   const { downloadedSegments = 0, totalSegments = 0 } = props.task.progress;
-  return totalSegments > 0 ? `${downloadedSegments}/${totalSegments} 分片` : '';
+  return totalSegments > 0 ? `${downloadedSegments}/${totalSegments} 分片` : "";
 });
 
 // 文件丢失提示
-const showFileMissingHint = computed(() =>
-  props.task.status === 'completed' && fileExists.value === false
+const showFileMissingHint = computed(
+  () => props.task.status === "completed" && fileExists.value === false,
 );
 
 // 完成时间
 const completedTimeText = computed(() => {
-  if (props.task.status === 'completed' && props.task.completedAt) {
+  if (props.task.status === "completed" && props.task.completedAt) {
     return formatDate(props.task.completedAt);
   }
-  return '';
+  return "";
 });
 
 // 操作处理
@@ -145,7 +162,7 @@ const handleStop = async () => await stopDownload(props.task.id);
 const handleRetry = async () => await retryDownload(props.task);
 
 const handleRemoveClick = () => {
-  if (props.task.status === 'completed' && fileExists.value) {
+  if (props.task.status === "completed" && fileExists.value) {
     deleteWithFile.value = false;
     showDeleteDialog.value = true;
   } else {
@@ -160,7 +177,7 @@ const performDelete = async (withFile: boolean) => {
       try {
         await configService.deleteFileOrFolder(props.task.outputPath);
       } catch (e) {
-        console.error('Failed to delete file:', e);
+        console.error("Failed to delete file:", e);
       }
     }
     removeTask(props.task.id);
@@ -177,7 +194,7 @@ const handleOpenFolder = async () => {
     try {
       await configService.openInExplorer(props.task.saveDir);
     } catch (e) {
-      console.error('Failed to open folder:', e);
+      console.error("Failed to open folder:", e);
     }
   }
 };
@@ -187,12 +204,12 @@ const handleOpenFile = async () => {
     try {
       await configService.openInExplorer(props.task.outputPath);
     } catch (e) {
-      console.error('Failed to open file:', e);
+      console.error("Failed to open file:", e);
     }
   }
 };
 
-const handleClick = () => emit('click', props.task);
+const handleClick = () => emit("click", props.task);
 </script>
 
 <template>
@@ -220,7 +237,7 @@ const handleClick = () => emit('click', props.task);
         <!-- 第一行：文件名 + 状态标签 -->
         <div class="flex items-center gap-2">
           <h4 class="text-sm font-medium truncate flex-1">
-            {{ task.fileName || '未命名文件' }}
+            {{ task.fileName || "未命名文件" }}
           </h4>
           <span
             class="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium"
@@ -229,7 +246,7 @@ const handleClick = () => emit('click', props.task);
               color: statusConfig?.color ?? '#888',
             }"
           >
-            {{ statusConfig?.text ?? '未知' }}
+            {{ statusConfig?.text ?? "未知" }}
           </span>
         </div>
 
@@ -242,20 +259,33 @@ const handleClick = () => emit('click', props.task);
               size="sm"
             />
           </div>
-          <div class="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+          <div
+            class="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground"
+          >
             <span v-if="sizeText">{{ sizeText }}</span>
-            <span v-if="speedText" class="text-primary font-medium">{{ speedText }}</span>
+            <span v-if="speedText" class="text-primary font-medium">{{
+              speedText
+            }}</span>
             <span v-if="etaText">剩余 {{ etaText }}</span>
-            <span v-if="segmentsText" class="opacity-60">{{ segmentsText }}</span>
+            <span v-if="segmentsText" class="opacity-60">{{
+              segmentsText
+            }}</span>
           </div>
         </template>
 
         <!-- 已完成状态：文件信息 -->
         <template v-else-if="task.status === 'completed'">
-          <div class="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-            <span v-if="task.progress.totalSize">{{ formatFileSize(task.progress.totalSize) }}</span>
+          <div
+            class="flex items-center gap-3 mt-1 text-xs text-muted-foreground"
+          >
+            <span v-if="task.progress.totalSize">{{
+              formatFileSize(task.progress.totalSize)
+            }}</span>
             <span>{{ completedTimeText }}</span>
-            <span v-if="showFileMissingHint" class="text-amber-500 flex items-center gap-0.5">
+            <span
+              v-if="showFileMissingHint"
+              class="text-amber-500 flex items-center gap-0.5"
+            >
               <AppIcon name="AlertTriangle" :size="12" />
               文件已移除
             </span>
@@ -264,10 +294,16 @@ const handleClick = () => emit('click', props.task);
 
         <!-- 其他状态 -->
         <template v-else>
-          <div class="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+          <div
+            class="flex items-center gap-3 mt-1 text-xs text-muted-foreground"
+          >
             <span v-if="sizeText">{{ sizeText }}</span>
-            <span v-if="task.progress.percent > 0">{{ task.progress.percent }}%</span>
-            <span v-if="segmentsText" class="opacity-60">{{ segmentsText }}</span>
+            <span v-if="task.progress.percent > 0"
+              >{{ task.progress.percent }}%</span
+            >
+            <span v-if="segmentsText" class="opacity-60">{{
+              segmentsText
+            }}</span>
           </div>
         </template>
 
@@ -281,7 +317,9 @@ const handleClick = () => emit('click', props.task);
       </div>
 
       <!-- 操作按钮组 -->
-      <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <div
+        class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+      >
         <!-- 打开文件夹 -->
         <button
           v-if="task.saveDir"
@@ -327,7 +365,9 @@ const handleClick = () => emit('click', props.task);
           v-if="task.status === 'paused' || task.status === 'pending'"
           class="action-btn text-primary"
           title="开始"
-          @click.stop="task.status === 'paused' ? handleResume() : handleStart()"
+          @click.stop="
+            task.status === 'paused' ? handleResume() : handleStart()
+          "
         >
           <AppIcon name="Play" :size="15" />
         </button>
@@ -384,15 +424,24 @@ const handleClick = () => emit('click', props.task);
             />
             <span class="text-sm">同时删除下载的文件</span>
           </label>
-          <p v-if="deleteWithFile && task.outputPath" class="mt-2 text-xs text-muted-foreground truncate">
+          <p
+            v-if="deleteWithFile && task.outputPath"
+            class="mt-2 text-xs text-muted-foreground truncate"
+          >
             {{ task.outputPath }}
           </p>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="showDeleteDialog = false">取消</Button>
-          <Button variant="destructive" :disabled="isDeleting" @click="handleConfirmDelete">
-            {{ isDeleting ? '删除中...' : '确认删除' }}
+          <Button variant="outline" @click="showDeleteDialog = false"
+            >取消</Button
+          >
+          <Button
+            variant="destructive"
+            :disabled="isDeleting"
+            @click="handleConfirmDelete"
+          >
+            {{ isDeleting ? "删除中..." : "确认删除" }}
           </Button>
         </DialogFooter>
       </DialogContent>

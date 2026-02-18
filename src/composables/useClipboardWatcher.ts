@@ -3,11 +3,11 @@
  * 监控剪贴板变化，自动检测 M3U8/MPD/MSS 链接
  */
 
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { listen } from '@tauri-apps/api/event';
-import { readText } from '@tauri-apps/plugin-clipboard-manager';
-import { useSettingsStore } from '@/stores';
-import { useToast } from './useToast';
+import { ref, onMounted, onUnmounted, watch } from "vue";
+import { listen } from "@tauri-apps/api/event";
+import { readText } from "@tauri-apps/plugin-clipboard-manager";
+import { useSettingsStore } from "@/stores";
+import { useToast } from "./useToast";
 
 // URL 匹配正则
 const URL_PATTERNS = [
@@ -19,7 +19,7 @@ const URL_PATTERNS = [
 const detectedUrls = new Set<string>();
 
 // 上一次剪贴板内容
-let lastClipboardContent = '';
+let lastClipboardContent = "";
 
 /**
  * 检查文本是否包含有效的流媒体 URL
@@ -29,9 +29,9 @@ function extractStreamUrls(text: string): string[] {
 
   const urls: string[] = [];
   for (const pattern of URL_PATTERNS) {
-    const matches = text.match(new RegExp(pattern.source, 'gi'));
+    const matches = text.match(new RegExp(pattern.source, "gi"));
     if (matches) {
-      urls.push(...matches.map(url => url.trim()));
+      urls.push(...matches.map((url) => url.trim()));
     }
   }
 
@@ -69,27 +69,30 @@ export function useClipboardWatcher() {
       const urls = extractStreamUrls(content);
 
       // 过滤已检测过的 URL
-      const newUrls = urls.filter(url => !detectedUrls.has(url));
+      const newUrls = urls.filter((url) => !detectedUrls.has(url));
 
       if (newUrls.length > 0) {
         // 记录已检测
-        newUrls.forEach(url => detectedUrls.add(url));
+        newUrls.forEach((url) => detectedUrls.add(url));
 
         // 直接发送事件通知主界面添加 URL
-        window.dispatchEvent(new CustomEvent('clipboard-urls-detected', {
-          detail: { urls: newUrls }
-        }));
+        window.dispatchEvent(
+          new CustomEvent("clipboard-urls-detected", {
+            detail: { urls: newUrls },
+          }),
+        );
 
         // 发送提示
-        const message = newUrls.length === 1
-          ? `已添加下载链接`
-          : `已添加 ${newUrls.length} 个下载链接`;
+        const message =
+          newUrls.length === 1
+            ? `已添加下载链接`
+            : `已添加 ${newUrls.length} 个下载链接`;
 
         toast.success(message);
       }
     } catch (e) {
       // 忽略读取错误
-      console.debug('Failed to read clipboard:', e);
+      console.debug("Failed to read clipboard:", e);
     }
   }
 
@@ -102,14 +105,14 @@ export function useClipboardWatcher() {
     isWatching.value = true;
 
     // 监听窗口焦点变化时检查剪贴板
-    unlisten = await listen('tauri://focus', () => {
+    unlisten = await listen("tauri://focus", () => {
       handleClipboardChange();
     });
 
     // 同时使用轮询作为备用方案（每 2 秒检查一次）
     pollInterval = setInterval(handleClipboardChange, 2000);
 
-    console.log('Clipboard watcher started');
+    console.log("Clipboard watcher started");
   }
 
   /**
@@ -127,7 +130,7 @@ export function useClipboardWatcher() {
     }
 
     isWatching.value = false;
-    console.log('Clipboard watcher stopped');
+    console.log("Clipboard watcher stopped");
   }
 
   /**
@@ -147,7 +150,7 @@ export function useClipboardWatcher() {
         stopWatching();
       }
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   // 组件挂载时，如果设置已启用则开始监控

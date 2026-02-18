@@ -11,17 +11,14 @@ const taskStore = useTaskStore();
 
 onMounted(async () => {
   // 1. 并行初始化所有 Store（从后端加载数据）
-  await Promise.all([
-    settingsStore.loadSettings(),
-    taskStore.initialize(),
-  ]);
+  await Promise.all([settingsStore.loadSettings(), taskStore.initialize()]);
 
   // 2. 应用主题
   settingsStore.initTheme();
 
   // 3. 检查可恢复任务（可选）
   const recoverableTasks = taskStore.tasks.filter(
-    (t) => t.status === "downloading" || t.status === "paused"
+    (t) => t.status === "downloading" || t.status === "paused",
   );
 
   if (recoverableTasks.length > 0) {

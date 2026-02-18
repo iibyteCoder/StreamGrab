@@ -3,7 +3,10 @@
  * 封装 Shadcn-Vue Toast 通知的便捷方法
  */
 
-import { toast as shadcnToast, useToast as useShadcnToast } from '@/components/ui/toast';
+import {
+  toast as shadcnToast,
+  useToast as useShadcnToast,
+} from "@/components/ui/toast";
 
 /**
  * Toast 选项
@@ -26,9 +29,9 @@ export function useToast() {
    */
   const success = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || '成功',
+      title: options?.title || "成功",
       description: message,
-      variant: 'default',
+      variant: "default",
     });
     return result.id;
   };
@@ -38,9 +41,9 @@ export function useToast() {
    */
   const error = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || '错误',
+      title: options?.title || "错误",
       description: message,
-      variant: 'destructive',
+      variant: "destructive",
     });
     return result.id;
   };
@@ -50,7 +53,7 @@ export function useToast() {
    */
   const warning = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || '警告',
+      title: options?.title || "警告",
       description: message,
     });
     return result.id;
@@ -61,7 +64,7 @@ export function useToast() {
    */
   const info = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || '提示',
+      title: options?.title || "提示",
       description: message,
     });
     return result.id;

@@ -3,9 +3,16 @@
  * 负责流选择的业务逻辑
  */
 
-import { ref, computed, watch } from 'vue';
-import type { Ref } from 'vue';
-import type { StreamInfo, StreamSelection, VideoStream, AudioStream, SubtitleStream, BaseStream } from '@/types';
+import { ref, computed, watch } from "vue";
+import type { Ref } from "vue";
+import type {
+  StreamInfo,
+  StreamSelection,
+  VideoStream,
+  AudioStream,
+  SubtitleStream,
+  BaseStream,
+} from "@/types";
 
 /**
  * 格式化比特率
@@ -27,9 +34,9 @@ export function formatDuration(seconds: number): string {
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
   if (h > 0) {
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   }
-  return `${m}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 /**
@@ -46,9 +53,10 @@ export function getVideoDescription(stream: VideoStream): string {
   const parts: string[] = [];
   if (stream.resolution) parts.push(stream.resolution);
   if (stream.frameRate) parts.push(`${stream.frameRate}fps`);
-  if (stream.videoRange && stream.videoRange !== 'SDR') parts.push(stream.videoRange);
+  if (stream.videoRange && stream.videoRange !== "SDR")
+    parts.push(stream.videoRange);
   if (stream.codecs) parts.push(stream.codecs);
-  return parts.join(' · ');
+  return parts.join(" · ");
 }
 
 /**
@@ -57,9 +65,10 @@ export function getVideoDescription(stream: VideoStream): string {
 export function getAudioDescription(stream: AudioStream): string {
   const parts: string[] = [];
   if (stream.channels) parts.push(`${stream.channels}ch`);
-  if (stream.sampleRate) parts.push(`${(stream.sampleRate / 1000).toFixed(1)}kHz`);
+  if (stream.sampleRate)
+    parts.push(`${(stream.sampleRate / 1000).toFixed(1)}kHz`);
   if (stream.codecs) parts.push(stream.codecs);
-  return parts.join(' · ');
+  return parts.join(" · ");
 }
 
 /**
@@ -68,9 +77,9 @@ export function getAudioDescription(stream: AudioStream): string {
 export function getSubtitleDescription(stream: SubtitleStream): string {
   const parts: string[] = [];
   if (stream.format) parts.push(stream.format.toUpperCase());
-  if (stream.isForced) parts.push('强制');
-  if (stream.isDefault) parts.push('默认');
-  return parts.join(' · ');
+  if (stream.isForced) parts.push("强制");
+  if (stream.isDefault) parts.push("默认");
+  return parts.join(" · ");
 }
 
 /**
@@ -83,7 +92,7 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
   const selectedSubtitles = ref<Set<string>>(new Set());
 
   // 当前标签页
-  const activeTab = ref<'video' | 'audio' | 'subtitle'>('video');
+  const activeTab = ref<"video" | "audio" | "subtitle">("video");
 
   // 当流信息变化时，自动选择默认流
   watch(
@@ -104,7 +113,7 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
       // 默认不选择字幕
       selectedSubtitles.value = new Set();
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   // 统计信息
@@ -116,7 +125,7 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
       videoCount: info.videos.length,
       audioCount: info.audios.length,
       subtitleCount: info.subtitles.length,
-      duration: info.duration > 0 ? formatDuration(info.duration) : '未知',
+      duration: info.duration > 0 ? formatDuration(info.duration) : "未知",
       isLive: info.isLive,
       isEncrypted: info.isEncrypted,
     };
@@ -129,20 +138,30 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
 
   // 切换视频流选择（单选）
   const toggleVideo = (id: string) => {
-    selectedVideos.value = selectedVideos.value.has(id) ? new Set() : new Set([id]);
+    selectedVideos.value = selectedVideos.value.has(id)
+      ? new Set()
+      : new Set([id]);
   };
 
   // 切换音频流选择（多选）
   const toggleAudio = (id: string) => {
     const newSet = new Set(selectedAudios.value);
-    newSet.has(id) ? newSet.delete(id) : newSet.add(id);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
     selectedAudios.value = newSet;
   };
 
   // 切换字幕流选择（多选）
   const toggleSubtitle = (id: string) => {
     const newSet = new Set(selectedSubtitles.value);
-    newSet.has(id) ? newSet.delete(id) : newSet.add(id);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
     selectedSubtitles.value = newSet;
   };
 
@@ -150,18 +169,20 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
   const toggleAllAudio = () => {
     const audios = streamInfo.value?.audios;
     if (!audios) return;
-    selectedAudios.value = selectedAudios.value.size === audios.length
-      ? new Set()
-      : new Set(audios.map((a) => a.id));
+    selectedAudios.value =
+      selectedAudios.value.size === audios.length
+        ? new Set()
+        : new Set(audios.map((a) => a.id));
   };
 
   // 全选/取消全选字幕
   const toggleAllSubtitle = () => {
     const subtitles = streamInfo.value?.subtitles;
     if (!subtitles) return;
-    selectedSubtitles.value = selectedSubtitles.value.size === subtitles.length
-      ? new Set()
-      : new Set(subtitles.map((s) => s.id));
+    selectedSubtitles.value =
+      selectedSubtitles.value.size === subtitles.length
+        ? new Set()
+        : new Set(subtitles.map((s) => s.id));
   };
 
   // 获取选择结果

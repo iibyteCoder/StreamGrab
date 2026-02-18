@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { AlertDialogTitleProps } from "reka-ui"
-import { AlertDialogTitle } from "reka-ui"
-import { cn } from '@/lib/utils'
+import type { AlertDialogTitleProps } from "reka-ui";
+import { AlertDialogTitle } from "reka-ui";
+import { cn } from "@/lib/utils";
 
-const props = defineProps<AlertDialogTitleProps & { class?: string }>()
+const props = defineProps<AlertDialogTitleProps & { class?: string }>();
 </script>
 
 <template>

@@ -3,9 +3,9 @@
  * 封装任务的 CRUD 操作和状态查询
  */
 
-import { computed } from 'vue';
-import { useTaskStore } from '@/stores';
-import type { DownloadTask, TaskStatus } from '@/types';
+import { computed } from "vue";
+import { useTaskStore } from "@/stores";
+import type { DownloadTask, TaskStatus } from "@/types";
 
 /**
  * 任务组合式函数
@@ -46,7 +46,11 @@ export function useTasks() {
   /**
    * 添加新任务
    */
-  const addTask = (url: string, fileName?: string, saveDir?: string): DownloadTask => {
+  const addTask = (
+    url: string,
+    fileName?: string,
+    saveDir?: string,
+  ): DownloadTask => {
     return store.addTaskSync(url, fileName, saveDir);
   };
 
@@ -76,7 +80,7 @@ export function useTasks() {
    */
   const updateTaskProgress = (
     taskId: string,
-    progress: Partial<DownloadTask['progress']>
+    progress: Partial<DownloadTask["progress"]>,
   ): void => {
     store.updateTaskProgress(taskId, progress);
   };
@@ -86,7 +90,7 @@ export function useTasks() {
    */
   const updateTaskConfig = (
     taskId: string,
-    config: Partial<DownloadTask['config']>
+    config: Partial<DownloadTask["config"]>,
   ): void => {
     store.updateTaskConfig(taskId, config);
   };
@@ -133,7 +137,7 @@ export function useTasks() {
    */
   const isTaskRunning = (taskId: string): boolean => {
     const task = getTask(taskId);
-    return task?.status === 'downloading';
+    return task?.status === "downloading";
   };
 
   /**
@@ -141,7 +145,7 @@ export function useTasks() {
    */
   const isTaskCompleted = (taskId: string): boolean => {
     const task = getTask(taskId);
-    return task?.status === 'completed';
+    return task?.status === "completed";
   };
 
   /**
@@ -149,7 +153,7 @@ export function useTasks() {
    */
   const isTaskFailed = (taskId: string): boolean => {
     const task = getTask(taskId);
-    return task?.status === 'failed';
+    return task?.status === "failed";
   };
 
   /**
@@ -175,7 +179,7 @@ export function useTasks() {
     return tasks.value.filter(
       (task) =>
         task.url.toLowerCase().includes(lowerQuery) ||
-        task.fileName?.toLowerCase().includes(lowerQuery)
+        task.fileName?.toLowerCase().includes(lowerQuery),
     );
   };
 

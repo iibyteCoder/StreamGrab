@@ -4,13 +4,13 @@
  * 支持目录选择按钮
  */
 
-import { ref } from 'vue';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { AppIcon } from '@/components/common';
-import { configService } from '@/services';
-import { useToast } from '@/composables';
+import { ref } from "vue";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { AppIcon } from "@/components/common";
+import { configService } from "@/services";
+import { useToast } from "@/composables";
 
 interface Props {
   modelValue?: string;
@@ -18,19 +18,19 @@ interface Props {
   placeholder?: string;
   disabled?: boolean;
   /** 选择类型：文件夹或文件 */
-  type?: 'folder' | 'file';
+  type?: "folder" | "file";
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValue: '',
-  placeholder: '',
+  modelValue: "",
+  placeholder: "",
   disabled: false,
-  type: 'folder',
+  type: "folder",
 });
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void;
-  (e: 'select', path: string): void;
+  (e: "update:modelValue", value: string): void;
+  (e: "select", path: string): void;
 }>();
 
 const toast = useToast();
@@ -46,19 +46,19 @@ const handleSelect = async () => {
   try {
     let path: string | null = null;
 
-    if (props.type === 'folder') {
+    if (props.type === "folder") {
       path = await configService.selectDirectory();
     } else {
       path = await configService.selectFile();
     }
 
     if (path) {
-      emit('update:modelValue', path);
-      emit('select', path);
+      emit("update:modelValue", path);
+      emit("select", path);
     }
   } catch (error) {
-    console.error('Failed to select path:', error);
-    toast.error('选择路径失败');
+    console.error("Failed to select path:", error);
+    toast.error("选择路径失败");
   } finally {
     isSelecting.value = false;
   }
@@ -74,7 +74,9 @@ const handleSelect = async () => {
         :placeholder="placeholder"
         :disabled="disabled"
         class="flex-1"
-        @update:model-value="(val: string | number) => emit('update:modelValue', String(val))"
+        @update:model-value="
+          (val: string | number) => emit('update:modelValue', String(val))
+        "
       />
       <Button
         variant="outline"
@@ -83,7 +85,12 @@ const handleSelect = async () => {
         :title="type === 'folder' ? '选择文件夹' : '选择文件'"
         @click="handleSelect"
       >
-        <AppIcon v-if="isSelecting" name="Loader2" :size="16" class="animate-spin" />
+        <AppIcon
+          v-if="isSelecting"
+          name="Loader2"
+          :size="16"
+          class="animate-spin"
+        />
         <AppIcon v-else name="FolderOpen" :size="16" />
       </Button>
     </div>

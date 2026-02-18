@@ -2,13 +2,13 @@
  * UI 状态管理
  */
 
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
 
 /**
  * Toast 类型
  */
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+export type ToastType = "success" | "error" | "warning" | "info";
 
 /**
  * Toast 配置
@@ -27,13 +27,13 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export const useUiStore = defineStore('ui', () => {
+export const useUiStore = defineStore("ui", () => {
   // State - Toast
   const toasts = ref<Toast[]>([]);
 
   // State - 设置面板
   const isSettingsOpen = ref(false);
-  const settingsTab = ref<string>('general');
+  const settingsTab = ref<string>("general");
 
   // State - 流选择器
   const isStreamSelectorOpen = ref(false);
@@ -53,11 +53,7 @@ export const useUiStore = defineStore('ui', () => {
   const hasToasts = computed(() => toasts.value.length > 0);
 
   // Toast Actions
-  function addToast(
-    type: ToastType,
-    message: string,
-    duration = 3000
-  ): string {
+  function addToast(type: ToastType, message: string, duration = 3000): string {
     const id = generateId();
     const toast: Toast = { id, type, message, duration };
 
@@ -86,23 +82,23 @@ export const useUiStore = defineStore('ui', () => {
 
   // 快捷方法
   function showSuccess(message: string, duration?: number): string {
-    return addToast('success', message, duration);
+    return addToast("success", message, duration);
   }
 
   function showError(message: string, duration?: number): string {
-    return addToast('error', message, duration);
+    return addToast("error", message, duration);
   }
 
   function showWarning(message: string, duration?: number): string {
-    return addToast('warning', message, duration);
+    return addToast("warning", message, duration);
   }
 
   function showInfo(message: string, duration?: number): string {
-    return addToast('info', message, duration);
+    return addToast("info", message, duration);
   }
 
   // 设置面板 Actions
-  function openSettings(tab = 'general'): void {
+  function openSettings(tab = "general"): void {
     settingsTab.value = tab;
     isSettingsOpen.value = true;
   }

@@ -4,12 +4,17 @@
  * Store 作为缓存层，数据来源于后端 SQLite
  */
 
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import type { DownloadTask, TaskStatus, TaskProgressData, TaskLogEntry } from '@/types';
-import { extractFileName } from '@/utils/format';
-import { MAX_CONCURRENT_TASKS } from '@/utils/constants';
-import { taskService } from '@/services';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import type {
+  DownloadTask,
+  TaskStatus,
+  TaskProgressData,
+  TaskLogEntry,
+} from "@/types";
+import { extractFileName } from "@/utils/format";
+import { MAX_CONCURRENT_TASKS } from "@/utils/constants";
+import { taskService } from "@/services";
 
 // 最大日志条目数（每个任务）
 const MAX_LOG_ENTRIES = 500;
@@ -40,11 +45,11 @@ function createEmptyProgress(): TaskProgressData {
     downloadedSegments: 0,
     totalSegments: 0,
     eta: 0,
-    currentAction: '',
+    currentAction: "",
   };
 }
 
-export const useTaskStore = defineStore('task', () => {
+export const useTaskStore = defineStore("task", () => {
   // ==========================================
   // State - 缓存层
   // ==========================================
@@ -61,28 +66,28 @@ export const useTaskStore = defineStore('task', () => {
 
   const activeTasks = computed(() =>
     tasks.value.filter((t) =>
-      ['downloading', 'analyzing', 'merging', 'muxing'].includes(t.status)
-    )
+      ["downloading", "analyzing", "merging", "muxing"].includes(t.status),
+    ),
   );
 
   const pendingTasks = computed(() =>
-    tasks.value.filter((t) => t.status === 'pending')
+    tasks.value.filter((t) => t.status === "pending"),
   );
 
   const completedTasks = computed(() =>
-    tasks.value.filter((t) => t.status === 'completed')
+    tasks.value.filter((t) => t.status === "completed"),
   );
 
   const failedTasks = computed(() =>
-    tasks.value.filter((t) => t.status === 'failed')
+    tasks.value.filter((t) => t.status === "failed"),
   );
 
   const downloadingTasks = computed(() =>
-    tasks.value.filter((t) => t.status === 'downloading')
+    tasks.value.filter((t) => t.status === "downloading"),
   );
 
   const canStartMore = computed(
-    () => activeTasks.value.length < maxConcurrent.value
+    () => activeTasks.value.length < maxConcurrent.value,
   );
 
   const hasTasks = computed(() => tasks.value.length > 0);
@@ -107,10 +112,10 @@ export const useTaskStore = defineStore('task', () => {
     isLoading.value = true;
     try {
       const records = await taskService.loadAllTasks();
-      tasks.value = records.map(r => taskService.toDownloadTask(r));
+      tasks.value = records.map((r) => taskService.toDownloadTask(r));
       isInitialized.value = true;
     } catch (error) {
-      console.error('Failed to initialize task store:', error);
+      console.error("Failed to initialize task store:", error);
     } finally {
       isLoading.value = false;
     }
@@ -123,13 +128,17 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 添加任务 - 持久化到后端
    */
-  async function addTask(url: string, fileName?: string, saveDir?: string): Promise<DownloadTask> {
+  async function addTask(
+    url: string,
+    fileName?: string,
+    saveDir?: string,
+  ): Promise<DownloadTask> {
     const task: DownloadTask = {
       id: generateId(),
       url: url.trim(),
       fileName: fileName || extractNameFromUrl(url),
-      saveDir: saveDir || '',
-      status: 'pending',
+      saveDir: saveDir || "",
+      status: "pending",
       progress: createEmptyProgress(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -146,13 +155,17 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 同步添加任务（不等待后端，用于兼容旧代码）
    */
-  function addTaskSync(url: string, fileName?: string, saveDir?: string): DownloadTask {
+  function addTaskSync(
+    url: string,
+    fileName?: string,
+    saveDir?: string,
+  ): DownloadTask {
     const task: DownloadTask = {
       id: generateId(),
       url: url.trim(),
       fileName: fileName || extractNameFromUrl(url),
-      saveDir: saveDir || '',
-      status: 'pending',
+      saveDir: saveDir || "",
+      status: "pending",
       progress: createEmptyProgress(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -173,7 +186,10 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 更新任务状态 - 同步到后端
    */
-  async function updateTaskStatus(taskId: string, status: TaskStatus): Promise<void> {
+  async function updateTaskStatus(
+    taskId: string,
+    status: TaskStatus,
+  ): Promise<void> {
     const task = tasks.value.find((t) => t.id === taskId);
     if (!task) return;
 
@@ -181,15 +197,17 @@ export const useTaskStore = defineStore('task', () => {
     task.status = status;
     task.updatedAt = now;
 
-    if (status === 'downloading' && !task.startedAt) {
+    if (status === "downloading" && !task.startedAt) {
       task.startedAt = now;
     }
-    if (status === 'completed') {
+    if (status === "completed") {
       task.completedAt = now;
     }
 
     // 同步到后端（fire-and-forget）
-    taskService.updateTaskStatus(taskId, status, task.error).catch(console.error);
+    taskService
+      .updateTaskStatus(taskId, status, task.error)
+      .catch(console.error);
   }
 
   /**
@@ -198,7 +216,10 @@ export const useTaskStore = defineStore('task', () => {
   let progressSyncTimer: ReturnType<typeof setTimeout> | null = null;
   const pendingProgressUpdates = new Map<string, TaskProgressData>();
 
-  function updateTaskProgress(taskId: string, progress: Partial<TaskProgressData>): void {
+  function updateTaskProgress(
+    taskId: string,
+    progress: Partial<TaskProgressData>,
+  ): void {
     const task = tasks.value.find((t) => t.id === taskId);
     if (!task) return;
 
@@ -236,11 +257,11 @@ export const useTaskStore = defineStore('task', () => {
     if (!task) return;
 
     task.error = error;
-    task.status = 'failed';
+    task.status = "failed";
     task.updatedAt = new Date();
 
     // 同步到后端
-    taskService.updateTaskStatus(taskId, 'failed', error).catch(console.error);
+    taskService.updateTaskStatus(taskId, "failed", error).catch(console.error);
   }
 
   function updateTaskOutput(taskId: string, outputPath: string): void {
@@ -257,7 +278,10 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 更新任务配置 - 同步到后端
    */
-  function updateTaskConfig(taskId: string, config: Partial<DownloadTask['config']>): void {
+  function updateTaskConfig(
+    taskId: string,
+    config: Partial<DownloadTask["config"]>,
+  ): void {
     const task = tasks.value.find((t) => t.id === taskId);
     if (!task) return;
 
@@ -272,13 +296,13 @@ export const useTaskStore = defineStore('task', () => {
     const task = tasks.value.find((t) => t.id === taskId);
     if (!task) return;
 
-    task.status = 'pending';
+    task.status = "pending";
     task.error = undefined;
     task.progress = createEmptyProgress();
     task.updatedAt = new Date();
 
     // 同步到后端
-    taskService.updateTaskStatus(taskId, 'pending').catch(console.error);
+    taskService.updateTaskStatus(taskId, "pending").catch(console.error);
   }
 
   /**
@@ -300,12 +324,14 @@ export const useTaskStore = defineStore('task', () => {
    */
   async function clearCompleted(): Promise<void> {
     await taskService.clearFinishedTasks();
-    tasks.value = tasks.value.filter((t) => t.status !== 'completed');
+    tasks.value = tasks.value.filter((t) => t.status !== "completed");
   }
 
   function clearFailed(): void {
-    const failedIds = tasks.value.filter((t) => t.status === 'failed').map(t => t.id);
-    tasks.value = tasks.value.filter((t) => t.status !== 'failed');
+    const failedIds = tasks.value
+      .filter((t) => t.status === "failed")
+      .map((t) => t.id);
+    tasks.value = tasks.value.filter((t) => t.status !== "failed");
 
     // 异步删除后端数据
     for (const id of failedIds) {
@@ -336,7 +362,11 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 添加任务日志
    */
-  function addTaskLog(taskId: string, level: TaskLogEntry['level'], message: string): void {
+  function addTaskLog(
+    taskId: string,
+    level: TaskLogEntry["level"],
+    message: string,
+  ): void {
     let logs = taskLogs.value.get(taskId);
     if (!logs) {
       logs = [];

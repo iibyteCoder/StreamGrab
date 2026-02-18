@@ -3,7 +3,7 @@
  * 将应用配置转换为 N_m3u8DL-RE 命令行参数
  */
 
-import type { AppSettings, TaskConfig } from '@/types';
+import type { AppSettings, TaskConfig } from "@/types";
 
 /**
  * 构建命令行参数
@@ -14,84 +14,87 @@ import type { AppSettings, TaskConfig } from '@/types';
 export function buildCommandArgs(
   url: string,
   config: TaskConfig,
-  settings: AppSettings
+  settings: AppSettings,
 ): string[] {
   const args: string[] = [url];
 
   // 基础参数
   if (config.saveDir) {
-    args.push('--save-dir', config.saveDir);
+    args.push("--save-dir", config.saveDir);
   }
   if (config.saveName) {
-    args.push('--save-name', config.saveName);
+    args.push("--save-name", config.saveName);
   }
 
   // 临时目录
   if (settings.general.tmpDir) {
-    args.push('--tmp-dir', settings.general.tmpDir);
+    args.push("--tmp-dir", settings.general.tmpDir);
   }
 
   // 下载参数
   if (config.threadCount) {
-    args.push('--thread-count', String(config.threadCount));
+    args.push("--thread-count", String(config.threadCount));
   }
   if (config.retryCount) {
-    args.push('--download-retry-count', String(config.retryCount));
+    args.push("--download-retry-count", String(config.retryCount));
   }
   if (config.timeout) {
-    args.push('--http-request-timeout', String(config.timeout));
+    args.push("--http-request-timeout", String(config.timeout));
   }
-  if (config.maxSpeed && config.maxSpeed !== '0') {
-    args.push('-R', config.maxSpeed);
+  if (config.maxSpeed && config.maxSpeed !== "0") {
+    args.push("-R", config.maxSpeed);
   }
 
   // 流选择
   if (config.autoSelect) {
-    args.push('--auto-select');
+    args.push("--auto-select");
   }
   if (config.selectVideo) {
-    args.push('-sv', config.selectVideo);
+    args.push("-sv", config.selectVideo);
   }
   if (config.selectAudio) {
-    args.push('-sa', config.selectAudio);
+    args.push("-sa", config.selectAudio);
   }
   if (config.selectSubtitle) {
-    args.push('-ss', config.selectSubtitle);
+    args.push("-ss", config.selectSubtitle);
   }
 
   // 流排除
   if (config.dropVideo) {
-    args.push('-dv', config.dropVideo);
+    args.push("-dv", config.dropVideo);
   }
   if (config.dropAudio) {
-    args.push('-da', config.dropAudio);
+    args.push("-da", config.dropAudio);
   }
   if (config.dropSubtitle) {
-    args.push('-ds', config.dropSubtitle);
+    args.push("-ds", config.dropSubtitle);
   }
 
   // 命名模板
   if (config.savePattern?.enabled && config.savePattern.template) {
-    args.push('--save-pattern', config.savePattern.template);
+    args.push("--save-pattern", config.savePattern.template);
   }
 
   // 广告过滤
-  if (settings.download.adFilter.enabled && settings.download.adFilter.keywords.length > 0) {
-    args.push('--ad-keyword', settings.download.adFilter.keywords.join('|'));
+  if (
+    settings.download.adFilter.enabled &&
+    settings.download.adFilter.keywords.length > 0
+  ) {
+    args.push("--ad-keyword", settings.download.adFilter.keywords.join("|"));
   }
 
   // 混流设置
   if (config.muxFormat && config.muxAfterDone) {
     const muxOptions = buildMuxOptions(config.muxFormat, settings.mux);
-    args.push('-M', muxOptions);
+    args.push("-M", muxOptions);
   }
 
   // 混流高级选项
   if (settings.mux.noDateInfo) {
-    args.push('--no-date-info');
+    args.push("--no-date-info");
   }
   if (settings.mux.useConcatDemuxer) {
-    args.push('--use-ffmpeg-concat-demuxer');
+    args.push("--use-ffmpeg-concat-demuxer");
   }
 
   // 外部媒体导入
@@ -101,56 +104,56 @@ export function buildCommandArgs(
 
   // 网络设置
   if (settings.network.useSystemProxy) {
-    args.push('--use-system-proxy');
+    args.push("--use-system-proxy");
   } else if (settings.network.customProxy) {
-    args.push('--custom-proxy', settings.network.customProxy);
+    args.push("--custom-proxy", settings.network.customProxy);
   }
 
   // 请求头
   for (const header of settings.network.headers.filter((h) => h.enabled)) {
-    args.push('-H', `${header.key}: ${header.value}`);
+    args.push("-H", `${header.key}: ${header.value}`);
   }
 
   // BaseURL
   if (settings.network.baseUrl) {
-    args.push('--base-url', settings.network.baseUrl);
+    args.push("--base-url", settings.network.baseUrl);
   }
   if (settings.network.appendUrlParams) {
-    args.push('--append-url-params');
+    args.push("--append-url-params");
   }
 
   // 其他选项
   if (config.skipMerge) {
-    args.push('--skip-merge');
+    args.push("--skip-merge");
   }
   if (!config.delAfterDone) {
-    args.push('--no-delete-temp');
+    args.push("--no-delete-temp");
   }
   if (!config.checkSegmentsCount) {
-    args.push('--check-segments-count', 'false');
+    args.push("--check-segments-count", "false");
   }
   if (settings.download.binaryMerge) {
-    args.push('--binary-merge');
+    args.push("--binary-merge");
   }
   if (settings.download.writeMetaJson) {
-    args.push('--write-meta-json');
+    args.push("--write-meta-json");
   }
   if (settings.download.concurrentDownload) {
-    args.push('-mt');
+    args.push("-mt");
   }
   if (settings.advanced.ffmpegPath) {
-    args.push('--ffmpeg-binary-path', settings.advanced.ffmpegPath);
+    args.push("--ffmpeg-binary-path", settings.advanced.ffmpegPath);
   }
 
   // 字幕设置
   if (settings.download.subOnly) {
-    args.push('--sub-only');
+    args.push("--sub-only");
   }
   if (settings.download.subFormat) {
-    args.push('--sub-format', settings.download.subFormat);
+    args.push("--sub-format", settings.download.subFormat);
   }
   if (settings.download.autoSubtitleFix) {
-    args.push('--auto-subtitle-fix');
+    args.push("--auto-subtitle-fix");
   }
 
   // 解密设置
@@ -158,91 +161,91 @@ export function buildCommandArgs(
   if (settings.decryption.keys.length > 0) {
     args.push(...buildKeyArgs(settings.decryption.keys));
   } else if (config.key) {
-    args.push('--key', config.key);
+    args.push("--key", config.key);
   }
   if (settings.decryption.keyTextFile) {
-    args.push('--key-text-file', settings.decryption.keyTextFile);
+    args.push("--key-text-file", settings.decryption.keyTextFile);
   }
   if (settings.decryption.engine) {
-    args.push('--decryption-engine', settings.decryption.engine);
+    args.push("--decryption-engine", settings.decryption.engine);
   }
   if (settings.decryption.binPath) {
-    args.push('--decryption-binary-path', settings.decryption.binPath);
+    args.push("--decryption-binary-path", settings.decryption.binPath);
   }
   if (settings.decryption.realTimeDecryption) {
-    args.push('--mp4-real-time-decryption');
+    args.push("--mp4-real-time-decryption");
   }
 
   // 高级 HLS 解密
   if (settings.decryption.customHls.enabled) {
-    if (settings.decryption.customHls.method !== 'UNKNOWN') {
-      args.push('--custom-hls-method', settings.decryption.customHls.method);
+    if (settings.decryption.customHls.method !== "UNKNOWN") {
+      args.push("--custom-hls-method", settings.decryption.customHls.method);
     }
     if (settings.decryption.customHls.key.value) {
       const keyArg = buildKeyValue(settings.decryption.customHls.key);
-      args.push('--custom-hls-key', keyArg);
+      args.push("--custom-hls-key", keyArg);
     }
     if (settings.decryption.customHls.iv.value) {
       const ivArg = buildKeyValue(settings.decryption.customHls.iv);
-      args.push('--custom-hls-iv', ivArg);
+      args.push("--custom-hls-iv", ivArg);
     }
   }
 
   // 直播设置
   if (settings.live.performAsVod) {
-    args.push('--live-perform-as-vod');
+    args.push("--live-perform-as-vod");
   }
   if (settings.live.realTimeMerge) {
-    args.push('--live-real-time-merge');
+    args.push("--live-real-time-merge");
   }
   if (!settings.live.keepSegments) {
-    args.push('--live-keep-segments', 'false');
+    args.push("--live-keep-segments", "false");
   }
   if (settings.live.pipeMux) {
-    args.push('--live-pipe-mux');
+    args.push("--live-pipe-mux");
   }
   if (settings.live.fixVttByAudio) {
-    args.push('--live-fix-vtt-by-audio');
+    args.push("--live-fix-vtt-by-audio");
   }
   if (settings.live.recordLimit) {
-    args.push('--live-record-limit', settings.live.recordLimit);
+    args.push("--live-record-limit", settings.live.recordLimit);
   }
   if (settings.live.waitTime > 0) {
-    args.push('--live-wait-time', String(settings.live.waitTime));
+    args.push("--live-wait-time", String(settings.live.waitTime));
   }
   if (settings.live.takeCount !== 16) {
-    args.push('--live-take-count', String(settings.live.takeCount));
+    args.push("--live-take-count", String(settings.live.takeCount));
   }
 
   // 范围下载
   if (config.customRange) {
-    args.push('--custom-range', config.customRange);
+    args.push("--custom-range", config.customRange);
   }
 
   // 定时开始
   if (config.startAt) {
     const dateStr = formatDateForCli(config.startAt);
-    args.push('--task-start-at', dateStr);
+    args.push("--task-start-at", dateStr);
   }
 
   // 高级设置
-  if (settings.advanced.logLevel && settings.advanced.logLevel !== 'INFO') {
-    args.push('--log-level', settings.advanced.logLevel);
+  if (settings.advanced.logLevel && settings.advanced.logLevel !== "INFO") {
+    args.push("--log-level", settings.advanced.logLevel);
   }
   if (settings.advanced.logFilePath) {
-    args.push('--log-file-path', settings.advanced.logFilePath);
+    args.push("--log-file-path", settings.advanced.logFilePath);
   }
   if (settings.advanced.noLog) {
-    args.push('--no-log');
+    args.push("--no-log");
   }
   if (settings.advanced.allowHlsMultiExtMap) {
-    args.push('--allow-hls-multi-ext-map');
+    args.push("--allow-hls-multi-ext-map");
   }
   if (settings.advanced.disableUpdateCheck) {
-    args.push('--disable-update-check');
+    args.push("--disable-update-check");
   }
   if (settings.advanced.urlProcessorArgs) {
-    args.push('--urlprocessor-args', settings.advanced.urlProcessorArgs);
+    args.push("--urlprocessor-args", settings.advanced.urlProcessorArgs);
   }
 
   return args;
@@ -253,7 +256,7 @@ export function buildCommandArgs(
  */
 function buildMuxOptions(
   format: string,
-  muxSettings: AppSettings['mux']
+  muxSettings: AppSettings["mux"],
 ): string {
   const parts: string[] = [`format=${format}`];
 
@@ -264,14 +267,14 @@ function buildMuxOptions(
   }
 
   if (muxSettings.skipSubtitles) {
-    parts.push('skip_sub=true');
+    parts.push("skip_sub=true");
   }
 
   if (muxSettings.keepOriginal) {
-    parts.push('keep=true');
+    parts.push("keep=true");
   }
 
-  return parts.join(':');
+  return parts.join(":");
 }
 
 /**
@@ -279,11 +282,11 @@ function buildMuxOptions(
  */
 function buildKeyValue(kv: { type: string; value: string }): string {
   switch (kv.type) {
-    case 'file':
+    case "file":
       return kv.value;
-    case 'hex':
+    case "hex":
       return kv.value;
-    case 'base64':
+    case "base64":
       return kv.value;
     default:
       return kv.value;
@@ -296,11 +299,11 @@ function buildKeyValue(kv: { type: string; value: string }): string {
 function formatDateForCli(date: Date | string): string {
   const d = new Date(date);
   const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const seconds = String(d.getSeconds()).padStart(2, "0");
   return `${year}${month}${day}${hours}${minutes}${seconds}`;
 }
 
@@ -308,7 +311,7 @@ function formatDateForCli(date: Date | string): string {
  * 构建外部媒体导入参数
  */
 export function buildMuxImportArgs(
-  imports: Array<{ path: string; lang?: string; name?: string }>
+  imports: Array<{ path: string; lang?: string; name?: string }>,
 ): string[] {
   const args: string[] = [];
 
@@ -322,7 +325,7 @@ export function buildMuxImportArgs(
       parts.push(`name="${imp.name}"`);
     }
 
-    args.push('--mux-import', parts.join(':'));
+    args.push("--mux-import", parts.join(":"));
   }
 
   return args;
@@ -332,15 +335,15 @@ export function buildMuxImportArgs(
  * 构建密钥参数
  */
 export function buildKeyArgs(
-  keys: Array<{ kid?: string; key: string }>
+  keys: Array<{ kid?: string; key: string }>,
 ): string[] {
   const args: string[] = [];
 
   for (const k of keys) {
     if (k.kid) {
-      args.push('--key', `${k.kid}:${k.key}`);
+      args.push("--key", `${k.kid}:${k.key}`);
     } else {
-      args.push('--key', k.key);
+      args.push("--key", k.key);
     }
   }
 
@@ -353,17 +356,17 @@ export function buildKeyArgs(
 export function buildCommandString(
   url: string,
   config: TaskConfig,
-  settings: AppSettings
+  settings: AppSettings,
 ): string {
   const args = buildCommandArgs(url, config, settings);
-  return ['N_m3u8DL-RE', ...args.map(escapeArg)].join(' ');
+  return ["N_m3u8DL-RE", ...args.map(escapeArg)].join(" ");
 }
 
 /**
  * 转义命令行参数
  */
 function escapeArg(arg: string): string {
-  if (arg.includes(' ') || arg.includes('"') || arg.includes("'")) {
+  if (arg.includes(" ") || arg.includes('"') || arg.includes("'")) {
     return `"${arg.replace(/"/g, '\\"')}"`;
   }
   return arg;

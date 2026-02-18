@@ -4,18 +4,18 @@
  * 通过弹窗方式添加下载任务
  */
 
-import { ref, computed } from 'vue';
+import { ref, computed } from "vue";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { AppIcon } from '@/components/common';
-import { useToast, useSettings, useDownloader, useTasks } from '@/composables';
-import { StreamSelector } from '@/components/stream';
-import type { StreamInfo, StreamSelection } from '@/types';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { AppIcon } from "@/components/common";
+import { useToast, useSettings, useDownloader, useTasks } from "@/composables";
+import { StreamSelector } from "@/components/stream";
+import type { StreamInfo, StreamSelection } from "@/types";
 
 interface Props {
   open: boolean;
@@ -24,16 +24,17 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:open', value: boolean): void;
+  (e: "update:open", value: boolean): void;
 }>();
 
 const toast = useToast();
 const { settings } = useSettings();
 const { addTask, updateTaskConfig, getTask } = useTasks();
-const { startDownload, startPendingTasks, parseUrl, isParsing } = useDownloader();
+const { startDownload, startPendingTasks, parseUrl, isParsing } =
+  useDownloader();
 
 // 状态
-const urlInput = ref('');
+const urlInput = ref("");
 const isSubmitting = ref(false);
 const showStreamSelector = ref(false);
 const currentStreamInfo = ref<StreamInfo | null>(null);
@@ -45,12 +46,12 @@ const isDragging = ref(false);
 
 const isOpen = computed({
   get: () => props.open,
-  set: (value) => emit('update:open', value),
+  set: (value) => emit("update:open", value),
 });
 
 // 重置状态
 const reset = () => {
-  urlInput.value = '';
+  urlInput.value = "";
   isSubmitting.value = false;
   showStreamSelector.value = false;
   currentStreamInfo.value = null;
@@ -61,9 +62,13 @@ const reset = () => {
 // URL 解析
 const parseUrls = (text: string): string[] =>
   text
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0 && (line.startsWith('http://') || line.startsWith('https://')));
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length > 0 &&
+        (line.startsWith("http://") || line.startsWith("https://")),
+    );
 
 // 拖拽处理
 const handleDragOver = (event: DragEvent) => {
@@ -80,26 +85,32 @@ const handleDrop = async (event: DragEvent) => {
   isDragging.value = false;
 
   const urls: string[] = [];
-  const text = event.dataTransfer?.getData('text/plain');
+  const text = event.dataTransfer?.getData("text/plain");
   if (text) urls.push(...parseUrls(text));
 
   if (urls.length > 0) {
     const currentUrls = urlInput.value.trim();
-    urlInput.value = currentUrls ? `${currentUrls}\n${urls.join('\n')}` : urls.join('\n');
+    urlInput.value = currentUrls
+      ? `${currentUrls}\n${urls.join("\n")}`
+      : urls.join("\n");
   }
 };
 
 // 添加任务并下载
-const addTaskAndDownload = (url: string, selection?: StreamSelection, startAt?: Date | null) => {
+const addTaskAndDownload = (
+  url: string,
+  selection?: StreamSelection,
+  startAt?: Date | null,
+) => {
   const task = addTask(url, undefined, settings.value.general.saveDir);
 
   const config: Record<string, unknown> = { ...task.config };
 
   if (selection) {
     config.autoSelect = false;
-    config.selectVideo = selection.videoIds[0] || '';
-    config.selectAudio = selection.audioIds.join(',') || '';
-    config.selectSubtitle = selection.subtitleIds.join(',') || '';
+    config.selectVideo = selection.videoIds[0] || "";
+    config.selectAudio = selection.audioIds.join(",") || "";
+    config.selectSubtitle = selection.subtitleIds.join(",") || "";
   }
 
   if (startAt) {
@@ -121,7 +132,7 @@ const addTaskAndDownload = (url: string, selection?: StreamSelection, startAt?: 
 const handleDownload = async () => {
   const urls = parseUrls(urlInput.value);
   if (urls.length === 0) {
-    toast.warning('请输入有效的下载链接');
+    toast.warning("请输入有效的下载链接");
     return;
   }
 
@@ -140,7 +151,7 @@ const handleDownload = async () => {
       } else {
         addTaskAndDownload(url);
         handleClose();
-        toast.success('已添加任务');
+        toast.success("已添加任务");
       }
     } else {
       let successCount = 0;
@@ -163,7 +174,9 @@ const handleDownload = async () => {
       handleClose();
     }
   } catch (error) {
-    toast.error(`添加任务失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    toast.error(
+      `添加任务失败: ${error instanceof Error ? error.message : "未知错误"}`,
+    );
   } finally {
     isSubmitting.value = false;
   }
@@ -173,7 +186,7 @@ const handleDownload = async () => {
 const handleStreamConfirm = (selection: StreamSelection) => {
   if (pendingUrl.value) {
     addTaskAndDownload(pendingUrl.value, selection, pendingStartAt.value);
-    toast.success('已添加任务');
+    toast.success("已添加任务");
     handleClose();
   }
 };
@@ -223,7 +236,9 @@ const handleClose = () => {
       </div>
 
       <!-- 快捷提示 -->
-      <div class="flex items-center justify-between text-xs text-muted-foreground">
+      <div
+        class="flex items-center justify-between text-xs text-muted-foreground"
+      >
         <span>支持拖放文本或 TXT 文件</span>
         <span>Ctrl + V 粘贴剪贴板链接</span>
       </div>
@@ -231,10 +246,18 @@ const handleClose = () => {
       <!-- 操作按钮 -->
       <div class="flex justify-end gap-2">
         <Button variant="outline" @click="handleClose">取消</Button>
-        <Button :disabled="isSubmitting || !urlInput.trim()" @click="handleDownload">
-          <AppIcon v-if="isSubmitting" name="Loader2" :size="16" class="mr-2 animate-spin" />
+        <Button
+          :disabled="isSubmitting || !urlInput.trim()"
+          @click="handleDownload"
+        >
+          <AppIcon
+            v-if="isSubmitting"
+            name="Loader2"
+            :size="16"
+            class="mr-2 animate-spin"
+          />
           <AppIcon v-else name="Download" :size="16" class="mr-2" />
-          {{ isSubmitting ? '处理中...' : '添加任务' }}
+          {{ isSubmitting ? "处理中..." : "添加任务" }}
         </Button>
       </div>
 

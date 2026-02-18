@@ -2,18 +2,20 @@
  * 设置状态管理
  */
 
-import { defineStore } from 'pinia';
-import { ref, computed, watch } from 'vue';
-import type { AppSettings } from '@/types';
-import { DEFAULT_SETTINGS } from '@/utils/constants';
-import { configService } from '@/services';
-import { setLocale } from '@/locales';
+import { defineStore } from "pinia";
+import { ref, computed, watch } from "vue";
+import type { AppSettings } from "@/types";
+import { DEFAULT_SETTINGS } from "@/utils/constants";
+import { configService } from "@/services";
+import { setLocale } from "@/locales";
 
-export const useSettingsStore = defineStore('settings', () => {
+export const useSettingsStore = defineStore("settings", () => {
   // State
-  const settings = ref<AppSettings>(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+  const settings = ref<AppSettings>(
+    JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
+  );
   const isLoading = ref(false);
-  const isLoaded = ref(false);  // 标记是否已从存储加载
+  const isLoaded = ref(false); // 标记是否已从存储加载
   const isDirty = ref(false);
   const error = ref<string | null>(null);
 
@@ -35,7 +37,7 @@ export const useSettingsStore = defineStore('settings', () => {
         saveSettings().catch(console.error);
       }, 1000);
     },
-    { deep: true }
+    { deep: true },
   );
 
   // Actions
@@ -55,15 +57,15 @@ export const useSettingsStore = defineStore('settings', () => {
       // 从 Tauri 后端加载配置
       const loaded = await configService.loadSettings();
       settings.value = loaded;
-      isLoaded.value = true;  // 标记已加载
+      isLoaded.value = true; // 标记已加载
       // 应用语言设置
       setLocale(loaded.general.language);
     } catch (e) {
-      error.value = e instanceof Error ? e.message : '加载配置失败';
-      console.error('Failed to load settings:', e);
+      error.value = e instanceof Error ? e.message : "加载配置失败";
+      console.error("Failed to load settings:", e);
       // 加载失败时使用默认配置
       settings.value = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-      isLoaded.value = true;  // 即使失败也标记为已加载，避免阻止后续操作
+      isLoaded.value = true; // 即使失败也标记为已加载，避免阻止后续操作
     } finally {
       isLoading.value = false;
       isDirty.value = false;
@@ -79,8 +81,8 @@ export const useSettingsStore = defineStore('settings', () => {
       await configService.saveSettings(settings.value, true);
       isDirty.value = false;
     } catch (e) {
-      error.value = e instanceof Error ? e.message : '保存配置失败';
-      console.error('Failed to save settings:', e);
+      error.value = e instanceof Error ? e.message : "保存配置失败";
+      console.error("Failed to save settings:", e);
       throw e;
     }
   }
@@ -91,13 +93,15 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function resetSection<K extends keyof AppSettings>(section: K): void {
-    settings.value[section] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[section]));
+    settings.value[section] = JSON.parse(
+      JSON.stringify(DEFAULT_SETTINGS[section]),
+    );
     isDirty.value = true;
   }
 
   function updateSettings<K extends keyof AppSettings>(
     section: K,
-    value: Partial<AppSettings[K]>
+    value: Partial<AppSettings[K]>,
   ): void {
     settings.value[section] = {
       ...settings.value[section],
@@ -105,36 +109,36 @@ export const useSettingsStore = defineStore('settings', () => {
     };
   }
 
-  function updateGeneral(value: Partial<AppSettings['general']>): void {
-    updateSettings('general', value);
+  function updateGeneral(value: Partial<AppSettings["general"]>): void {
+    updateSettings("general", value);
   }
 
-  function updateDownload(value: Partial<AppSettings['download']>): void {
-    updateSettings('download', value);
+  function updateDownload(value: Partial<AppSettings["download"]>): void {
+    updateSettings("download", value);
   }
 
-  function updateMux(value: Partial<AppSettings['mux']>): void {
-    updateSettings('mux', value);
+  function updateMux(value: Partial<AppSettings["mux"]>): void {
+    updateSettings("mux", value);
   }
 
-  function updateNetwork(value: Partial<AppSettings['network']>): void {
-    updateSettings('network', value);
+  function updateNetwork(value: Partial<AppSettings["network"]>): void {
+    updateSettings("network", value);
   }
 
-  function updateLive(value: Partial<AppSettings['live']>): void {
-    updateSettings('live', value);
+  function updateLive(value: Partial<AppSettings["live"]>): void {
+    updateSettings("live", value);
   }
 
-  function updateDecryption(value: Partial<AppSettings['decryption']>): void {
-    updateSettings('decryption', value);
+  function updateDecryption(value: Partial<AppSettings["decryption"]>): void {
+    updateSettings("decryption", value);
   }
 
-  function updateAdvanced(value: Partial<AppSettings['advanced']>): void {
-    updateSettings('advanced', value);
+  function updateAdvanced(value: Partial<AppSettings["advanced"]>): void {
+    updateSettings("advanced", value);
   }
 
-  function updateUi(value: Partial<AppSettings['ui']>): void {
-    updateSettings('ui', value);
+  function updateUi(value: Partial<AppSettings["ui"]>): void {
+    updateSettings("ui", value);
   }
 
   // 保存目录
@@ -148,26 +152,28 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // 语言
-  function setLanguage(lang: AppSettings['general']['language']): void {
+  function setLanguage(lang: AppSettings["general"]["language"]): void {
     settings.value.general.language = lang;
     setLocale(lang);
   }
 
   // 主题
-  function setTheme(theme: AppSettings['ui']['theme']): void {
+  function setTheme(theme: AppSettings["ui"]["theme"]): void {
     settings.value.ui.theme = theme;
     applyTheme(theme);
   }
 
   // 应用主题
-  function applyTheme(theme: AppSettings['ui']['theme']): void {
+  function applyTheme(theme: AppSettings["ui"]["theme"]): void {
     const root = document.documentElement;
 
-    if (theme === 'system') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.classList.toggle('dark', prefersDark);
+    if (theme === "system") {
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+      root.classList.toggle("dark", prefersDark);
     } else {
-      root.classList.toggle('dark', theme === 'dark');
+      root.classList.toggle("dark", theme === "dark");
     }
   }
 
@@ -176,11 +182,13 @@ export const useSettingsStore = defineStore('settings', () => {
     applyTheme(settings.value.ui.theme);
 
     // 监听系统主题变化
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-      if (settings.value.ui.theme === 'system') {
-        document.documentElement.classList.toggle('dark', e.matches);
-      }
-    });
+    window
+      .matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", (e) => {
+        if (settings.value.ui.theme === "system") {
+          document.documentElement.classList.toggle("dark", e.matches);
+        }
+      });
   }
 
   // 添加请求头
@@ -208,7 +216,8 @@ export const useSettingsStore = defineStore('settings', () => {
   // 切换请求头启用状态
   function toggleHeader(index: number): void {
     if (settings.value.network.headers[index]) {
-      settings.value.network.headers[index].enabled = !settings.value.network.headers[index].enabled;
+      settings.value.network.headers[index].enabled =
+        !settings.value.network.headers[index].enabled;
     }
   }
 

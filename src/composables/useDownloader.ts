@@ -4,11 +4,15 @@
  * 支持并发控制，自动启动等待中的任务
  */
 
-import { ref, onUnmounted } from 'vue';
-import { useTaskStore, useSettingsStore } from '@/stores';
-import { downloadService, type DownloadEvent, type UnlistenFn } from '@/services';
-import { useToast } from './useToast';
-import type { DownloadTask, TaskConfig, StreamInfo } from '@/types';
+import { ref, onUnmounted } from "vue";
+import { useTaskStore, useSettingsStore } from "@/stores";
+import {
+  downloadService,
+  type DownloadEvent,
+  type UnlistenFn,
+} from "@/services";
+import { useToast } from "./useToast";
+import type { DownloadTask, TaskConfig, StreamInfo } from "@/types";
 
 /**
  * 下载器组合式函数
@@ -71,7 +75,7 @@ export function useDownloader() {
     // 检查并发限制
     if (!taskStore.canStartMore) {
       // 如果不能启动更多，将任务状态设为等待
-      taskStore.updateTaskStatus(task.id, 'pending');
+      taskStore.updateTaskStatus(task.id, "pending");
       return;
     }
 
@@ -79,14 +83,17 @@ export function useDownloader() {
 
     try {
       // 更新任务状态为解析中
-      taskStore.updateTaskStatus(task.id, 'analyzing');
+      taskStore.updateTaskStatus(task.id, "analyzing");
 
       // 获取任务配置 - 合并任务级配置和应用级设置
       const taskData = taskStore.getTask(task.id);
       const taskConfig = taskData?.config || {};
       const config: TaskConfig = {
         // 基础配置
-        saveDir: taskData?.saveDir || task.saveDir || settingsStore.settings.general.saveDir,
+        saveDir:
+          taskData?.saveDir ||
+          task.saveDir ||
+          settingsStore.settings.general.saveDir,
         saveName: task.fileName,
         threadCount: settingsStore.settings.download.threadCount,
         retryCount: settingsStore.settings.download.retryCount,
@@ -94,10 +101,15 @@ export function useDownloader() {
         maxSpeed: settingsStore.settings.download.maxSpeed,
 
         // 流选择 - 任务级可覆盖
-        autoSelect: taskConfig.autoSelect ?? settingsStore.settings.download.autoSelect,
-        selectVideo: taskConfig.selectVideo ?? settingsStore.settings.download.selectVideo,
-        selectAudio: taskConfig.selectAudio ?? settingsStore.settings.download.selectAudio,
-        selectSubtitle: taskConfig.selectSubtitle ?? settingsStore.settings.download.selectSubtitle,
+        autoSelect:
+          taskConfig.autoSelect ?? settingsStore.settings.download.autoSelect,
+        selectVideo:
+          taskConfig.selectVideo ?? settingsStore.settings.download.selectVideo,
+        selectAudio:
+          taskConfig.selectAudio ?? settingsStore.settings.download.selectAudio,
+        selectSubtitle:
+          taskConfig.selectSubtitle ??
+          settingsStore.settings.download.selectSubtitle,
 
         // 流排除
         dropVideo: settingsStore.settings.download.dropVideo,
@@ -118,37 +130,35 @@ export function useDownloader() {
         customRange: taskConfig.customRange,
         startAt: taskConfig.startAt,
         key: taskConfig.key,
-        headers: settingsStore.settings.network.headers.filter(h => h.enabled),
+        headers: settingsStore.settings.network.headers.filter(
+          (h) => h.enabled,
+        ),
         proxy: settingsStore.settings.network.customProxy || undefined,
       };
 
       // 订阅任务事件
       const unlisten = await downloadService.subscribeToTask(
         task.id,
-        handleDownloadEvent
+        handleDownloadEvent,
       );
       unlisteners.set(task.id, unlisten);
 
       // 启动下载
-      await downloadService.startDownload(
-        task,
-        config,
-        settingsStore.settings
-      );
+      await downloadService.startDownload(task, config, settingsStore.settings);
 
       // 更新任务状态为下载中
-      taskStore.updateTaskStatus(task.id, 'downloading');
+      taskStore.updateTaskStatus(task.id, "downloading");
 
       toast.success(`开始下载: ${task.fileName || task.url}`);
     } catch (e) {
-      console.error('Failed to start download:', e);
-      taskStore.updateTaskStatus(task.id, 'failed');
+      console.error("Failed to start download:", e);
+      taskStore.updateTaskStatus(task.id, "failed");
 
       // 提取更详细的错误信息
-      let errorMessage = '未知错误';
+      let errorMessage = "未知错误";
       if (e instanceof Error) {
         errorMessage = e.message;
-      } else if (typeof e === 'string') {
+      } else if (typeof e === "string") {
         errorMessage = e;
       }
 
@@ -169,18 +179,18 @@ export function useDownloader() {
   const stopDownload = async (taskId: string): Promise<void> => {
     try {
       await downloadService.stopDownload(taskId);
-      taskStore.updateTaskStatus(taskId, 'cancelled');
+      taskStore.updateTaskStatus(taskId, "cancelled");
 
       // 取消订阅
       unsubscribeTask(taskId);
 
-      toast.info('下载已取消');
+      toast.info("下载已取消");
 
       // 任务取消后尝试启动下一个等待中的任务
       processQueue();
     } catch (e) {
-      console.error('Failed to stop download:', e);
-      toast.error(`停止失败: ${e instanceof Error ? e.message : '未知错误'}`);
+      console.error("Failed to stop download:", e);
+      toast.error(`停止失败: ${e instanceof Error ? e.message : "未知错误"}`);
     }
   };
 
@@ -190,18 +200,18 @@ export function useDownloader() {
   const pauseDownload = async (taskId: string): Promise<void> => {
     try {
       await downloadService.pauseDownload(taskId);
-      taskStore.updateTaskStatus(taskId, 'paused');
+      taskStore.updateTaskStatus(taskId, "paused");
 
       // 取消订阅（暂停时进程会停止）
       unsubscribeTask(taskId);
 
-      toast.info('下载已暂停');
+      toast.info("下载已暂停");
 
       // 任务暂停后尝试启动下一个等待中的任务
       processQueue();
     } catch (e) {
-      console.error('Failed to pause download:', e);
-      toast.error(`暂停失败: ${e instanceof Error ? e.message : '未知错误'}`);
+      console.error("Failed to pause download:", e);
+      toast.error(`暂停失败: ${e instanceof Error ? e.message : "未知错误"}`);
     }
   };
 
@@ -213,10 +223,10 @@ export function useDownloader() {
       // 恢复下载实际上是重新启动
       await startDownload(task);
 
-      toast.success('下载已恢复');
+      toast.success("下载已恢复");
     } catch (e) {
-      console.error('Failed to resume download:', e);
-      toast.error(`恢复失败: ${e instanceof Error ? e.message : '未知错误'}`);
+      console.error("Failed to resume download:", e);
+      toast.error(`恢复失败: ${e instanceof Error ? e.message : "未知错误"}`);
     }
   };
 
@@ -236,15 +246,12 @@ export function useDownloader() {
     parsedStreamInfo.value = null;
 
     try {
-      const info = await downloadService.parseUrl(
-        url,
-        settingsStore.settings
-      );
+      const info = await downloadService.parseUrl(url, settingsStore.settings);
       parsedStreamInfo.value = info;
       return info;
     } catch (e) {
-      console.error('Failed to parse URL:', e);
-      toast.error(`解析失败: ${e instanceof Error ? e.message : '未知错误'}`);
+      console.error("Failed to parse URL:", e);
+      toast.error(`解析失败: ${e instanceof Error ? e.message : "未知错误"}`);
       return null;
     } finally {
       isParsing.value = false;
@@ -258,7 +265,7 @@ export function useDownloader() {
     const { type, taskId, data } = event;
 
     switch (type) {
-      case 'progress':
+      case "progress":
         // 更新进度
         taskStore.updateTaskProgress(taskId, {
           percent: (data as { percent: number }).percent,
@@ -269,17 +276,20 @@ export function useDownloader() {
         });
         break;
 
-      case 'status': {
+      case "status": {
         // 更新状态
         const statusData = data as { status: string; message?: string };
-        taskStore.updateTaskStatus(taskId, statusData.status as DownloadTask['status']);
+        taskStore.updateTaskStatus(
+          taskId,
+          statusData.status as DownloadTask["status"],
+        );
         break;
       }
 
-      case 'error': {
+      case "error": {
         // 处理错误
         const errorData = data as { message: string };
-        taskStore.updateTaskStatus(taskId, 'failed');
+        taskStore.updateTaskStatus(taskId, "failed");
         taskStore.updateTaskError(taskId, errorData.message);
         toast.error(`下载出错: ${errorData.message}`);
         unsubscribeTask(taskId);
@@ -288,12 +298,12 @@ export function useDownloader() {
         break;
       }
 
-      case 'complete': {
+      case "complete": {
         // 下载完成 - 任务状态变为 completed 后会自动出现在历史记录中
-        taskStore.updateTaskStatus(taskId, 'completed');
+        taskStore.updateTaskStatus(taskId, "completed");
         const completeData = data as { outputPath: string };
         taskStore.updateTaskOutput(taskId, completeData.outputPath);
-        toast.success('下载完成!');
+        toast.success("下载完成!");
 
         unsubscribeTask(taskId);
         // 任务完成后尝试启动下一个等待中的任务
@@ -301,11 +311,11 @@ export function useDownloader() {
         break;
       }
 
-      case 'log': {
+      case "log": {
         // 存储日志到任务
         const logData = data as { level: string; message: string };
-        const level = logData.level as 'info' | 'warn' | 'error' | 'debug';
-        taskStore.addTaskLog(taskId, level || 'info', logData.message);
+        const level = logData.level as "info" | "warn" | "error" | "debug";
+        taskStore.addTaskLog(taskId, level || "info", logData.message);
         break;
       }
     }
@@ -333,7 +343,11 @@ export function useDownloader() {
   /**
    * 添加任务并自动启动（如果设置允许）
    */
-  const addAndStartTask = async (url: string, fileName?: string, saveDir?: string): Promise<DownloadTask> => {
+  const addAndStartTask = async (
+    url: string,
+    fileName?: string,
+    saveDir?: string,
+  ): Promise<DownloadTask> => {
     // 添加任务到 store（异步保存到后端）
     const task = await taskStore.addTask(url, fileName, saveDir);
 
@@ -363,7 +377,7 @@ export function useDownloader() {
     try {
       return await downloadService.getDownloaderVersion();
     } catch {
-      return '未知版本';
+      return "未知版本";
     }
   };
 

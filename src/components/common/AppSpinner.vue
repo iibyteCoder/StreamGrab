@@ -4,27 +4,27 @@
  * 用于显示加载状态
  */
 
-import { computed } from 'vue';
+import { computed } from "vue";
 
-type Variant = 'default' | 'primary' | 'success' | 'destructive';
+type Variant = "default" | "primary" | "success" | "destructive";
 
 interface Props {
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   variant?: Variant;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  size: 'md',
-  variant: 'default',
+  size: "md",
+  variant: "default",
 });
 
 // 颜色配置
 const colorClass = computed(() => {
   const colors: Record<Variant, string> = {
-    default: 'text-foreground',
-    primary: 'text-primary',
-    success: 'text-green-600 dark:text-green-400',
-    destructive: 'text-destructive',
+    default: "text-foreground",
+    primary: "text-primary",
+    success: "text-green-600 dark:text-green-400",
+    destructive: "text-destructive",
   };
   return colors[props.variant];
 });
@@ -32,9 +32,9 @@ const colorClass = computed(() => {
 // 尺寸配置
 const sizeClass = computed(() => {
   const sizes = {
-    sm: 'w-4 h-4',
-    md: 'w-6 h-6',
-    lg: 'w-8 h-8',
+    sm: "w-4 h-4",
+    md: "w-6 h-6",
+    lg: "w-8 h-8",
   };
   return sizes[props.size];
 });
@@ -42,9 +42,9 @@ const sizeClass = computed(() => {
 // 边框宽度
 const borderClass = computed(() => {
   const widths = {
-    sm: 'border-2',
-    md: 'border-3',
-    lg: 'border-4',
+    sm: "border-2",
+    md: "border-3",
+    lg: "border-4",
   };
   return widths[props.size];
 });

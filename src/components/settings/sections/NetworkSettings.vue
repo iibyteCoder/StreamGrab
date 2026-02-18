@@ -3,12 +3,12 @@
  * NetworkSettings - 网络设置组件
  */
 
-import { computed } from 'vue';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { AppIcon } from '@/components/common';
-import { SettingSwitch, SettingInput, SettingsGroup } from '..';
-import type { HeaderConfig } from '@/types';
+import { computed } from "vue";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { AppIcon } from "@/components/common";
+import { SettingSwitch, SettingInput, SettingsGroup } from "..";
+import type { HeaderConfig } from "@/types";
 
 interface Settings {
   network: {
@@ -27,7 +27,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: any): void;
+  (e: "update:settings", value: any): void;
 }>();
 
 // 请求头列表
@@ -35,12 +35,12 @@ const headers = computed(() => props.settings.network.headers);
 
 // 更新设置
 const updateNetwork = (value: any) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 
 // 添加请求头
 const addHeader = () => {
-  const newHeaders = [...headers.value, { key: '', value: '', enabled: true }];
+  const newHeaders = [...headers.value, { key: "", value: "", enabled: true }];
   updateNetwork({ headers: newHeaders });
 };
 
@@ -113,8 +113,14 @@ const toggleHeader = (index: number, enabled: boolean) => {
       />
     </SettingsGroup>
 
-    <SettingsGroup title="请求头设置" description="配置 HTTP 请求头（如 Referer、User-Agent、Cookie）">
-      <div v-if="headers.length === 0" class="text-sm text-muted-foreground py-2">
+    <SettingsGroup
+      title="请求头设置"
+      description="配置 HTTP 请求头（如 Referer、User-Agent、Cookie）"
+    >
+      <div
+        v-if="headers.length === 0"
+        class="text-sm text-muted-foreground py-2"
+      >
         暂无自定义请求头，点击下方按钮添加
       </div>
 
@@ -130,7 +136,9 @@ const toggleHeader = (index: number, enabled: boolean) => {
             type="text"
             placeholder="Header Name"
             class="w-36 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-            @input="updateHeaderKey(index, ($event.target as HTMLInputElement).value)"
+            @input="
+              updateHeaderKey(index, ($event.target as HTMLInputElement).value)
+            "
           />
           <!-- Value 输入 -->
           <input
@@ -138,7 +146,12 @@ const toggleHeader = (index: number, enabled: boolean) => {
             type="text"
             placeholder="Header Value"
             class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-            @input="updateHeaderValue(index, ($event.target as HTMLInputElement).value)"
+            @input="
+              updateHeaderValue(
+                index,
+                ($event.target as HTMLInputElement).value,
+              )
+            "
           />
           <!-- 启用开关 -->
           <Switch

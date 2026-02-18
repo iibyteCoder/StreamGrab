@@ -3,19 +3,25 @@
  * 封装下载相关的业务逻辑
  */
 
-import { invokeTauri, subscribeToEvent, type UnlistenFn } from './tauri';
-import { buildCommandArgs } from '@/utils/commandBuilder';
-import type { DownloadTask, TaskConfig, AppSettings, StreamInfo, TaskStatus } from '@/types';
+import { invokeTauri, subscribeToEvent, type UnlistenFn } from "./tauri";
+import { buildCommandArgs } from "@/utils/commandBuilder";
+import type {
+  DownloadTask,
+  TaskConfig,
+  AppSettings,
+  StreamInfo,
+  TaskStatus,
+} from "@/types";
 
 /**
  * 下载事件类型
  */
 export type DownloadEventType =
-  | 'progress'
-  | 'status'
-  | 'error'
-  | 'complete'
-  | 'log';
+  | "progress"
+  | "status"
+  | "error"
+  | "complete"
+  | "log";
 
 /**
  * 下载事件
@@ -49,7 +55,7 @@ export interface StatusEventData {
  * 日志事件数据
  */
 export interface LogEventData {
-  level: 'info' | 'warn' | 'error' | 'debug';
+  level: "info" | "warn" | "error" | "debug";
   message: string;
 }
 
@@ -68,14 +74,14 @@ class DownloadService {
   async startDownload(
     task: DownloadTask,
     config: TaskConfig,
-    settings: AppSettings
+    settings: AppSettings,
   ): Promise<void> {
     // 构建命令行参数
     const args = buildCommandArgs(task.url, config, settings);
 
     // 调用 Tauri 命令启动下载
     // 使用 camelCase 参数名与 Rust 后端 serde rename 匹配
-    await invokeTauri('start_download', {
+    await invokeTauri("start_download", {
       taskId: task.id,
       url: task.url,
       args,
@@ -90,7 +96,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async stopDownload(taskId: string): Promise<void> {
-    await invokeTauri('stop_download', { task_id: taskId });
+    await invokeTauri("stop_download", { task_id: taskId });
   }
 
   /**
@@ -98,7 +104,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async pauseDownload(taskId: string): Promise<void> {
-    await invokeTauri('pause_download', { task_id: taskId });
+    await invokeTauri("pause_download", { task_id: taskId });
   }
 
   /**
@@ -106,7 +112,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async resumeDownload(taskId: string): Promise<void> {
-    await invokeTauri('resume_download', { task_id: taskId });
+    await invokeTauri("resume_download", { task_id: taskId });
   }
 
   /**
@@ -115,7 +121,7 @@ class DownloadService {
    * @param settings 应用设置（用于代理等）
    */
   async parseUrl(url: string, settings: AppSettings): Promise<StreamInfo> {
-    return await invokeTauri<StreamInfo>('parse_url', {
+    return await invokeTauri<StreamInfo>("parse_url", {
       url,
       useProxy: settings.network.useSystemProxy,
       customProxy: settings.network.customProxy,
@@ -131,7 +137,7 @@ class DownloadService {
    */
   async subscribeToTask(
     taskId: string,
-    callback: (event: DownloadEvent) => void
+    callback: (event: DownloadEvent) => void,
   ): Promise<UnlistenFn> {
     const unlisteners: UnlistenFn[] = [];
 
@@ -140,11 +146,11 @@ class DownloadService {
       `download:progress:${taskId}`,
       (data) => {
         callback({
-          type: 'progress',
+          type: "progress",
           taskId,
           data,
         });
-      }
+      },
     );
     unlisteners.push(unlistenProgress);
 
@@ -153,11 +159,11 @@ class DownloadService {
       `download:status:${taskId}`,
       (data) => {
         callback({
-          type: 'status',
+          type: "status",
           taskId,
           data,
         });
-      }
+      },
     );
     unlisteners.push(unlistenStatus);
 
@@ -166,11 +172,11 @@ class DownloadService {
       `download:error:${taskId}`,
       (data) => {
         callback({
-          type: 'error',
+          type: "error",
           taskId,
           data,
         });
-      }
+      },
     );
     unlisteners.push(unlistenError);
 
@@ -179,11 +185,11 @@ class DownloadService {
       `download:complete:${taskId}`,
       (data) => {
         callback({
-          type: 'complete',
+          type: "complete",
           taskId,
           data,
         });
-      }
+      },
     );
     unlisteners.push(unlistenComplete);
 
@@ -192,11 +198,11 @@ class DownloadService {
       `download:log:${taskId}`,
       (data) => {
         callback({
-          type: 'log',
+          type: "log",
           taskId,
           data,
         });
-      }
+      },
     );
     unlisteners.push(unlistenLog);
 
@@ -235,7 +241,7 @@ class DownloadService {
    * 获取 N_m3u8DL-RE 版本
    */
   async getDownloaderVersion(): Promise<string> {
-    return await invokeTauri<string>('get_n_m3u8dl_version', {});
+    return await invokeTauri<string>("get_n_m3u8dl_version", {});
   }
 
   /**

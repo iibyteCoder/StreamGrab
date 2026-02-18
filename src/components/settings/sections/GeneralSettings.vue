@@ -3,15 +3,10 @@
  * GeneralSettings - 常规设置组件
  */
 
-import { Button } from '@/components/ui/button';
-import {
-  SettingSwitch,
-  SettingSelect,
-  SettingPath,
-  SettingsGroup,
-} from '..';
-import { useUpdateChecker } from '@/composables';
-import { AppIcon } from '@/components/common';
+import { Button } from "@/components/ui/button";
+import { SettingSwitch, SettingSelect, SettingPath, SettingsGroup } from "..";
+import { useUpdateChecker } from "@/composables";
+import { AppIcon } from "@/components/common";
 
 interface Settings {
   general: {
@@ -31,22 +26,29 @@ interface Props {
 defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: any): void;
+  (e: "update:settings", value: any): void;
 }>();
 
 // 更新检查器
-const { isChecking, updateAvailable, currentVersion, latestVersion, checkForUpdate, openDownloadPage } = useUpdateChecker();
+const {
+  isChecking,
+  updateAvailable,
+  currentVersion,
+  latestVersion,
+  checkForUpdate,
+  openDownloadPage,
+} = useUpdateChecker();
 
 // 语言选项
 const languageOptions = [
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'zh-TW', label: '繁体中文' },
-  { value: 'en-US', label: 'English' },
+  { value: "zh-CN", label: "简体中文" },
+  { value: "zh-TW", label: "繁体中文" },
+  { value: "en-US", label: "English" },
 ];
 
 // 更新设置
 const updateGeneral = (value: any) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 
 // 手动检查更新
@@ -112,9 +114,16 @@ const handleCheckUpdate = async () => {
             <span class="text-sm text-muted-foreground">当前版本</span>
             <span class="font-mono text-sm">{{ currentVersion }}</span>
           </div>
-          <div v-if="updateAvailable && latestVersion" class="flex items-center gap-1.5">
-            <span class="inline-flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span class="text-sm text-primary">有新版本 {{ latestVersion }}</span>
+          <div
+            v-if="updateAvailable && latestVersion"
+            class="flex items-center gap-1.5"
+          >
+            <span
+              class="inline-flex h-2 w-2 rounded-full bg-primary animate-pulse"
+            />
+            <span class="text-sm text-primary"
+              >有新版本 {{ latestVersion }}</span
+            >
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -133,9 +142,14 @@ const handleCheckUpdate = async () => {
             :disabled="isChecking"
             @click="handleCheckUpdate"
           >
-            <AppIcon v-if="isChecking" name="Loader2" :size="16" class="mr-2 animate-spin" />
+            <AppIcon
+              v-if="isChecking"
+              name="Loader2"
+              :size="16"
+              class="mr-2 animate-spin"
+            />
             <AppIcon v-else name="RefreshCw" :size="16" class="mr-2" />
-            {{ isChecking ? '检查中...' : '检查更新' }}
+            {{ isChecking ? "检查中..." : "检查更新" }}
           </Button>
         </div>
       </div>

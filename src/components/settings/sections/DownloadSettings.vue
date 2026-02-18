@@ -3,18 +3,18 @@
  * DownloadSettings - 下载设置 UI 组件
  */
 
-import { computed } from 'vue';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { AppIcon } from '@/components/common';
+import { computed } from "vue";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { AppIcon } from "@/components/common";
 import {
   SettingSwitch,
   SettingInput,
   SettingSlider,
   SettingSelect,
   SettingsGroup,
-} from '..';
-import type { DownloadSettings } from '@/types';
+} from "..";
+import type { DownloadSettings } from "@/types";
 
 interface Props {
   settings: { download: DownloadSettings };
@@ -23,15 +23,17 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: Partial<DownloadSettings>): void;
+  (e: "update:settings", value: Partial<DownloadSettings>): void;
 }>();
 
 // 格式化线程数显示
-const threadCountDisplay = computed(() => `${props.settings.download.threadCount} 线程`);
+const threadCountDisplay = computed(
+  () => `${props.settings.download.threadCount} 线程`,
+);
 
 // 更新设置
 const updateDownload = (value: Partial<DownloadSettings>) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 
 // 广告过滤关键字
@@ -39,32 +41,40 @@ const adKeywords = computed(() => props.settings.download.adFilter.keywords);
 
 // 添加广告关键字
 const addAdKeyword = () => {
-  const keywords = [...adKeywords.value, ''];
-  updateDownload({ adFilter: { ...props.settings.download.adFilter, keywords } });
+  const keywords = [...adKeywords.value, ""];
+  updateDownload({
+    adFilter: { ...props.settings.download.adFilter, keywords },
+  });
 };
 
 // 删除广告关键字
 const removeAdKeyword = (index: number) => {
   const keywords = adKeywords.value.filter((_, i) => i !== index);
-  updateDownload({ adFilter: { ...props.settings.download.adFilter, keywords } });
+  updateDownload({
+    adFilter: { ...props.settings.download.adFilter, keywords },
+  });
 };
 
 // 更新广告关键字
 const updateAdKeyword = (index: number, value: string) => {
   const keywords = [...adKeywords.value];
   keywords[index] = value;
-  updateDownload({ adFilter: { ...props.settings.download.adFilter, keywords } });
+  updateDownload({
+    adFilter: { ...props.settings.download.adFilter, keywords },
+  });
 };
 
 // 切换广告过滤
 const toggleAdFilter = (enabled: boolean) => {
-  updateDownload({ adFilter: { ...props.settings.download.adFilter, enabled } });
+  updateDownload({
+    adFilter: { ...props.settings.download.adFilter, enabled },
+  });
 };
 
 // 字幕格式选项
 const subFormatOptions = [
-  { value: 'SRT', label: 'SRT' },
-  { value: 'VTT', label: 'WebVTT' },
+  { value: "SRT", label: "SRT" },
+  { value: "VTT", label: "WebVTT" },
 ];
 </script>
 
@@ -88,7 +98,9 @@ const subFormatOptions = [
           type="number"
           :min="0"
           :max="10"
-          @update:model-value="updateDownload({ retryCount: parseInt(String($event)) || 3 })"
+          @update:model-value="
+            updateDownload({ retryCount: parseInt(String($event)) || 3 })
+          "
         />
 
         <SettingInput
@@ -97,7 +109,9 @@ const subFormatOptions = [
           type="number"
           :min="5"
           :max="300"
-          @update:model-value="updateDownload({ timeout: parseInt(String($event)) || 30 })"
+          @update:model-value="
+            updateDownload({ timeout: parseInt(String($event)) || 30 })
+          "
         />
 
         <SettingInput
@@ -183,7 +197,10 @@ const subFormatOptions = [
           </Button>
         </div>
 
-        <div v-if="adKeywords.length === 0" class="text-sm text-muted-foreground py-2">
+        <div
+          v-if="adKeywords.length === 0"
+          class="text-sm text-muted-foreground py-2"
+        >
           暂无过滤关键字
         </div>
 
@@ -198,7 +215,12 @@ const subFormatOptions = [
               type="text"
               placeholder="例如: ad\.domain\.com"
               class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-              @input="updateAdKeyword(index, ($event.target as HTMLInputElement).value)"
+              @input="
+                updateAdKeyword(
+                  index,
+                  ($event.target as HTMLInputElement).value,
+                )
+              "
             />
             <Button
               variant="ghost"
@@ -258,7 +280,9 @@ const subFormatOptions = [
         :model-value="settings.download.subFormat"
         label="字幕格式"
         :options="subFormatOptions"
-        @update:model-value="updateDownload({ subFormat: $event as 'SRT' | 'VTT' })"
+        @update:model-value="
+          updateDownload({ subFormat: $event as 'SRT' | 'VTT' })
+        "
       />
 
       <SettingSwitch

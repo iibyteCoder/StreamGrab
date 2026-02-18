@@ -3,12 +3,12 @@
  * DecryptionSettings - 解密设置 UI 组件
  */
 
-import { computed } from 'vue';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { AppIcon } from '@/components/common';
-import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from '..';
-import type { DecryptionSettings, KeyConfig } from '@/types';
+import { computed } from "vue";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { AppIcon } from "@/components/common";
+import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from "..";
+import type { DecryptionSettings, KeyConfig } from "@/types";
 
 interface Props {
   settings: { decryption: DecryptionSettings };
@@ -17,26 +17,26 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: 'update:settings', value: Partial<DecryptionSettings>): void;
+  (e: "update:settings", value: Partial<DecryptionSettings>): void;
 }>();
 
 // 解密引擎选项
 const decryptionEngineOptions = [
-  { value: 'FFMPEG', label: 'FFmpeg' },
-  { value: 'MP4DECRYPT', label: 'MP4Decrypt' },
-  { value: 'SHAKA_PACKAGER', label: 'Shaka Packager' },
+  { value: "FFMPEG", label: "FFmpeg" },
+  { value: "MP4DECRYPT", label: "MP4Decrypt" },
+  { value: "SHAKA_PACKAGER", label: "Shaka Packager" },
 ];
 
 // HLS 加密方法选项
 const hlsMethodOptions = [
-  { value: 'UNKNOWN', label: '自动检测' },
-  { value: 'AES_128', label: 'AES-128 CBC' },
-  { value: 'AES_128_ECB', label: 'AES-128 ECB' },
-  { value: 'CENC', label: 'CENC' },
-  { value: 'CHACHA20', label: 'ChaCha20' },
-  { value: 'SAMPLE_AES', label: 'Sample AES' },
-  { value: 'SAMPLE_AES_CTR', label: 'Sample AES CTR' },
-  { value: 'NONE', label: '无加密' },
+  { value: "UNKNOWN", label: "自动检测" },
+  { value: "AES_128", label: "AES-128 CBC" },
+  { value: "AES_128_ECB", label: "AES-128 ECB" },
+  { value: "CENC", label: "CENC" },
+  { value: "CHACHA20", label: "ChaCha20" },
+  { value: "SAMPLE_AES", label: "Sample AES" },
+  { value: "SAMPLE_AES_CTR", label: "Sample AES CTR" },
+  { value: "NONE", label: "无加密" },
 ];
 
 // 密钥列表
@@ -47,12 +47,12 @@ const customHls = computed(() => props.settings.decryption.customHls);
 
 // 更新设置
 const updateDecryption = (value: Partial<DecryptionSettings>) => {
-  emit('update:settings', value);
+  emit("update:settings", value);
 };
 
 // 添加密钥
 const addKey = () => {
-  const newKeys: KeyConfig[] = [...keys.value, { key: '' }];
+  const newKeys: KeyConfig[] = [...keys.value, { key: "" }];
   updateDecryption({ keys: newKeys });
 };
 
@@ -81,7 +81,7 @@ const updateKeyValue = (index: number, key: string) => {
 };
 
 // 更新自定义 HLS 设置
-const updateCustomHls = (value: Partial<DecryptionSettings['customHls']>) => {
+const updateCustomHls = (value: Partial<DecryptionSettings["customHls"]>) => {
   updateDecryption({
     customHls: { ...props.settings.decryption.customHls, ...value },
   });
@@ -121,7 +121,10 @@ const updateCustomHls = (value: Partial<DecryptionSettings['customHls']>) => {
       />
     </SettingsGroup>
 
-    <SettingsGroup title="密钥配置" description="手动添加 DRM 解密密钥 (KID:KEY 格式)">
+    <SettingsGroup
+      title="密钥配置"
+      description="手动添加 DRM 解密密钥 (KID:KEY 格式)"
+    >
       <div v-if="keys.length === 0" class="text-sm text-muted-foreground py-2">
         暂无密钥配置，点击下方按钮添加
       </div>
@@ -137,14 +140,18 @@ const updateCustomHls = (value: Partial<DecryptionSettings['customHls']>) => {
             type="text"
             placeholder="KID (可选)"
             class="w-40 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-            @input="updateKeyId(index, ($event.target as HTMLInputElement).value)"
+            @input="
+              updateKeyId(index, ($event.target as HTMLInputElement).value)
+            "
           />
           <input
             :value="keyConfig.key"
             type="text"
             placeholder="Key (十六进制)"
             class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-            @input="updateKeyValue(index, ($event.target as HTMLInputElement).value)"
+            @input="
+              updateKeyValue(index, ($event.target as HTMLInputElement).value)
+            "
           />
           <Button
             variant="ghost"
@@ -163,7 +170,10 @@ const updateCustomHls = (value: Partial<DecryptionSettings['customHls']>) => {
       </Button>
     </SettingsGroup>
 
-    <SettingsGroup title="HLS 自定义解密" description="用于特殊 HLS 加密流的解密配置">
+    <SettingsGroup
+      title="HLS 自定义解密"
+      description="用于特殊 HLS 加密流的解密配置"
+    >
       <SettingSwitch
         :model-value="customHls.enabled"
         label="启用自定义 HLS 解密"
@@ -185,14 +195,20 @@ const updateCustomHls = (value: Partial<DecryptionSettings['customHls']>) => {
           :model-value="customHls.key.value"
           label="密钥 (Key)"
           placeholder="十六进制或 Base64 格式"
-          @update:model-value="updateCustomHls({ key: { ...customHls.key, value: String($event) } })"
+          @update:model-value="
+            updateCustomHls({
+              key: { ...customHls.key, value: String($event) },
+            })
+          "
         />
 
         <SettingInput
           :model-value="customHls.iv?.value || ''"
           label="初始化向量 (IV)"
           placeholder="可选，十六进制或 Base64 格式"
-          @update:model-value="updateCustomHls({ iv: { type: 'hex', value: String($event) } })"
+          @update:model-value="
+            updateCustomHls({ iv: { type: 'hex', value: String($event) } })
+          "
         />
       </template>
     </SettingsGroup>

@@ -3,9 +3,9 @@
  * Progress 进度条组件
  */
 
-import { computed } from 'vue';
+import { computed } from "vue";
 
-type ProgressVariant = 'default' | 'success' | 'warning' | 'error';
+type ProgressVariant = "default" | "success" | "warning" | "error";
 
 interface Props {
   percent: number;
@@ -13,15 +13,15 @@ interface Props {
   showLabel?: boolean;
   striped?: boolean;
   animated?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  variant: 'default',
+  variant: "default",
   showLabel: false,
   striped: false,
   animated: false,
-  size: 'md',
+  size: "md",
 });
 
 // 限制百分比在 0-100 之间
@@ -30,28 +30,28 @@ const normalizedPercent = computed(() => {
 });
 
 const barClasses = computed(() => {
-  const classes = ['transition-all duration-300 ease-out'];
+  const classes = ["transition-all duration-300 ease-out"];
 
   // 尺寸
   const sizeClasses = {
-    sm: 'h-1',
-    md: 'h-2',
-    lg: 'h-3',
+    sm: "h-1",
+    md: "h-2",
+    lg: "h-3",
   };
   classes.push(sizeClasses[props.size]);
 
   // 变体颜色
   const variantClasses: Record<ProgressVariant, string> = {
-    default: 'bg-accent-primary',
-    success: 'bg-accent-success',
-    warning: 'bg-yellow-500',
-    error: 'bg-accent-error',
+    default: "bg-accent-primary",
+    success: "bg-accent-success",
+    warning: "bg-yellow-500",
+    error: "bg-accent-error",
   };
   classes.push(variantClasses[props.variant]);
 
   // 条纹
   if (props.striped) {
-    classes.push('bg-stripes');
+    classes.push("bg-stripes");
   }
 
   return classes;
@@ -59,8 +59,8 @@ const barClasses = computed(() => {
 
 const trackClasses = computed(() => {
   return [
-    'w-full rounded-full overflow-hidden bg-bg-elevated',
-    props.size === 'sm' ? 'h-1' : props.size === 'lg' ? 'h-3' : 'h-2',
+    "w-full rounded-full overflow-hidden bg-bg-elevated",
+    props.size === "sm" ? "h-1" : props.size === "lg" ? "h-3" : "h-2",
   ];
 });
 </script>

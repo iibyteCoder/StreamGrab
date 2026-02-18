@@ -3,8 +3,8 @@
  * 处理所有任务相关的后端 API 调用
  */
 
-import { invokeTauri } from './tauri';
-import type { DownloadTask, TaskStatus, TaskProgressData } from '@/types';
+import { invokeTauri } from "./tauri";
+import type { DownloadTask, TaskStatus, TaskProgressData } from "@/types";
 
 /**
  * 后端任务记录格式（与 Rust 结构体匹配）
@@ -34,14 +34,14 @@ class TaskService {
    * 加载所有任务
    */
   async loadAllTasks(): Promise<TaskRecord[]> {
-    return invokeTauri<TaskRecord[]>('load_all_tasks');
+    return invokeTauri<TaskRecord[]>("load_all_tasks");
   }
 
   /**
    * 加载可恢复的任务（被中断的下载）
    */
   async loadRecoverableTasks(): Promise<TaskRecord[]> {
-    return invokeTauri<TaskRecord[]>('load_recoverable_tasks');
+    return invokeTauri<TaskRecord[]>("load_recoverable_tasks");
   }
 
   /**
@@ -49,22 +49,26 @@ class TaskService {
    */
   async saveTask(task: DownloadTask): Promise<void> {
     const record = this.toTaskRecord(task);
-    await invokeTauri('save_task', { task: record });
+    await invokeTauri("save_task", { task: record });
   }
 
   /**
    * 批量保存任务
    */
   async saveTasks(tasks: DownloadTask[]): Promise<void> {
-    const records = tasks.map(t => this.toTaskRecord(t));
-    await invokeTauri('save_tasks', { tasks: records });
+    const records = tasks.map((t) => this.toTaskRecord(t));
+    await invokeTauri("save_tasks", { tasks: records });
   }
 
   /**
    * 更新任务状态
    */
-  async updateTaskStatus(taskId: string, status: TaskStatus, error?: string): Promise<void> {
-    await invokeTauri('update_task_status', {
+  async updateTaskStatus(
+    taskId: string,
+    status: TaskStatus,
+    error?: string,
+  ): Promise<void> {
+    await invokeTauri("update_task_status", {
       taskId,
       status,
       error: error || null,
@@ -74,8 +78,11 @@ class TaskService {
   /**
    * 更新任务进度
    */
-  async updateTaskProgress(taskId: string, progress: TaskProgressData): Promise<void> {
-    await invokeTauri('update_task_progress', {
+  async updateTaskProgress(
+    taskId: string,
+    progress: TaskProgressData,
+  ): Promise<void> {
+    await invokeTauri("update_task_progress", {
       taskId,
       progressJson: JSON.stringify(progress),
     });
@@ -85,28 +92,28 @@ class TaskService {
    * 删除任务
    */
   async deleteTask(taskId: string): Promise<void> {
-    await invokeTauri('delete_task', { taskId });
+    await invokeTauri("delete_task", { taskId });
   }
 
   /**
    * 清除已完成的任务
    */
   async clearFinishedTasks(): Promise<number> {
-    return invokeTauri<number>('clear_finished_tasks');
+    return invokeTauri<number>("clear_finished_tasks");
   }
 
   /**
    * 标记活跃任务为已中断
    */
   async markActiveTasksInterrupted(): Promise<number> {
-    return invokeTauri<number>('mark_active_tasks_interrupted');
+    return invokeTauri<number>("mark_active_tasks_interrupted");
   }
 
   /**
    * 清除所有任务
    */
   async clearAllTasks(): Promise<void> {
-    await invokeTauri('clear_all_tasks');
+    await invokeTauri("clear_all_tasks");
   }
 
   /**
@@ -123,21 +130,23 @@ class TaskService {
       error: task.error || null,
       progress_json: JSON.stringify(task.progress),
       config_json: task.config ? JSON.stringify(task.config) : null,
-      created_at: task.createdAt instanceof Date
-        ? task.createdAt.toISOString()
-        : String(task.createdAt),
-      updated_at: task.updatedAt instanceof Date
-        ? task.updatedAt.toISOString()
-        : String(task.updatedAt),
+      created_at:
+        task.createdAt instanceof Date
+          ? task.createdAt.toISOString()
+          : String(task.createdAt),
+      updated_at:
+        task.updatedAt instanceof Date
+          ? task.updatedAt.toISOString()
+          : String(task.updatedAt),
       started_at: task.startedAt
-        ? (task.startedAt instanceof Date
-            ? task.startedAt.toISOString()
-            : String(task.startedAt))
+        ? task.startedAt instanceof Date
+          ? task.startedAt.toISOString()
+          : String(task.startedAt)
         : null,
       completed_at: task.completedAt
-        ? (task.completedAt instanceof Date
-            ? task.completedAt.toISOString()
-            : String(task.completedAt))
+        ? task.completedAt instanceof Date
+          ? task.completedAt.toISOString()
+          : String(task.completedAt)
         : null,
       was_interrupted: false,
     };
@@ -160,7 +169,9 @@ class TaskService {
       createdAt: new Date(record.created_at),
       updatedAt: new Date(record.updated_at),
       startedAt: record.started_at ? new Date(record.started_at) : undefined,
-      completedAt: record.completed_at ? new Date(record.completed_at) : undefined,
+      completedAt: record.completed_at
+        ? new Date(record.completed_at)
+        : undefined,
     };
   }
 }

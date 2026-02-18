@@ -4,34 +4,34 @@
  * 用于输入和验证 M3U8/MPD 链接
  */
 
-import { ref, computed } from 'vue';
-import { AppInput, AppButton } from '@/components/common';
-import { validateUrl, type UrlValidationResult } from '@/utils/validate';
-import { useToast } from '@/composables';
+import { ref, computed } from "vue";
+import { AppInput, AppButton } from "@/components/common";
+import { validateUrl, type UrlValidationResult } from "@/utils/validate";
+import { useToast } from "@/composables";
 
 interface Props {
   loading?: boolean;
   placeholder?: string;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   loading: false,
-  placeholder: '输入 M3U8 / MPD / MSS 链接...',
+  placeholder: "输入 M3U8 / MPD / MSS 链接...",
 });
 
 const emit = defineEmits<{
-  (e: 'submit', url: string): void;
-  (e: 'parse', url: string): void;
+  (e: "submit", url: string): void;
+  (e: "parse", url: string): void;
 }>();
 
 const toast = useToast();
 
-const url = ref('');
+const url = ref("");
 const validation = ref<UrlValidationResult | null>(null);
 
 // 输入状态
 const hasError = computed(() => validation.value && !validation.value.valid);
-const hasWarning = computed(() => validation.value?.type === 'unknown');
+const hasWarning = computed(() => validation.value?.type === "unknown");
 
 // 验证 URL
 const validateInput = () => {
@@ -54,7 +54,7 @@ const handlePaste = async () => {
 
   // 如果 URL 有效，自动触发解析
   if (validation.value?.valid) {
-    emit('parse', url.value.trim());
+    emit("parse", url.value.trim());
   }
 };
 
@@ -63,44 +63,44 @@ const handleSubmit = () => {
   const trimmedUrl = url.value.trim();
 
   if (!trimmedUrl) {
-    toast.warning('请输入下载链接');
+    toast.warning("请输入下载链接");
     return;
   }
 
   validateInput();
 
   if (!validation.value?.valid) {
-    toast.error(validation.value?.error || '无效的链接');
+    toast.error(validation.value?.error || "无效的链接");
     return;
   }
 
-  emit('submit', trimmedUrl);
+  emit("submit", trimmedUrl);
 
   // 清空输入
-  url.value = '';
+  url.value = "";
   validation.value = null;
 };
 
 // 清除输入
 const handleClear = () => {
-  url.value = '';
+  url.value = "";
   validation.value = null;
 };
 
 // 状态提示
 const statusText = computed(() => {
-  if (!validation.value) return '';
+  if (!validation.value) return "";
   if (!validation.value.valid) return validation.value.error;
-  if (validation.value.type === null) return '未识别的流类型';
-  if (validation.value.type === 'unknown') return '未识别的流类型';
+  if (validation.value.type === null) return "未识别的流类型";
+  if (validation.value.type === "unknown") return "未识别的流类型";
   return `检测到 ${validation.value.type.toUpperCase()} 流`;
 });
 
 const statusClass = computed(() => {
-  if (hasError.value) return 'text-accent-error';
-  if (hasWarning.value) return 'text-yellow-500';
-  if (validation.value?.valid) return 'text-accent-success';
-  return '';
+  if (hasError.value) return "text-accent-error";
+  if (hasWarning.value) return "text-yellow-500";
+  if (validation.value?.valid) return "text-accent-success";
+  return "";
 });
 </script>
 
@@ -152,11 +152,7 @@ const statusClass = computed(() => {
       </div>
 
       <!-- 下载按钮 -->
-      <AppButton
-        variant="primary"
-        :loading="loading"
-        @click="handleSubmit"
-      >
+      <AppButton variant="primary" :loading="loading" @click="handleSubmit">
         <template #icon-left>
           <svg
             class="w-4 h-4"
