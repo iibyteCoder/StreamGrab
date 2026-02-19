@@ -44,7 +44,7 @@ import { computed } from "vue";
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center h-full text-center">
+  <div class="flex flex-col items-center text-center">
     <div
       class="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4"
     >

@@ -60,6 +60,13 @@ watch(activeTab, () => {
   updateSlider();
   showDetailPanel.value = false;
 });
+
+// 关闭详情面板时清除选中状态
+watch(showDetailPanel, (open) => {
+  if (!open) {
+    selectedTaskId.value = null;
+  }
+});
 onMounted(() => {
   updateSlider();
 });
@@ -159,16 +166,18 @@ const handleTaskClick = (task: DownloadTask) => {
     <!-- 任务列表区域（包含详情面板） -->
     <div class="flex-1 min-h-0 flex overflow-hidden">
       <!-- 任务列表 -->
-      <div class="flex-1 overflow-y-auto px-6 py-4">
+      <div class="task-list-container flex-1 overflow-y-auto py-4 pl-6 pr-4">
         <TaskList
           v-if="activeTab === 'active'"
           :tasks="activeTasks"
+          :active-task-id="selectedTaskId"
           empty-type="active"
           @task-click="handleTaskClick"
         />
         <TaskList
           v-else
           :tasks="completedTasks"
+          :active-task-id="selectedTaskId"
           empty-type="completed"
           @task-click="handleTaskClick"
         />
@@ -210,3 +219,17 @@ const handleTaskClick = (task: DownloadTask) => {
     <AddTaskDialog v-model:open="showAddDialog" />
   </div>
 </template>
+
+<style scoped>
+/* 任务列表容器 - 隐藏滚动条但保留滚动功能 */
+.task-list-container {
+  position: relative;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+/* 完全隐藏滚动条 */
+.task-list-container::-webkit-scrollbar {
+  display: none;
+}
+</style>

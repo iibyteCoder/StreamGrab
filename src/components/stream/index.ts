@@ -1,2 +1,7 @@
+/**
+ * 流组件导出
+ */
+
 export { default as StreamSelector } from "./StreamSelector.vue";
-// StreamSelection 类型已移至 @/types/index.ts
+export { default as StreamItem } from "./StreamItem.vue";
+export { default as StreamList } from "./StreamList.vue";

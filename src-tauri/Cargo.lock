@@ -4115,11 +4115,12 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "streamgrab"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "chrono",
  "dirs 5.0.1",
+ "encoding_rs",
  "image",
  "log",
  "once_cell",

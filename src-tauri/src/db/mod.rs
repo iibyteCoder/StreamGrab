@@ -4,7 +4,7 @@
 
 mod schema;
 mod settings;
-mod task;
+pub mod task;
 
 pub use schema::*;
 pub use settings::*;

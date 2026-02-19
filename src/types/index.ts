@@ -9,6 +9,7 @@ export type {
   TaskProgressData,
   TaskLogEntry,
   TaskConfig,
+  MediaInfo,
 } from "./task";
 
 // 设置相关
@@ -34,7 +35,11 @@ export type {
   AudioStream,
   SubtitleStream,
   StreamSelection,
+  UrlType,
 } from "./stream";
+
+// 流相关函数
+export { detectUrlType, needsFfmpeg, isStreamingType } from "./stream";
 
 // 通用类型
 export type {

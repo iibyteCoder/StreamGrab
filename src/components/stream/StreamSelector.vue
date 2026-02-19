@@ -2,6 +2,10 @@
 /**
  * StreamSelector - 流选择器 UI 组件
  * 只负责 UI 展示，业务逻辑在 useStreamSelector 中
+ *
+ * 重构后：
+ * - 使用 StreamList 通用组件减少重复代码
+ * - 主组件只负责布局和事件协调
  */
 
 import { toRef } from "vue";
@@ -17,14 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AppIcon } from "@/components/common";
-import {
-  useStreamSelector,
-  formatBandwidth,
-  getStreamName,
-  getVideoDescription,
-  getAudioDescription,
-  getSubtitleDescription,
-} from "@/composables/useStreamSelector";
+import { StreamList } from "@/components/stream";
+import { useStreamSelector } from "@/composables/useStreamSelector";
 import type { StreamInfo, StreamSelection } from "@/types";
 
 // Props
@@ -135,210 +133,39 @@ const handleCancel = () => {
           <ScrollArea class="flex-1 mt-3 -mx-6 px-6">
             <!-- 视频流 -->
             <TabsContent value="video" class="mt-0">
-              <div
-                v-if="streamInfo.videos.length === 0"
-                class="py-8 text-center text-muted-foreground"
-              >
-                没有可用的视频流
-              </div>
-              <div v-else class="space-y-2">
-                <button
-                  v-for="video in streamInfo.videos"
-                  :key="video.id"
-                  class="w-full text-left p-3 rounded-lg border transition-all hover:bg-accent"
-                  :class="
-                    selector.selectedVideos.value.has(video.id)
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border'
-                  "
-                  @click="selector.toggleVideo(video.id)"
-                >
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <div
-                        class="w-5 h-5 rounded-full border-2 flex items-center justify-center"
-                        :class="
-                          selector.selectedVideos.value.has(video.id)
-                            ? 'border-primary bg-primary'
-                            : 'border-muted-foreground'
-                        "
-                      >
-                        <AppIcon
-                          v-if="selector.selectedVideos.value.has(video.id)"
-                          name="Check"
-                          :size="12"
-                          class="text-primary-foreground"
-                        />
-                      </div>
-                      <div>
-                        <div class="font-medium">
-                          {{ getStreamName(video) }}
-                        </div>
-                        <div class="text-sm text-muted-foreground">
-                          {{ getVideoDescription(video) }}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="text-sm text-muted-foreground">
-                      {{ formatBandwidth(video.bandwidth) }}
-                    </div>
-                  </div>
-                </button>
-              </div>
+              <StreamList
+                :streams="streamInfo.videos"
+                :selected-ids="selector.selectedVideos.value"
+                type="video"
+                empty-text="没有可用的视频流"
+                @toggle="selector.toggleVideo"
+              />
             </TabsContent>
 
             <!-- 音频流 -->
             <TabsContent value="audio" class="mt-0">
-              <div
-                v-if="streamInfo.audios.length === 0"
-                class="py-8 text-center text-muted-foreground"
-              >
-                没有可用的音频流
-              </div>
-              <template v-else>
-                <div class="flex justify-end mb-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="text-xs h-7"
-                    @click="selector.toggleAllAudio()"
-                  >
-                    {{
-                      selector.selectedAudios.value.size ===
-                      streamInfo.audios.length
-                        ? "取消全选"
-                        : "全选"
-                    }}
-                  </Button>
-                </div>
-                <div class="space-y-2">
-                  <button
-                    v-for="audio in streamInfo.audios"
-                    :key="audio.id"
-                    class="w-full text-left p-3 rounded-lg border transition-all hover:bg-accent"
-                    :class="
-                      selector.selectedAudios.value.has(audio.id)
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border'
-                    "
-                    @click="selector.toggleAudio(audio.id)"
-                  >
-                    <div class="flex items-center justify-between">
-                      <div class="flex items-center gap-3">
-                        <div
-                          class="w-5 h-5 rounded border flex items-center justify-center"
-                          :class="
-                            selector.selectedAudios.value.has(audio.id)
-                              ? 'border-primary bg-primary'
-                              : 'border-muted-foreground'
-                          "
-                        >
-                          <AppIcon
-                            v-if="selector.selectedAudios.value.has(audio.id)"
-                            name="Check"
-                            :size="12"
-                            class="text-primary-foreground"
-                          />
-                        </div>
-                        <div>
-                          <div class="font-medium flex items-center gap-2">
-                            {{ getStreamName(audio) }}
-                            <span
-                              v-if="audio.isDefault"
-                              class="text-xs text-primary"
-                              >默认</span
-                            >
-                          </div>
-                          <div class="text-sm text-muted-foreground">
-                            {{ getAudioDescription(audio) }}
-                          </div>
-                        </div>
-                      </div>
-                      <div class="text-sm text-muted-foreground">
-                        {{ formatBandwidth(audio.bandwidth) }}
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </template>
+              <StreamList
+                :streams="streamInfo.audios"
+                :selected-ids="selector.selectedAudios.value"
+                type="audio"
+                show-select-all
+                empty-text="没有可用的音频流"
+                @toggle="selector.toggleAudio"
+                @toggle-all="selector.toggleAllAudio"
+              />
             </TabsContent>
 
             <!-- 字幕流 -->
             <TabsContent value="subtitle" class="mt-0">
-              <div
-                v-if="streamInfo.subtitles.length === 0"
-                class="py-8 text-center text-muted-foreground"
-              >
-                没有可用的字幕流
-              </div>
-              <template v-else>
-                <div class="flex justify-end mb-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="text-xs h-7"
-                    @click="selector.toggleAllSubtitle()"
-                  >
-                    {{
-                      selector.selectedSubtitles.value.size ===
-                      streamInfo.subtitles.length
-                        ? "取消全选"
-                        : "全选"
-                    }}
-                  </Button>
-                </div>
-                <div class="space-y-2">
-                  <button
-                    v-for="subtitle in streamInfo.subtitles"
-                    :key="subtitle.id"
-                    class="w-full text-left p-3 rounded-lg border transition-all hover:bg-accent"
-                    :class="
-                      selector.selectedSubtitles.value.has(subtitle.id)
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border'
-                    "
-                    @click="selector.toggleSubtitle(subtitle.id)"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div
-                        class="w-5 h-5 rounded border flex items-center justify-center"
-                        :class="
-                          selector.selectedSubtitles.value.has(subtitle.id)
-                            ? 'border-primary bg-primary'
-                            : 'border-muted-foreground'
-                        "
-                      >
-                        <AppIcon
-                          v-if="
-                            selector.selectedSubtitles.value.has(subtitle.id)
-                          "
-                          name="Check"
-                          :size="12"
-                          class="text-primary-foreground"
-                        />
-                      </div>
-                      <div>
-                        <div class="font-medium flex items-center gap-2">
-                          {{ getStreamName(subtitle) }}
-                          <span
-                            v-if="subtitle.isDefault"
-                            class="text-xs text-primary"
-                            >默认</span
-                          >
-                          <span
-                            v-if="subtitle.isForced"
-                            class="text-xs text-yellow-500"
-                            >强制</span
-                          >
-                        </div>
-                        <div class="text-sm text-muted-foreground">
-                          {{ getSubtitleDescription(subtitle) }}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </template>
+              <StreamList
+                :streams="streamInfo.subtitles"
+                :selected-ids="selector.selectedSubtitles.value"
+                type="subtitle"
+                show-select-all
+                empty-text="没有可用的字幕流"
+                @toggle="selector.toggleSubtitle"
+                @toggle-all="selector.toggleAllSubtitle"
+              />
             </TabsContent>
           </ScrollArea>
         </Tabs>

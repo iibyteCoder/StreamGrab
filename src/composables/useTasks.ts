@@ -5,7 +5,7 @@
 
 import { computed } from "vue";
 import { useTaskStore } from "@/stores";
-import type { DownloadTask, TaskStatus } from "@/types";
+import type { DownloadTask, TaskStatus, TaskProgressData } from "@/types";
 
 /**
  * 任务组合式函数
@@ -80,7 +80,7 @@ export function useTasks() {
    */
   const updateTaskProgress = (
     taskId: string,
-    progress: Partial<DownloadTask["progress"]>,
+    progress: Partial<TaskProgressData>,
   ): void => {
     store.updateTaskProgress(taskId, progress);
   };
@@ -90,7 +90,7 @@ export function useTasks() {
    */
   const updateTaskConfig = (
     taskId: string,
-    config: Partial<DownloadTask["config"]>,
+    config: Record<string, unknown>,
   ): void => {
     store.updateTaskConfig(taskId, config);
   };
@@ -161,7 +161,7 @@ export function useTasks() {
    */
   const getTaskProgress = (taskId: string): number => {
     const task = getTask(taskId);
-    return task?.progress.percent ?? 0;
+    return task?.progressPercent ?? 0;
   };
 
   /**

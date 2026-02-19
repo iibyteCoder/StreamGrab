@@ -43,7 +43,7 @@ impl SettingsDb {
 
         for key in SETTINGS_KEYS {
             conn.execute(
-                "INSERT OR IGNORE INTO settings (key, value) VALUES (?1, '{}')",
+                "INSERT OR IGNORE INTO settings (module, data) VALUES (?1, '{}')",
                 params![key],
             )
             .map_err(|e| format!("Failed to initialize settings for {}: {}", key, e))?;
@@ -57,7 +57,7 @@ impl SettingsDb {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
 
         let mut stmt = conn
-            .prepare("SELECT key, value FROM settings")
+            .prepare("SELECT module, data FROM settings")
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
         let rows = stmt
@@ -84,7 +84,7 @@ impl SettingsDb {
 
         let result = conn
             .query_row(
-                "SELECT value FROM settings WHERE key = ?1",
+                "SELECT data FROM settings WHERE module = ?1",
                 params![key],
                 |row| row.get::<_, String>(0),
             )
@@ -109,7 +109,7 @@ impl SettingsDb {
             .map_err(|e| format!("Failed to serialize setting: {}", e))?;
 
         conn.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO settings (module, data) VALUES (?1, ?2)",
             params![key, value_str],
         )
         .map_err(|e| format!("Failed to save setting: {}", e))?;
@@ -130,7 +130,7 @@ impl SettingsDb {
                 .map_err(|e| format!("Failed to serialize setting: {}", e))?;
 
             tx.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                "INSERT OR REPLACE INTO settings (module, data) VALUES (?1, ?2)",
                 params![key, value_str],
             )
             .map_err(|e| format!("Failed to save setting {}: {}", key, e))?;

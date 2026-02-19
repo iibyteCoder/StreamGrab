@@ -4,7 +4,7 @@
  * 左侧导航 + 右侧内容的分栏布局
  */
 
-import { ref, onMounted, watch } from "vue";
+import { ref } from "vue";
 import { useSettings, useToast } from "@/composables";
 import SettingsNav from "@/components/settings/SettingsNav.vue";
 import {
@@ -22,7 +22,6 @@ import { TemplateManager } from "@/components/template";
 const {
   settings,
   theme,
-  isLoaded,
   resetSettings,
   setTheme,
   updateGeneral,
@@ -33,24 +32,10 @@ const {
   updateLive,
   updateAdvanced,
   updateUi,
-  enableAutoSave,
 } = useSettings();
 const toast = useToast();
 
 const activeTab = ref("general");
-
-onMounted(() => {
-  if (isLoaded.value) {
-    enableAutoSave(500);
-  }
-});
-
-// 当 settings 加载完成后启用自动保存
-watch(isLoaded, (loaded) => {
-  if (loaded) {
-    enableAutoSave(500);
-  }
-});
 
 const handleReset = async () => {
   try {

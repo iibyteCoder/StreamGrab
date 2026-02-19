@@ -7,163 +7,196 @@ import { invokeTauri } from "./tauri";
 import type { AppSettings } from "@/types";
 import { DEFAULT_SETTINGS } from "@/utils/constants";
 
+// 配置模块的 key 类型
+export type SettingsKey = keyof AppSettings;
+
+/**
+ * 文件信息接口
+ */
+export interface FileInfo {
+  /** 文件完整路径 */
+  path: string;
+  /** 文件名 */
+  fileName: string;
+  /** 文件扩展名 */
+  extension: string;
+  /** 文件大小（字节） */
+  size: number;
+  /** 修改时间（Unix 毫秒时间戳） */
+  modified: number | null;
+  /** 文件是否存在 */
+  exists: boolean;
+}
+
 /**
  * 配置服务类
  */
 class ConfigService {
-  private cachedSettings: AppSettings | null = null;
-  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
-
   /**
-   * 加载配置
-   * 从 SQLite 数据库加载配置
+   * 加载所有配置
    */
   async loadSettings(): Promise<AppSettings> {
-    try {
-      const settingsMap =
-        await invokeTauri<Record<string, Record<string, unknown>>>(
-          "load_settings",
-        );
+    const settingsMap =
+      await invokeTauri<Record<string, Record<string, unknown>>>(
+        "load_settings",
+      );
 
-      // 将 key-value 形式转换为 AppSettings 结构
-      const settings = this.mapToAppSettings(settingsMap);
-
-      // 合并默认值（处理新增配置项）
-      this.cachedSettings = this.mergeWithDefaults(settings);
-      return this.cachedSettings!;
-    } catch (error) {
-      console.warn("加载配置失败，使用默认配置:", error);
-      this.cachedSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-      return this.cachedSettings!;
-    }
+    const settings = this.mapToAppSettings(settingsMap);
+    return this.mergeWithDefaults(settings);
   }
 
   /**
-   * 保存配置
-   * 使用防抖机制，避免频繁写入
-   * @param settings 配置对象
-   * @param immediate 是否立即保存
+   * 保存单个配置模块
+   * @param key 配置模块名称
+   * @param value 配置值
    */
-  async saveSettings(settings: AppSettings, immediate = false): Promise<void> {
-    this.cachedSettings = settings;
-
-    if (immediate) {
-      await this.doSave(settings);
-      return;
-    }
-
-    // 防抖保存
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
-    }
-
-    this.saveTimeout = setTimeout(async () => {
-      await this.doSave(settings);
-      this.saveTimeout = null;
-    }, 500);
+  async saveSetting<K extends SettingsKey>(
+    key: K,
+    value: AppSettings[K],
+  ): Promise<void> {
+    await invokeTauri("save_setting", { key, value });
   }
 
   /**
-   * 执行保存操作
+   * 保存所有配置（用于导入配置后）
    */
-  private async doSave(settings: AppSettings): Promise<void> {
-    try {
-      const settingsMap = this.appSettingsToMap(settings);
-      await invokeTauri("save_settings", { settings: settingsMap });
-    } catch (error) {
-      console.error("保存配置失败:", error);
-      throw error;
-    }
+  async saveAllSettings(settings: AppSettings): Promise<void> {
+    const settingsMap = this.appSettingsToMap(settings);
+    await invokeTauri("save_settings", { settings: settingsMap });
   }
 
   /**
-   * 重置配置为默认值
+   * 重置单个配置模块
    */
-  async resetSettings(): Promise<AppSettings> {
-    const defaultSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  async resetSetting(key: SettingsKey): Promise<void> {
+    await invokeTauri("reset_setting", { key });
+  }
+
+  /**
+   * 重置所有配置为默认值
+   */
+  async resetAllSettings(): Promise<void> {
     await invokeTauri("reset_all_settings");
-    this.cachedSettings = defaultSettings;
-    return defaultSettings;
   }
 
   /**
-   * 获取缓存的配置
+   * 导出配置到文件
    */
-  getCachedSettings(): AppSettings | null {
-    return this.cachedSettings;
+  async exportConfig(filePath: string): Promise<void> {
+    await invokeTauri("export_config", { filePath });
   }
 
   /**
-   * 将 Map 转换为 AppSettings
+   * 从文件导入配置
    */
-  private mapToAppSettings(
-    map: Record<string, Record<string, unknown>>,
-  ): Partial<AppSettings> {
-    const result: Partial<AppSettings> = {};
+  async importConfig(filePath: string): Promise<AppSettings> {
+    await invokeTauri("import_config", { filePath });
+    return this.loadSettings();
+  }
 
-    if (map["general"])
-      result.general = map["general"] as unknown as AppSettings["general"];
-    if (map["download"])
-      result.download = map["download"] as unknown as AppSettings["download"];
-    if (map["mux"]) result.mux = map["mux"] as unknown as AppSettings["mux"];
-    if (map["network"])
-      result.network = map["network"] as unknown as AppSettings["network"];
-    if (map["live"])
-      result.live = map["live"] as unknown as AppSettings["live"];
-    if (map["decryption"])
-      result.decryption = map[
-        "decryption"
-      ] as unknown as AppSettings["decryption"];
-    if (map["advanced"])
-      result.advanced = map["advanced"] as unknown as AppSettings["advanced"];
-    if (map["ui"]) result.ui = map["ui"] as unknown as AppSettings["ui"];
+  // ========== 工具方法 ==========
 
-    return result;
+  async getDbPath(): Promise<string> {
+    return await invokeTauri<string>("get_db_path");
+  }
+
+  async openInExplorer(path: string): Promise<void> {
+    await invokeTauri("open_in_explorer", { path });
+  }
+
+  async fileExists(path: string): Promise<boolean> {
+    return await invokeTauri<boolean>("file_exists", { path });
+  }
+
+  async deleteFileOrFolder(path: string): Promise<void> {
+    await invokeTauri("delete_file_or_folder", { path });
+  }
+
+  async selectDirectory(): Promise<string | null> {
+    return await invokeTauri<string | null>("select_directory");
+  }
+
+  async selectFile(
+    filters?: Array<{ name: string; extensions: string[] }>,
+  ): Promise<string | null> {
+    return await invokeTauri<string | null>("select_file", { filters });
   }
 
   /**
-   * 将 AppSettings 转换为 Map
+   * 获取文件详细信息
+   * @param path 文件路径
    */
-  private appSettingsToMap(
-    settings: AppSettings,
-  ): Record<string, Record<string, unknown>> {
+  async getFileInfo(path: string): Promise<FileInfo> {
+    const info = await invokeTauri<{
+      path: string;
+      file_name: string;
+      extension: string;
+      size: number;
+      modified: number | null;
+      exists: boolean;
+    }>("get_file_info", { path });
+
     return {
-      general: settings.general as unknown as Record<string, unknown>,
-      download: settings.download as unknown as Record<string, unknown>,
-      mux: settings.mux as unknown as Record<string, unknown>,
-      network: settings.network as unknown as Record<string, unknown>,
-      live: settings.live as unknown as Record<string, unknown>,
-      decryption: settings.decryption as unknown as Record<string, unknown>,
-      advanced: settings.advanced as unknown as Record<string, unknown>,
-      ui: settings.ui as unknown as Record<string, unknown>,
+      path: info.path,
+      fileName: info.file_name,
+      extension: info.extension,
+      size: info.size,
+      modified: info.modified,
+      exists: info.exists,
     };
   }
 
-  /**
-   * 合并默认值
-   * 确保所有配置项都存在（处理版本升级时新增的配置）
-   */
+  // ========== 私有方法 ==========
+
+  private mapToAppSettings(
+    map: Record<string, Record<string, unknown>>,
+  ): Partial<AppSettings> {
+    return {
+      general: map["general"] as unknown as AppSettings["general"],
+      download: map["download"] as unknown as AppSettings["download"],
+      mux: map["mux"] as unknown as AppSettings["mux"],
+      network: map["network"] as unknown as AppSettings["network"],
+      live: map["live"] as unknown as AppSettings["live"],
+      decryption: map["decryption"] as unknown as AppSettings["decryption"],
+      advanced: map["advanced"] as unknown as AppSettings["advanced"],
+      ui: map["ui"] as unknown as AppSettings["ui"],
+    };
+  }
+
+  private appSettingsToMap(
+    settings: AppSettings,
+  ): Record<string, Record<string, unknown>> {
+    const keys: SettingsKey[] = [
+      "general",
+      "download",
+      "mux",
+      "network",
+      "live",
+      "decryption",
+      "advanced",
+      "ui",
+    ];
+    const result: Record<string, Record<string, unknown>> = {};
+    for (const key of keys) {
+      result[key] = settings[key] as unknown as Record<string, unknown>;
+    }
+    return result;
+  }
+
   private mergeWithDefaults(settings: Partial<AppSettings>): AppSettings {
     const result = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as AppSettings;
-
-    // 递归合并
     this.deepMerge(
       result as unknown as Record<string, unknown>,
       settings as unknown as Record<string, unknown>,
     );
-
     return result;
   }
 
-  /**
-   * 深度合并对象
-   */
   private deepMerge(
     target: Record<string, unknown>,
     source: Record<string, unknown> | undefined,
   ): void {
     if (!source) return;
-
     for (const key of Object.keys(source)) {
       if (
         key in target &&
@@ -183,76 +216,6 @@ class ConfigService {
       }
     }
   }
-
-  /**
-   * 导出配置到文件
-   * @param filePath 导出路径
-   */
-  async exportConfig(filePath: string): Promise<void> {
-    await invokeTauri("export_config", { filePath });
-  }
-
-  /**
-   * 从文件导入配置
-   * @param filePath 导入路径
-   */
-  async importConfig(filePath: string): Promise<AppSettings> {
-    await invokeTauri("import_config", { filePath });
-
-    // 重新加载配置
-    return this.loadSettings();
-  }
-
-  /**
-   * 获取数据库文件路径
-   */
-  async getDbPath(): Promise<string> {
-    return await invokeTauri<string>("get_db_path");
-  }
-
-  /**
-   * 在文件管理器中打开路径
-   * @param path 文件或文件夹路径
-   */
-  async openInExplorer(path: string): Promise<void> {
-    await invokeTauri("open_in_explorer", { path });
-  }
-
-  /**
-   * 检查文件是否存在
-   * @param path 文件路径
-   */
-  async fileExists(path: string): Promise<boolean> {
-    return await invokeTauri<boolean>("file_exists", { path });
-  }
-
-  /**
-   * 删除文件或文件夹
-   * @param path 文件或文件夹路径
-   */
-  async deleteFileOrFolder(path: string): Promise<void> {
-    await invokeTauri("delete_file_or_folder", { path });
-  }
-
-  /**
-   * 选择目录
-   * @returns 选中的目录路径，取消返回 null
-   */
-  async selectDirectory(): Promise<string | null> {
-    return await invokeTauri<string | null>("select_directory");
-  }
-
-  /**
-   * 选择文件
-   * @param filters 文件过滤器
-   * @returns 选中的文件路径，取消返回 null
-   */
-  async selectFile(
-    filters?: Array<{ name: string; extensions: string[] }>,
-  ): Promise<string | null> {
-    return await invokeTauri<string | null>("select_file", { filters });
-  }
 }
 
-// 导出单例
 export const configService = new ConfigService();

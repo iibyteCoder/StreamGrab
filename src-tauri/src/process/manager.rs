@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use anyhow::{bail, Context, Result};
+use encoding_rs::GBK;
 
 // Windows 平台：隐藏控制台窗口的标志
 #[cfg(target_os = "windows")]
@@ -141,16 +142,37 @@ impl ProcessManager {
         let stop_flag_stdout = stop_flag_clone.clone();
 
         thread::spawn(move || {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines() {
+            let mut reader = BufReader::new(stdout);
+            let mut buf = Vec::new();
+
+            loop {
                 // 检查停止标志
                 if *stop_flag_stdout.lock().unwrap() {
                     log::info!("stdout reader stopped for task {}", task_id_clone);
                     break;
                 }
 
-                match line {
-                    Ok(text) => {
+                buf.clear();
+                match reader.read_until(b'\n', &mut buf) {
+                    Ok(0) => {
+                        // EOF
+                        break;
+                    }
+                    Ok(_) => {
+                        // 使用 GBK 解码（Windows 中文环境）
+                        // 如果 GBK 解码失败，回退到 UTF-8，再失败则使用替换字符
+                        let text = if cfg!(target_os = "windows") {
+                            let (decoded, _encoding, had_errors) = GBK.decode(&buf);
+                            if had_errors {
+                                // 回退到 UTF-8
+                                String::from_utf8_lossy(&buf).into_owned()
+                            } else {
+                                decoded.into_owned()
+                            }
+                        } else {
+                            String::from_utf8_lossy(&buf).into_owned()
+                        };
+                        let text = text.trim_end().to_string();
                         log::debug!("[STDOUT] {}", text);
                         output_callback_clone(text);
                     }
@@ -169,16 +191,35 @@ impl ProcessManager {
         let stop_flag_stderr = stop_flag_clone;
 
         thread::spawn(move || {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines() {
+            let mut reader = BufReader::new(stderr);
+            let mut buf = Vec::new();
+
+            loop {
                 // 检查停止标志
                 if *stop_flag_stderr.lock().unwrap() {
                     log::info!("stderr reader stopped for task {}", task_id_clone);
                     break;
                 }
 
-                match line {
-                    Ok(text) => {
+                buf.clear();
+                match reader.read_until(b'\n', &mut buf) {
+                    Ok(0) => {
+                        // EOF
+                        break;
+                    }
+                    Ok(_) => {
+                        // 使用 GBK 解码（Windows 中文环境）
+                        let text = if cfg!(target_os = "windows") {
+                            let (decoded, _encoding, had_errors) = GBK.decode(&buf);
+                            if had_errors {
+                                String::from_utf8_lossy(&buf).into_owned()
+                            } else {
+                                decoded.into_owned()
+                            }
+                        } else {
+                            String::from_utf8_lossy(&buf).into_owned()
+                        };
+                        let text = text.trim_end().to_string();
                         log::debug!("[STDERR] {}", text);
                         // stderr 也可能包含有用信息，同样传递给回调
                         output_callback_stderr(text);

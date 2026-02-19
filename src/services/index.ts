@@ -11,5 +11,5 @@ export {
   type StatusEventData,
   type LogEventData,
 } from "./downloadService";
-export { configService } from "./configService";
-export { taskService, type TaskRecord } from "./taskService";
+export { configService, type FileInfo } from "./configService";
+export { taskService } from "./taskService";

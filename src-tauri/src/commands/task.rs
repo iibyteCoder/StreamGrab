@@ -4,13 +4,13 @@
 
 use tauri::AppHandle;
 
-use crate::db::TaskRecord;
+use crate::db::task::{FullTaskRecord, TaskMediaInfo, TaskRecord};
 
 use super::utils::get_db;
 
 /// 加载所有任务
 #[tauri::command]
-pub async fn load_all_tasks(app: AppHandle) -> Result<Vec<TaskRecord>, String> {
+pub async fn load_all_tasks(app: AppHandle) -> Result<Vec<FullTaskRecord>, String> {
     log::info!("Loading all tasks");
 
     let db = get_db(&app)?;
@@ -19,33 +19,20 @@ pub async fn load_all_tasks(app: AppHandle) -> Result<Vec<TaskRecord>, String> {
 
 /// 加载可恢复的任务
 #[tauri::command]
-pub async fn load_recoverable_tasks(app: AppHandle) -> Result<Vec<TaskRecord>, String> {
+pub async fn load_recoverable_tasks(app: AppHandle) -> Result<Vec<FullTaskRecord>, String> {
     log::info!("Loading recoverable tasks");
 
     let db = get_db(&app)?;
     db.tasks.load_recoverable()
 }
 
-/// 保存任务（创建或更新）
+/// 创建任务
 #[tauri::command]
-pub async fn save_task(task: TaskRecord, app: AppHandle) -> Result<(), String> {
-    log::info!("Saving task: {}", task.id);
+pub async fn create_task(task: TaskRecord, app: AppHandle) -> Result<(), String> {
+    log::info!("Creating task: {}", task.id);
 
     let db = get_db(&app)?;
-    db.tasks.upsert(&task)
-}
-
-/// 批量保存任务
-#[tauri::command]
-pub async fn save_tasks(tasks: Vec<TaskRecord>, app: AppHandle) -> Result<(), String> {
-    log::info!("Saving {} tasks", tasks.len());
-
-    let db = get_db(&app)?;
-    for task in tasks {
-        db.tasks.upsert(&task)?;
-    }
-
-    Ok(())
+    db.tasks.create(&task)
 }
 
 /// 更新任务状态
@@ -62,15 +49,58 @@ pub async fn update_task_status(
     db.tasks.update_status(&task_id, &status, error.as_deref())
 }
 
+/// 更新任务输出路径
+#[tauri::command]
+pub async fn update_task_output_path(
+    task_id: String,
+    output_path: String,
+    app: AppHandle,
+) -> Result<(), String> {
+    log::info!("Updating task {} output path", task_id);
+
+    let db = get_db(&app)?;
+    db.tasks.update_output_path(&task_id, &output_path)
+}
+
 /// 更新任务进度
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_task_progress(
     task_id: String,
-    progress_json: String,
+    percent: i32,
+    speed: i64,
+    downloaded_size: i64,
+    total_size: i64,
+    downloaded_segments: i32,
+    total_segments: i32,
+    eta: i32,
+    current_action: String,
     app: AppHandle,
 ) -> Result<(), String> {
     let db = get_db(&app)?;
-    db.tasks.update_progress(&task_id, &progress_json)
+    db.tasks.update_progress(
+        &task_id,
+        percent,
+        speed,
+        downloaded_size,
+        total_size,
+        downloaded_segments,
+        total_segments,
+        eta,
+        &current_action,
+    )
+}
+
+/// 更新任务媒体信息
+#[tauri::command]
+pub async fn update_task_media_info(
+    task_id: String,
+    media_info: TaskMediaInfo,
+    app: AppHandle,
+) -> Result<(), String> {
+    log::info!("Updating task {} media info", task_id);
+    let db = get_db(&app)?;
+    db.tasks.update_media_info(&task_id, &media_info)
 }
 
 /// 删除任务
@@ -107,4 +137,40 @@ pub async fn clear_all_tasks(app: AppHandle) -> Result<(), String> {
 
     let db = get_db(&app)?;
     db.tasks.clear_all()
+}
+
+/// 获取任务进度历史
+#[tauri::command]
+pub async fn get_progress_history(
+    task_id: String,
+    limit: Option<usize>,
+    app: AppHandle,
+) -> Result<Vec<crate::db::task::ProgressHistoryRecord>, String> {
+    log::info!("Getting progress history for task: {}", task_id);
+
+    let db = get_db(&app)?;
+    db.tasks.get_progress_history(&task_id, limit)
+}
+
+/// 清除任务进度历史
+#[tauri::command]
+pub async fn clear_progress_history(task_id: String, app: AppHandle) -> Result<(), String> {
+    log::info!("Clearing progress history for task: {}", task_id);
+
+    let db = get_db(&app)?;
+    db.tasks.clear_progress_history(&task_id)
+}
+
+/// 保存进度历史记录
+#[tauri::command]
+pub async fn save_progress_history(
+    task_id: String,
+    percent: i32,
+    speed: i64,
+    downloaded_size: i64,
+    app: AppHandle,
+) -> Result<(), String> {
+    let db = get_db(&app)?;
+    db.tasks
+        .add_progress_history(&task_id, percent, speed, downloaded_size)
 }

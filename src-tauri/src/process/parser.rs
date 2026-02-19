@@ -1,6 +1,22 @@
-//! 输出解析器
+//! N_m3u8DL-RE 输出解析器
 //!
 //! 解析 N_m3u8DL-RE 的输出并转换为结构化事件
+//!
+//! ## 输出格式分析
+//!
+//! ### 日志消息格式（有时间戳前缀）
+//! ```text
+//! 21:05:11.051 WARN : 你已开启下载完成后混流，自动开启二进制合并
+//! 21:05:11.052 INFO : 开始下载...Vid 1280x720 | 1159 Kbps | mp4a.40.2
+//! 21:05:11.048 INFO : Vid 1280x720 | 1159 Kbps | mp4a.40.2 | 60 Segments | ~02m58s
+//! ```
+//!
+//! ### 进度行格式（以 Vid/Aud 开头，无日志前缀）
+//! ```text
+//! Vid 1280x720 | 1159 Kbps ------------------------------ 0/61 0.00% - 0.00Bps --:--:--
+//! Aud Audio                ------------------------------ 0/100 0.00% -    -    --:--:--
+//! Vid 1280x720 | 1159 Kbps ------------------------------ 1/61 1.64% 32.88KB/1.96MB 32.88KBps 00:00:12
+//! ```
 
 use regex::Regex;
 use serde_json::Value;
@@ -8,7 +24,7 @@ use serde_json::Value;
 /// 解析后的事件
 #[derive(Debug, Clone)]
 pub struct ParsedEvent {
-    /// 事件类型
+    /// 事件类型: progress, status, log
     pub event_type: String,
     /// 事件数据
     pub data: Value,
@@ -16,53 +32,43 @@ pub struct ParsedEvent {
 
 /// 输出解析器
 pub struct OutputParser {
-    /// 进度正则
-    progress_regex: Regex,
-    /// 速度正则
-    speed_regex: Regex,
-    /// 错误正则
-    error_regex: Regex,
-    /// 完成正则
+    /// 日志行格式: `HH:MM:SS.mmm LEVEL : message`
+    log_line_regex: Regex,
+    /// 进度行格式: `Vid/Aud ... --- N/M percent ...`
+    progress_line_regex: Regex,
+    /// 开始下载标记
+    start_download_regex: Regex,
+    /// 合并状态标记
+    merging_regex: Regex,
+    /// 完成标记
     complete_regex: Regex,
-    /// 文件大小正则: 匹配 "1.25 GiB" 或 "500 MiB" 等
-    size_regex: Regex,
-    /// 分片进度正则: 匹配 "100/200" 或 "50 of 100"
-    segments_regex: Regex,
-    /// ETA 正则: 匹配剩余时间
-    eta_regex: Regex,
 }
 
 impl OutputParser {
     /// 创建新的解析器
     pub fn new() -> Self {
         Self {
-            // 匹配进度: 45.2%
-            progress_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*%").unwrap(),
-            // 匹配速度: 12.5 MiB/s 或 12.5MB/s
-            speed_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*(MiB|MB|GiB|GB|KiB|KB)/s").unwrap(),
-            // 匹配错误
-            error_regex: Regex::new(r"(?i)(error|failed|exception|错误)").unwrap(),
-            // 匹配完成
-            complete_regex: Regex::new(r"(?i)(download\s+complete|下载完成|done|merged)").unwrap(),
-            // 匹配文件大小: 1.25 GiB, 500 MiB 等
-            size_regex: Regex::new(r"(\d+(?:\.\d+)?)\s*(GiB|GB|MiB|MB|KiB|KB|B)").unwrap(),
-            // 匹配分片进度: 100/200 或 50 of 100
-            segments_regex: Regex::new(r"(\d+)\s*(?:/|of)\s*(\d+)").unwrap(),
-            // 匹配 ETA: 剩余时间
-            eta_regex: Regex::new(
-                r"(?i)(?:ETA|剩余)[:\s]*(\d+):(\d+):(\d+)|(\d+):(\d+)|(\d+)\s*s(?:ec)?",
-            )
-            .unwrap(),
+            // 匹配日志格式: `21:05:11.051 INFO : message` 或 `21:05:11.051 WARN : message`
+            log_line_regex: Regex::new(r"^(\d{2}:\d{2}:\d{2}\.\d+)\s+(INFO|WARN|ERROR|DEBUG)\s*:\s*(.+)$").unwrap(),
+
+            // 匹配进度行: `Vid 1280x720 | 1159 Kbps --- 0/61 0.00% 32.88KB/1.96MB 32.88KBps 00:00:12`
+            // 或: `Aud Audio --- 0/100 0.00% - - --:--:--`
+            progress_line_regex: Regex::new(
+                r"^(Vid|Aud)\s+(.+?)\s+-+\s+(\d+)/(\d+)\s+(\d+(?:\.\d+)?)%\s+(.+?)\s+([\d.]+(?:KB|MB|GB|B)ps|-)\s+(\d{2}:\d{2}:\d{2}|--:--:--)$"
+            ).unwrap(),
+
+            // 开始下载标记
+            start_download_regex: Regex::new(r"^开始下载").unwrap(),
+
+            // 合并状态标记 - 精确匹配 "二进制合并中" 或 "正在合并"
+            merging_regex: Regex::new(r"(二进制合并中|正在合并|Merging\.\.\.)").unwrap(),
+
+            // 完成标记 - N_m3u8DL-RE 标准完成消息
+            complete_regex: Regex::new(r"^All done$").unwrap(),
         }
     }
 
     /// 解析输出行
-    ///
-    /// # Arguments
-    /// * `line` - 输出行
-    ///
-    /// # Returns
-    /// 解析后的事件，如果无法解析则返回 None
     pub fn parse(&self, line: &str) -> Option<ParsedEvent> {
         let line = line.trim();
 
@@ -70,39 +76,22 @@ impl OutputParser {
             return None;
         }
 
-        // 检查是否是完成消息
-        if self.complete_regex.is_match(line) {
-            return Some(ParsedEvent {
-                event_type: "status".to_string(),
-                data: serde_json::json!({
-                    "status": "completed",
-                    "message": line
-                }),
-            });
+        // 1. 首先检查是否是日志格式行（有时间戳前缀）
+        if let Some(caps) = self.log_line_regex.captures(line) {
+            let _timestamp = &caps[1];
+            let level = &caps[2];
+            let message = &caps[3];
+
+            // 检查日志消息中的关键状态
+            return self.parse_log_message(level, message);
         }
 
-        // 检查是否是错误
-        if self.error_regex.is_match(line) {
-            return Some(ParsedEvent {
-                event_type: "log".to_string(),
-                data: serde_json::json!({
-                    "level": "error",
-                    "message": line
-                }),
-            });
+        // 2. 检查是否是进度行（Vid 或 Aud）
+        if line.starts_with("Vid ") || line.starts_with("Aud ") {
+            return self.parse_progress_line(line);
         }
 
-        // 尝试解析进度
-        if let Some(progress) = self.parse_progress(line) {
-            return Some(progress);
-        }
-
-        // 尝试解析日志
-        if let Some(log_event) = self.parse_log(line) {
-            return Some(log_event);
-        }
-
-        // 返回原始日志
+        // 3. 其他情况作为普通日志处理
         Some(ParsedEvent {
             event_type: "log".to_string(),
             data: serde_json::json!({
@@ -112,176 +101,205 @@ impl OutputParser {
         })
     }
 
-    /// 解析进度信息
-    fn parse_progress(&self, line: &str) -> Option<ParsedEvent> {
-        // 提取进度百分比
-        let percent = self
-            .progress_regex
-            .captures(line)
-            .and_then(|caps| caps[1].parse::<f64>().ok())?;
-
-        // 提取速度
-        let speed_str = self
-            .speed_regex
-            .captures(line)
-            .map(|caps| format!("{} {}/s", &caps[1], &caps[2]));
-
-        // 解析速度值（转换为字节/秒）
-        let speed = speed_str
-            .as_ref()
-            .map(|s| self.parse_size_to_bytes(s))
-            .unwrap_or(0);
-
-        // 尝试提取文件大小
-        let (downloaded_size, total_size) = self.parse_sizes(line);
-
-        // 尝试提取分片进度
-        let (downloaded_segments, total_segments) = self.parse_segments(line);
-
-        // 尝试提取 ETA
-        let eta = self.parse_eta(line);
-
-        Some(ParsedEvent {
-            event_type: "progress".to_string(),
-            data: serde_json::json!({
-                "percent": percent,
-                "speed": speed,
-                "speedStr": speed_str,
-                "downloadedSize": downloaded_size,
-                "totalSize": total_size,
-                "downloadedSegments": downloaded_segments,
-                "totalSegments": total_segments,
-                "eta": eta
-            }),
-        })
-    }
-
-    /// 解析文件大小信息
-    /// 返回 (已下载大小, 总大小)
-    fn parse_sizes(&self, line: &str) -> (u64, u64) {
-        // 尝试匹配 "X / Y GiB" 或 "X/Y MiB" 格式
-        let size_pairs: Vec<_> = self.size_regex.captures_iter(line).collect();
-
-        if size_pairs.len() >= 2 {
-            // 如果有两个大小值，第一个是已下载，第二个是总大小
-            let downloaded = self.size_captures_to_bytes(&size_pairs[0]);
-            let total = self.size_captures_to_bytes(&size_pairs[1]);
-            return (downloaded, total);
-        } else if size_pairs.len() == 1 {
-            // 只有一个大小值，根据进度百分比估算总大小
-            let downloaded = self.size_captures_to_bytes(&size_pairs[0]);
-            // 尝试从进度百分比提取
-            if let Some(percent_caps) = self.progress_regex.captures(line) {
-                if let Ok(percent) = percent_caps[1].parse::<f64>() {
-                    if percent > 0.0 {
-                        let total = (downloaded as f64 / percent * 100.0) as u64;
-                        return (downloaded, total);
-                    }
-                }
-            }
-            return (downloaded, 0);
+    /// 解析日志消息（已去掉时间戳前缀）
+    fn parse_log_message(&self, level: &str, message: &str) -> Option<ParsedEvent> {
+        // 检查完成状态
+        if self.complete_regex.is_match(message) {
+            return Some(ParsedEvent {
+                event_type: "status".to_string(),
+                data: serde_json::json!({
+                    "status": "completed",
+                    "message": message
+                }),
+            });
         }
 
-        (0, 0)
-    }
-
-    /// 将正则捕获组转换为字节数
-    fn size_captures_to_bytes(&self, caps: &regex::Captures) -> u64 {
-        let num: f64 = caps[1].parse().unwrap_or(0.0);
-        let unit = &caps[2];
-
-        match unit.to_lowercase().as_str() {
-            "gib" | "gb" => (num * 1024.0 * 1024.0 * 1024.0) as u64,
-            "mib" | "mb" => (num * 1024.0 * 1024.0) as u64,
-            "kib" | "kb" => (num * 1024.0) as u64,
-            _ => num as u64,
+        // 检查合并状态 - 精确匹配
+        if self.merging_regex.is_match(message) {
+            return Some(ParsedEvent {
+                event_type: "status".to_string(),
+                data: serde_json::json!({
+                    "status": "muxing",
+                    "message": message
+                }),
+            });
         }
-    }
 
-    /// 解析分片进度
-    /// 返回 (已下载分片, 总分片)
-    fn parse_segments(&self, line: &str) -> (u32, u32) {
-        if let Some(caps) = self.segments_regex.captures(line) {
-            if let (Ok(downloaded), Ok(total)) = (caps[1].parse::<u32>(), caps[2].parse::<u32>()) {
-                return (downloaded, total);
-            }
+        // 检查开始下载
+        if self.start_download_regex.is_match(message) {
+            return Some(ParsedEvent {
+                event_type: "status".to_string(),
+                data: serde_json::json!({
+                    "status": "downloading",
+                    "message": message
+                }),
+            });
         }
-        (0, 0)
-    }
 
-    /// 解析 ETA（剩余时间）
-    /// 返回秒数
-    fn parse_eta(&self, line: &str) -> u32 {
-        if let Some(caps) = self.eta_regex.captures(line) {
-            // 尝试匹配 HH:MM:SS 格式
-            if let (Some(h), Some(m), Some(s)) = (
-                caps.get(1).and_then(|m| m.as_str().parse::<u32>().ok()),
-                caps.get(2).and_then(|m| m.as_str().parse::<u32>().ok()),
-                caps.get(3).and_then(|m| m.as_str().parse::<u32>().ok()),
-            ) {
-                return h * 3600 + m * 60 + s;
-            }
-            // 尝试匹配 MM:SS 格式
-            if let (Some(m), Some(s)) = (
-                caps.get(4).and_then(|m| m.as_str().parse::<u32>().ok()),
-                caps.get(5).and_then(|m| m.as_str().parse::<u32>().ok()),
-            ) {
-                return m * 60 + s;
-            }
-            // 尝试匹配秒数格式
-            if let Some(s) = caps.get(6).and_then(|m| m.as_str().parse::<u32>().ok()) {
-                return s;
-            }
-        }
-        0
-    }
-
-    /// 解析日志级别
-    fn parse_log(&self, line: &str) -> Option<ParsedEvent> {
-        let lower = line.to_lowercase();
-
-        let level = if lower.contains("[info]") || lower.contains("[信息]") {
-            "info"
-        } else if lower.contains("[warn]") || lower.contains("[警告]") {
-            "warn"
-        } else if lower.contains("[debug]") || lower.contains("[调试]") {
-            "debug"
-        } else if lower.contains("[error]") || lower.contains("[错误]") {
-            "error"
-        } else {
-            return None;
+        // 普通日志消息
+        let log_level = match level {
+            "ERROR" => "error",
+            "WARN" => "warn",
+            "DEBUG" => "debug",
+            _ => "info",
         };
 
         Some(ParsedEvent {
             event_type: "log".to_string(),
             data: serde_json::json!({
-                "level": level,
-                "message": line
+                "level": log_level,
+                "message": message
             }),
         })
     }
 
-    /// 将大小字符串转换为字节（保留公开方法供速度解析使用）
-    fn parse_size_to_bytes(&self, size_str: &str) -> u64 {
-        let lower = size_str.to_lowercase();
+    /// 解析进度行
+    /// 格式: `Vid 1280x720 | 1159 Kbps ------------------------------ 0/61 0.00% - 0.00Bps --:--:--`
+    /// 或: `Vid 1280x720 | 1159 Kbps ------------------------------ 1/61 1.64% 32.88KB/1.96MB 32.88KBps 00:00:12`
+    fn parse_progress_line(&self, line: &str) -> Option<ParsedEvent> {
+        if let Some(caps) = self.progress_line_regex.captures(line) {
+            let stream_type = &caps[1]; // Vid 或 Aud
+            let _stream_info = &caps[2]; // 1280x720 | 1159 Kbps
+            let downloaded: u32 = caps[3].parse().unwrap_or(0);
+            let total: u32 = caps[4].parse().unwrap_or(0);
+            let percent: f64 = caps[5].parse().unwrap_or(0.0);
+            let size_info = &caps[6]; // 32.88KB/1.96MB 或 -
+            let speed_str = &caps[7]; // 32.88KBps 或 -
+            let eta_str = &caps[8]; // 00:00:12 或 --:--:--
 
-        // 提取数字部分
-        let num: f64 = self
-            .progress_regex
-            .captures(size_str)
-            .and_then(|caps| caps[1].parse().ok())
-            .unwrap_or(0.0);
+            // 解析文件大小
+            let (downloaded_size, total_size) = self.parse_size_info(size_info);
 
-        // 根据单位转换
-        if lower.contains("gib") || lower.contains("gb") {
-            (num * 1024.0 * 1024.0 * 1024.0) as u64
-        } else if lower.contains("mib") || lower.contains("mb") {
-            (num * 1024.0 * 1024.0) as u64
-        } else if lower.contains("kib") || lower.contains("kb") {
-            (num * 1024.0) as u64
-        } else {
-            num as u64
+            // 解析速度
+            let speed = self.parse_speed(speed_str);
+
+            // 解析 ETA
+            let eta = self.parse_eta(eta_str);
+
+            // 计算总进度百分比（基于分片）
+            let overall_percent = if total > 0 {
+                (downloaded as f64 / total as f64 * 100.0).round()
+            } else {
+                percent.round()
+            };
+
+            return Some(ParsedEvent {
+                event_type: "progress".to_string(),
+                data: serde_json::json!({
+                    "streamType": stream_type,
+                    "percent": overall_percent,
+                    "downloadedSegments": downloaded,
+                    "totalSegments": total,
+                    "downloadedSize": downloaded_size,
+                    "totalSize": total_size,
+                    "speed": speed,
+                    "speedStr": if speed_str != "-" { speed_str } else { "" },
+                    "eta": eta,
+                    "currentAction": format!("下载中 {}/{}", downloaded, total)
+                }),
+            });
         }
+
+        // 如果正则不匹配，尝试简化解析
+        self.parse_simple_progress(line)
+    }
+
+    /// 简化的进度解析（备用）
+    fn parse_simple_progress(&self, line: &str) -> Option<ParsedEvent> {
+        // 提取百分比
+        let percent_regex = Regex::new(r"(\d+(?:\.\d+)?)%").ok()?;
+        let percent = percent_regex
+            .captures(line)?
+            .get(1)?
+            .as_str()
+            .parse::<f64>()
+            .ok()?;
+
+        // 提取分片进度
+        let segments_regex = Regex::new(r"(\d+)/(\d+)").ok()?;
+        let (downloaded, total) = if let Some(caps) = segments_regex.captures(line) {
+            (
+                caps.get(1)?.as_str().parse::<u32>().ok()?,
+                caps.get(2)?.as_str().parse::<u32>().ok()?,
+            )
+        } else {
+            (0, 0)
+        };
+
+        Some(ParsedEvent {
+            event_type: "progress".to_string(),
+            data: serde_json::json!({
+                "percent": percent,
+                "downloadedSegments": downloaded,
+                "totalSegments": total,
+                "downloadedSize": 0,
+                "totalSize": 0,
+                "speed": 0,
+                "eta": 0
+            }),
+        })
+    }
+
+    /// 解析大小信息 `32.88KB/1.96MB` 或 `-`
+    fn parse_size_info(&self, size_info: &str) -> (u64, u64) {
+        if size_info == "-" {
+            return (0, 0);
+        }
+
+        let parts: Vec<&str> = size_info.split('/').collect();
+        if parts.len() != 2 {
+            return (0, 0);
+        }
+
+        let downloaded = self.parse_size(parts[0]);
+        let total = self.parse_size(parts[1]);
+        (downloaded, total)
+    }
+
+    /// 解析单个大小值 `32.88KB`
+    fn parse_size(&self, size_str: &str) -> u64 {
+        let size_regex = Regex::new(r"([\d.]+)(KB|MB|GB|B)").unwrap();
+
+        if let Some(caps) = size_regex.captures(size_str) {
+            let num: f64 = caps.get(1).unwrap().as_str().parse().unwrap_or(0.0);
+            let unit = caps.get(2).unwrap().as_str();
+
+            return match unit {
+                "GB" => (num * 1024.0 * 1024.0 * 1024.0) as u64,
+                "MB" => (num * 1024.0 * 1024.0) as u64,
+                "KB" => (num * 1024.0) as u64,
+                "B" => num as u64,
+                _ => num as u64,
+            };
+        }
+        0
+    }
+
+    /// 解析速度 `32.88KBps` 或 `-`
+    fn parse_speed(&self, speed_str: &str) -> u64 {
+        if speed_str == "-" {
+            return 0;
+        }
+        self.parse_size(speed_str.trim_end_matches("ps"))
+    }
+
+    /// 解析 ETA `00:00:12` 或 `--:--:--`
+    fn parse_eta(&self, eta_str: &str) -> u32 {
+        if eta_str == "--:--:--" {
+            return 0;
+        }
+
+        let parts: Vec<&str> = eta_str.split(':').collect();
+        if parts.len() == 3 {
+            if let (Ok(h), Ok(m), Ok(s)) = (
+                parts[0].parse::<u32>(),
+                parts[1].parse::<u32>(),
+                parts[2].parse::<u32>(),
+            ) {
+                return h * 3600 + m * 60 + s;
+            }
+        }
+        0
     }
 }
 
@@ -296,57 +314,85 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_progress() {
+    fn test_parse_log_line() {
         let parser = OutputParser::new();
 
-        let result = parser.parse("Downloading... 45.2% Speed: 12.5 MiB/s");
+        let result = parser.parse("21:05:11.051 WARN : 你已开启下载完成后混流，自动开启二进制合并");
         assert!(result.is_some());
-
-        let event = result.unwrap();
-        assert_eq!(event.event_type, "progress");
-
-        let data = event.data.as_object().unwrap();
-        assert_eq!(data["percent"], 45.2);
-    }
-
-    #[test]
-    fn test_parse_error() {
-        let parser = OutputParser::new();
-
-        let result = parser.parse("Error: Failed to connect to server");
-        assert!(result.is_some());
-
         let event = result.unwrap();
         assert_eq!(event.event_type, "log");
-
-        let data = event.data.as_object().unwrap();
-        assert_eq!(data["level"], "error");
     }
 
     #[test]
-    fn test_parse_complete() {
+    fn test_parse_start_download() {
         let parser = OutputParser::new();
 
-        let result = parser.parse("Download Complete!");
+        let result =
+            parser.parse("21:05:11.052 INFO : 开始下载...Vid 1280x720 | 1159 Kbps | mp4a.40.2");
         assert!(result.is_some());
-
         let event = result.unwrap();
         assert_eq!(event.event_type, "status");
-
-        let data = event.data.as_object().unwrap();
-        assert_eq!(data["status"], "completed");
+        assert_eq!(event.data["status"], "downloading");
     }
 
     #[test]
-    fn test_parse_segments() {
+    fn test_parse_merging() {
         let parser = OutputParser::new();
 
-        let result = parser.parse("Progress: 50/100 segments, 50.0%");
+        let result = parser.parse("21:05:13.341 INFO : 二进制合并中...");
         assert!(result.is_some());
-
         let event = result.unwrap();
-        let data = event.data.as_object().unwrap();
-        assert_eq!(data["downloadedSegments"], 50);
-        assert_eq!(data["totalSegments"], 100);
+        assert_eq!(event.event_type, "status");
+        assert_eq!(event.data["status"], "muxing");
+    }
+
+    #[test]
+    fn test_parse_progress_line() {
+        let parser = OutputParser::new();
+
+        let result = parser.parse("Vid 1280x720 | 1159 Kbps ------------------------------ 1/61 1.64% 32.88KB/1.96MB 32.88KBps 00:00:12");
+        assert!(result.is_some());
+        let event = result.unwrap();
+        assert_eq!(event.event_type, "progress");
+        assert_eq!(event.data["downloadedSegments"], 1);
+        assert_eq!(event.data["totalSegments"], 61);
+    }
+
+    #[test]
+    fn test_parse_audio_progress() {
+        let parser = OutputParser::new();
+
+        let result = parser.parse("Aud Audio                ------------------------------ 0/100 0.00% -    -    --:--:--");
+        assert!(result.is_some());
+        let event = result.unwrap();
+        assert_eq!(event.event_type, "progress");
+        assert_eq!(event.data["streamType"], "Aud");
+    }
+
+    #[test]
+    fn test_no_false_muxing_trigger() {
+        let parser = OutputParser::new();
+
+        // "下载完成后混流" 不应该触发 muxing 状态
+        let result = parser.parse("21:05:11.051 WARN : 你已开启下载完成后混流，自动开启二进制合并");
+        assert!(result.is_some());
+        let event = result.unwrap();
+        // 应该是普通日志，不是 muxing 状态
+        assert_ne!(
+            event.data.get("status").and_then(|s| s.as_str()),
+            Some("muxing")
+        );
+    }
+
+    #[test]
+    fn test_parse_completed() {
+        let parser = OutputParser::new();
+
+        // "All done" 应该触发 completed 状态
+        let result = parser.parse("21:05:15.123 INFO : All done");
+        assert!(result.is_some());
+        let event = result.unwrap();
+        assert_eq!(event.event_type, "status");
+        assert_eq!(event.data["status"], "completed");
     }
 }

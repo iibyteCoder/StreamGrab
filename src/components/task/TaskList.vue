@@ -15,10 +15,13 @@ interface Props {
   emptyType?: "active" | "completed" | "all";
   /** 自定义空状态文本 */
   emptyText?: string;
+  /** 当前选中的任务 ID（用于高亮显示） */
+  activeTaskId?: string | null;
 }
 
 withDefaults(defineProps<Props>(), {
   emptyType: "all",
+  activeTaskId: null,
 });
 
 defineEmits<{
@@ -27,7 +30,7 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="task-list h-full">
+  <div class="task-list h-full flex flex-col">
     <!-- 任务列表 -->
     <TransitionGroup
       v-if="tasks.length > 0"
@@ -39,12 +42,15 @@ defineEmits<{
         v-for="task in tasks"
         :key="task.id"
         :task="task"
+        :active="activeTaskId === task.id"
         @click="$emit('taskClick', $event)"
       />
     </TransitionGroup>
 
     <!-- 空状态 -->
-    <TaskEmptyState v-else :type="emptyType" :title="emptyText" />
+    <div v-else class="flex-1 flex items-center justify-center">
+      <TaskEmptyState :type="emptyType" :title="emptyText" />
+    </div>
   </div>
 </template>
 

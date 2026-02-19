@@ -8,10 +8,12 @@ import { ref, onUnmounted } from "vue";
 import { useTaskStore, useSettingsStore } from "@/stores";
 import {
   downloadService,
+  taskService,
   type DownloadEvent,
   type UnlistenFn,
 } from "@/services";
 import { useToast } from "./useToast";
+import { useNotification } from "./useNotification";
 import type { DownloadTask, TaskConfig, StreamInfo } from "@/types";
 
 /**
@@ -21,17 +23,22 @@ export function useDownloader() {
   const taskStore = useTaskStore();
   const settingsStore = useSettingsStore();
   const toast = useToast();
+  const notification = useNotification();
 
   // 正在启动的任务
   const startingTasks = ref<Set<string>>(new Set());
 
+  // 进度历史保存时间戳（节流）
+  const progressHistoryTimestamps = new Map<string, number>();
+  const PROGRESS_HISTORY_INTERVAL = 5000; // 5秒保存一次
+
   // 事件订阅清理函数
   const unlisteners = new Map<string, UnlistenFn>();
 
-  // 是否正在解析
+  // 是否正在解析（用于 UI 显示）
   const isParsing = ref(false);
 
-  // 解析结果
+  // 解析结果（用于 URL 输入时的流选择器预览）
   const parsedStreamInfo = ref<StreamInfo | null>(null);
 
   // 是否正在处理队列（防止重复触发）
@@ -85,9 +92,8 @@ export function useDownloader() {
       // 更新任务状态为解析中
       taskStore.updateTaskStatus(task.id, "analyzing");
 
-      // 获取任务配置 - 合并任务级配置和应用级设置
+      // 获取任务配置 - 使用应用级设置
       const taskData = taskStore.getTask(task.id);
-      const taskConfig = taskData?.config || {};
       const config: TaskConfig = {
         // 基础配置
         saveDir:
@@ -100,16 +106,11 @@ export function useDownloader() {
         timeout: settingsStore.settings.download.timeout,
         maxSpeed: settingsStore.settings.download.maxSpeed,
 
-        // 流选择 - 任务级可覆盖
-        autoSelect:
-          taskConfig.autoSelect ?? settingsStore.settings.download.autoSelect,
-        selectVideo:
-          taskConfig.selectVideo ?? settingsStore.settings.download.selectVideo,
-        selectAudio:
-          taskConfig.selectAudio ?? settingsStore.settings.download.selectAudio,
-        selectSubtitle:
-          taskConfig.selectSubtitle ??
-          settingsStore.settings.download.selectSubtitle,
+        // 流选择
+        autoSelect: settingsStore.settings.download.autoSelect,
+        selectVideo: settingsStore.settings.download.selectVideo,
+        selectAudio: settingsStore.settings.download.selectAudio,
+        selectSubtitle: settingsStore.settings.download.selectSubtitle,
 
         // 流排除
         dropVideo: settingsStore.settings.download.dropVideo,
@@ -127,9 +128,6 @@ export function useDownloader() {
         checkSegmentsCount: settingsStore.settings.download.checkSegmentsCount,
 
         // 其他选项
-        customRange: taskConfig.customRange,
-        startAt: taskConfig.startAt,
-        key: taskConfig.key,
         headers: settingsStore.settings.network.headers.filter(
           (h) => h.enabled,
         ),
@@ -148,6 +146,36 @@ export function useDownloader() {
 
       // 更新任务状态为下载中
       taskStore.updateTaskStatus(task.id, "downloading");
+
+      // 为每个任务单独解析流信息（确保任务隔离）
+      try {
+        const streamInfo = await downloadService.parseUrl(
+          task.url,
+          settingsStore.settings,
+        );
+        const bestVideo = streamInfo.videos?.[0];
+        const bestAudio = streamInfo.audios?.[0];
+
+        taskStore.updateTaskMediaInfo(task.id, {
+          resolution: bestVideo?.resolution,
+          width: bestVideo?.width,
+          height: bestVideo?.height,
+          frameRate: bestVideo?.frameRate,
+          videoCodec: bestVideo?.codecs,
+          videoRange: bestVideo?.videoRange,
+          audioCodec: bestAudio?.codecs,
+          audioChannels: bestAudio?.channels,
+          audioLanguage: bestAudio?.language,
+          duration: streamInfo.duration,
+          segmentCount: streamInfo.segmentCount,
+          isLive: streamInfo.isLive,
+          isEncrypted: streamInfo.isEncrypted,
+          fileFormat: config.muxFormat,
+        });
+      } catch (parseError) {
+        // 解析失败不影响下载，只记录日志
+        console.warn("Failed to parse stream info for task:", parseError);
+      }
 
       toast.success(`开始下载: ${task.fileName || task.url}`);
     } catch (e) {
@@ -265,16 +293,42 @@ export function useDownloader() {
     const { type, taskId, data } = event;
 
     switch (type) {
-      case "progress":
+      case "progress": {
         // 更新进度
+        const progressData = data as {
+          percent: number;
+          overallPercent?: number;
+          speed: number;
+          downloadedSize: number;
+          totalSize: number;
+          eta: number;
+        };
         taskStore.updateTaskProgress(taskId, {
-          percent: (data as { percent: number }).percent,
-          speed: (data as { speed: number }).speed,
-          downloadedSize: (data as { downloadedSize: number }).downloadedSize,
-          totalSize: (data as { totalSize: number }).totalSize,
-          eta: (data as { eta: number }).eta,
+          percent: progressData.percent,
+          overallPercent: progressData.overallPercent,
+          speed: progressData.speed,
+          downloadedSize: progressData.downloadedSize,
+          totalSize: progressData.totalSize,
+          eta: progressData.eta,
         });
+
+        // 定期保存进度历史（节流）
+        const now = Date.now();
+        const lastSave = progressHistoryTimestamps.get(taskId) ?? 0;
+        if (now - lastSave >= PROGRESS_HISTORY_INTERVAL) {
+          progressHistoryTimestamps.set(taskId, now);
+          const percent = progressData.overallPercent ?? progressData.percent;
+          taskService
+            .saveProgressHistory(
+              taskId,
+              percent,
+              progressData.speed,
+              progressData.downloadedSize,
+            )
+            .catch(console.error);
+        }
         break;
+      }
 
       case "status": {
         // 更新状态
@@ -289,9 +343,17 @@ export function useDownloader() {
       case "error": {
         // 处理错误
         const errorData = data as { message: string };
+        const task = taskStore.getTask(taskId);
         taskStore.updateTaskStatus(taskId, "failed");
         taskStore.updateTaskError(taskId, errorData.message);
         toast.error(`下载出错: ${errorData.message}`);
+        // 发送系统通知
+        if (task) {
+          notification.sendDownloadErrorNotification(
+            task.fileName || task.url,
+            errorData.message,
+          );
+        }
         unsubscribeTask(taskId);
         // 任务失败后尝试启动下一个等待中的任务
         processQueue();
@@ -300,10 +362,17 @@ export function useDownloader() {
 
       case "complete": {
         // 下载完成 - 任务状态变为 completed 后会自动出现在历史记录中
-        taskStore.updateTaskStatus(taskId, "completed");
         const completeData = data as { outputPath: string };
+        const task = taskStore.getTask(taskId);
+        taskStore.updateTaskStatus(taskId, "completed");
         taskStore.updateTaskOutput(taskId, completeData.outputPath);
         toast.success("下载完成!");
+        // 发送系统通知
+        if (task) {
+          notification.sendDownloadCompleteNotification(
+            task.fileName || "文件",
+          );
+        }
 
         unsubscribeTask(taskId);
         // 任务完成后尝试启动下一个等待中的任务

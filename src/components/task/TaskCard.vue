@@ -2,10 +2,12 @@
 /**
  * TaskCard - 任务卡片组件
  * 紧凑但信息丰富的任务展示
+ *
+ * 使用扁平化任务数据结构
  */
 
 import { computed, ref, onMounted, watch } from "vue";
-import { AppProgress } from "@/components/common";
+import { AppIcon } from "@/components/common";
 import { useTasks, useDownloader } from "@/composables";
 import { useTaskStore } from "@/stores";
 import { configService } from "@/services";
@@ -16,24 +18,23 @@ import {
   formatDate,
 } from "@/utils/format";
 import { TASK_STATUS_CONFIG } from "@/utils/constants";
-import { LogViewer } from "@/components/task";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { AppIcon } from "@/components/common";
+  TaskStatusBadge,
+  TaskQuickActions,
+  TaskDeleteDialog,
+  LogViewer,
+} from "@/components/task";
 import type { DownloadTask } from "@/types";
 
 interface Props {
   task: DownloadTask;
+  /** 是否为当前选中/查看详情的任务 */
+  active?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  active: false,
+});
 
 const emit = defineEmits<{
   (e: "click", task: DownloadTask): void;
@@ -49,42 +50,49 @@ const {
 } = useDownloader();
 const taskStore = useTaskStore();
 
-// 对话框状态
-const showLogViewer = ref(false);
-const showDeleteDialog = ref(false);
-const deleteWithFile = ref(false);
-const isDeleting = ref(false);
-
-// 文件存在状态
+// 文件存在状态（实时检查）
 const fileExists = ref<boolean | null>(null);
+const isCheckingFile = ref(false);
 
 const checkFileExists = async () => {
-  if (props.task.outputPath) {
-    try {
-      fileExists.value = await configService.fileExists(props.task.outputPath);
-    } catch {
-      fileExists.value = false;
-    }
+  if (props.task.status !== "completed" || !props.task.outputPath) {
+    fileExists.value = null;
+    return;
+  }
+
+  isCheckingFile.value = true;
+  try {
+    fileExists.value = await taskStore.checkFileExists(props.task.id);
+  } catch {
+    fileExists.value = false;
+  } finally {
+    isCheckingFile.value = false;
   }
 };
 
-onMounted(() => {
-  if (props.task.status === "completed") checkFileExists();
-});
-
+// 组件挂载和任务状态变化时检查文件
+onMounted(checkFileExists);
 watch(
   () => props.task.status,
-  (newStatus) => {
-    if (newStatus === "completed") checkFileExists();
+  () => {
+    if (props.task.status === "completed") {
+      checkFileExists();
+    }
   },
 );
+
+// 对话框状态
+const showLogViewer = ref(false);
+const showDeleteDialog = ref(false);
+const isDeleting = ref(false);
 
 // 计算属性
 const hasLogs = computed(() => taskStore.getTaskLogs(props.task.id).length > 0);
 
-const statusConfig = computed(
-  () => TASK_STATUS_CONFIG[props.task.status] || TASK_STATUS_CONFIG.pending,
-);
+const statusConfig = computed(() => {
+  const config = TASK_STATUS_CONFIG[props.task.status];
+  return config ?? TASK_STATUS_CONFIG.pending;
+});
 
 const statusIcon = computed(() => {
   const icons: Record<string, string> = {
@@ -101,49 +109,60 @@ const statusIcon = computed(() => {
   return icons[props.task.status] || "Clock";
 });
 
-type ProgressVariant = "default" | "success" | "warning" | "error";
+// 是否应该显示进度区域（下载中、暂停、失败、合并中）
+const shouldShowProgress = computed(() => {
+  return ["downloading", "paused", "failed", "merging", "muxing"].includes(
+    props.task.status,
+  );
+});
 
-const progressVariant = computed((): ProgressVariant => {
-  const map: Record<string, ProgressVariant> = {
-    completed: "success",
-    failed: "error",
-    downloading: "default",
+// 进度条颜色
+const progressColor = computed(() => {
+  const colors: Record<string, string> = {
+    completed: "#22c55e",
+    failed: "#ef4444",
+    paused: "#f59e0b",
+    merging: "#8b5cf6",
+    muxing: "#8b5cf6",
+    downloading: "#3b82f6",
   };
-  return map[props.task.status] || "default";
+  return colors[props.task.status] || "#3b82f6";
+});
+
+// 进度条样式（带动画效果）
+const progressStyle = computed(() => {
+  const percent = Math.min(100, Math.max(0, props.task.progressPercent));
+  return {
+    width: `${percent}%`,
+    backgroundColor: progressColor.value,
+  };
+});
+
+// 是否显示进度条动画（下载中时显示条纹动画）
+const showProgressAnimation = computed(() => {
+  return props.task.status === "downloading";
 });
 
 // 下载速度
 const speedText = computed(() =>
   props.task.status === "downloading"
-    ? formatSpeed(props.task.progress.speed)
+    ? formatSpeed(props.task.progressSpeed)
     : "",
 );
-
-// 文件大小
-const sizeText = computed(() => {
-  const { downloadedSize, totalSize } = props.task.progress;
-  if (totalSize > 0)
-    return `${formatFileSize(downloadedSize)} / ${formatFileSize(totalSize)}`;
-  if (downloadedSize > 0) return formatFileSize(downloadedSize);
-  return "";
-});
 
 // 剩余时间
 const etaText = computed(() =>
-  props.task.status === "downloading" && props.task.progress.eta
-    ? formatDuration(props.task.progress.eta)
+  props.task.status === "downloading" && props.task.progressEta
+    ? formatDuration(props.task.progressEta)
     : "",
 );
 
-// 分片进度
-const segmentsText = computed(() => {
-  const { downloadedSegments = 0, totalSegments = 0 } = props.task.progress;
-  return totalSegments > 0 ? `${downloadedSegments}/${totalSegments} 分片` : "";
-});
-
 // 文件丢失提示
 const showFileMissingHint = computed(
-  () => props.task.status === "completed" && fileExists.value === false,
+  () =>
+    props.task.status === "completed" &&
+    !isCheckingFile.value &&
+    fileExists.value === false,
 );
 
 // 完成时间
@@ -161,9 +180,28 @@ const handleResume = async () => await resumeDownload(props.task);
 const handleStop = async () => await stopDownload(props.task.id);
 const handleRetry = async () => await retryDownload(props.task);
 
+const handleOpenFolder = async () => {
+  if (props.task.saveDir) {
+    try {
+      await configService.openInExplorer(props.task.saveDir);
+    } catch (e) {
+      console.error("Failed to open folder:", e);
+    }
+  }
+};
+
+const handleOpenFile = async () => {
+  if (props.task.outputPath && fileExists.value) {
+    try {
+      await configService.openInExplorer(props.task.outputPath);
+    } catch (e) {
+      console.error("Failed to open file:", e);
+    }
+  }
+};
+
 const handleRemoveClick = () => {
   if (props.task.status === "completed" && fileExists.value) {
-    deleteWithFile.value = false;
     showDeleteDialog.value = true;
   } else {
     performDelete(false);
@@ -187,37 +225,26 @@ const performDelete = async (withFile: boolean) => {
   }
 };
 
-const handleConfirmDelete = () => performDelete(deleteWithFile.value);
-
-const handleOpenFolder = async () => {
-  if (props.task.saveDir) {
-    try {
-      await configService.openInExplorer(props.task.saveDir);
-    } catch (e) {
-      console.error("Failed to open folder:", e);
-    }
-  }
-};
-
-const handleOpenFile = async () => {
-  if (props.task.outputPath && fileExists.value) {
-    try {
-      await configService.openInExplorer(props.task.outputPath);
-    } catch (e) {
-      console.error("Failed to open file:", e);
-    }
-  }
-};
-
 const handleClick = () => emit("click", props.task);
 </script>
 
 <template>
   <div
-    class="task-card group rounded-lg border bg-card p-3 transition-all duration-200 hover:shadow-md"
-    :class="{ 'opacity-60': task.status === 'cancelled' }"
+    class="task-card group relative rounded-lg border bg-card p-3 transition-all duration-200"
+    :class="[
+      task.status === 'cancelled' ? 'opacity-60' : '',
+      active
+        ? 'ring-2 ring-primary/50 border-primary/30 bg-primary/5 shadow-md'
+        : 'hover:shadow-md',
+    ]"
     @click="handleClick"
   >
+    <!-- 状态标签 -->
+    <TaskStatusBadge
+      :text="statusConfig?.text ?? ''"
+      :color="statusConfig?.color ?? '#888'"
+    />
+
     <!-- 主内容 -->
     <div class="flex items-start gap-3">
       <!-- 状态指示器 -->
@@ -234,52 +261,100 @@ const handleClick = () => emit("click", props.task);
 
       <!-- 信息区 -->
       <div class="flex-1 min-w-0">
-        <!-- 第一行：文件名 + 状态标签 -->
-        <div class="flex items-center gap-2">
-          <h4 class="text-sm font-medium truncate flex-1">
-            {{ task.fileName || "未命名文件" }}
-          </h4>
-          <span
-            class="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium"
-            :style="{
-              backgroundColor: `${statusConfig?.color ?? '#888'}20`,
-              color: statusConfig?.color ?? '#888',
-            }"
-          >
-            {{ statusConfig?.text ?? "未知" }}
-          </span>
-        </div>
+        <!-- 第一行：文件名 -->
+        <h4 class="text-sm font-medium truncate">
+          {{ task.fileName || "未命名文件" }}
+        </h4>
 
-        <!-- 下载中状态：进度条 + 详细信息 -->
-        <template v-if="task.status === 'downloading'">
-          <div class="mt-2">
-            <AppProgress
-              :percent="task.progress.percent"
-              :variant="progressVariant"
-              size="sm"
-            />
+        <!-- 进度可视化区域 -->
+        <div v-if="shouldShowProgress" class="mt-2">
+          <!-- 进度条 + 百分比 -->
+          <div class="flex items-center gap-2">
+            <div class="progress-track flex-1">
+              <div
+                class="progress-bar"
+                :class="{ 'progress-animated': showProgressAnimation }"
+                :style="progressStyle"
+              />
+            </div>
+            <span
+              class="text-xs font-medium tabular-nums"
+              :style="{
+                color: progressColor,
+                minWidth: '36px',
+                textAlign: 'right',
+              }"
+            >
+              {{ task.progressPercent }}%
+            </span>
           </div>
-          <div
-            class="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground"
-          >
-            <span v-if="sizeText">{{ sizeText }}</span>
-            <span v-if="speedText" class="text-primary font-medium">{{
-              speedText
-            }}</span>
-            <span v-if="etaText">剩余 {{ etaText }}</span>
-            <span v-if="segmentsText" class="opacity-60">{{
-              segmentsText
-            }}</span>
-          </div>
-        </template>
 
-        <!-- 已完成状态：文件信息 -->
-        <template v-else-if="task.status === 'completed'">
+          <!-- 进度详情行 -->
           <div
             class="flex items-center gap-3 mt-1 text-xs text-muted-foreground"
           >
-            <span v-if="task.progress.totalSize">{{
-              formatFileSize(task.progress.totalSize)
+            <!-- 下载中：速度 + 已下载/总大小 + 剩余时间 -->
+            <template v-if="task.status === 'downloading'">
+              <span v-if="speedText" class="text-primary font-medium">{{
+                speedText
+              }}</span>
+              <span
+                v-if="task.progressDownloadedSize && task.progressTotalSize"
+              >
+                {{ formatFileSize(task.progressDownloadedSize) }} /
+                {{ formatFileSize(task.progressTotalSize) }}
+              </span>
+              <span v-else-if="task.progressDownloadedSize">
+                {{ formatFileSize(task.progressDownloadedSize) }}
+              </span>
+              <span v-if="etaText">剩余 {{ etaText }}</span>
+            </template>
+
+            <!-- 暂停中 -->
+            <template v-else-if="task.status === 'paused'">
+              <span v-if="task.progressDownloadedSize">{{
+                formatFileSize(task.progressDownloadedSize)
+              }}</span>
+              <span class="text-amber-500">已暂停</span>
+            </template>
+
+            <!-- 失败 -->
+            <template v-else-if="task.status === 'failed'">
+              <span v-if="task.progressDownloadedSize">{{
+                formatFileSize(task.progressDownloadedSize)
+              }}</span>
+              <span class="text-destructive">下载失败</span>
+            </template>
+
+            <!-- 合并中 -->
+            <template
+              v-else-if="task.status === 'merging' || task.status === 'muxing'"
+            >
+              <span class="text-purple-400">正在合并...</span>
+            </template>
+          </div>
+        </div>
+
+        <!-- 非进度状态：显示简单信息 -->
+        <div
+          v-else
+          class="flex items-center gap-3 mt-1.5 h-4 text-xs text-muted-foreground"
+        >
+          <template v-if="task.status === 'analyzing'">
+            <span class="text-primary">正在解析...</span>
+          </template>
+          <template v-else-if="task.status === 'pending'">
+            <span>等待中</span>
+          </template>
+          <template v-else-if="task.status === 'cancelled'">
+            <span>已取消</span>
+          </template>
+          <template v-else-if="task.status === 'completed'">
+            <span v-if="task.progressTotalSize">{{
+              formatFileSize(task.progressTotalSize)
+            }}</span>
+            <span v-else-if="task.progressDownloadedSize">{{
+              formatFileSize(task.progressDownloadedSize)
             }}</span>
             <span>{{ completedTimeText }}</span>
             <span
@@ -289,23 +364,8 @@ const handleClick = () => emit("click", props.task);
               <AppIcon name="AlertTriangle" :size="12" />
               文件已移除
             </span>
-          </div>
-        </template>
-
-        <!-- 其他状态 -->
-        <template v-else>
-          <div
-            class="flex items-center gap-3 mt-1 text-xs text-muted-foreground"
-          >
-            <span v-if="sizeText">{{ sizeText }}</span>
-            <span v-if="task.progress.percent > 0"
-              >{{ task.progress.percent }}%</span
-            >
-            <span v-if="segmentsText" class="opacity-60">{{
-              segmentsText
-            }}</span>
-          </div>
-        </template>
+          </template>
+        </div>
 
         <!-- 错误信息 -->
         <div
@@ -316,136 +376,34 @@ const handleClick = () => emit("click", props.task);
         </div>
       </div>
 
-      <!-- 操作按钮组 -->
-      <div
-        class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-      >
-        <!-- 打开文件夹 -->
-        <button
-          v-if="task.saveDir"
-          class="action-btn"
-          title="打开目录"
-          @click.stop="handleOpenFolder"
-        >
-          <AppIcon name="FolderOpen" :size="15" />
-        </button>
-
-        <!-- 播放文件 -->
-        <button
-          v-if="task.status === 'completed' && fileExists"
-          class="action-btn text-green-500 hover:text-green-600"
-          title="播放"
-          @click.stop="handleOpenFile"
-        >
-          <AppIcon name="Play" :size="15" />
-        </button>
-
-        <!-- 查看日志 -->
-        <button
-          v-if="hasLogs || task.status === 'downloading'"
-          class="action-btn"
-          title="日志"
-          @click.stop="showLogViewer = true"
-        >
-          <AppIcon name="FileText" :size="15" />
-        </button>
-
-        <!-- 暂停 -->
-        <button
-          v-if="task.status === 'downloading'"
-          class="action-btn"
-          title="暂停"
-          @click.stop="handlePause"
-        >
-          <AppIcon name="Pause" :size="15" />
-        </button>
-
-        <!-- 开始/继续 -->
-        <button
-          v-if="task.status === 'paused' || task.status === 'pending'"
-          class="action-btn text-primary"
-          title="开始"
-          @click.stop="
-            task.status === 'paused' ? handleResume() : handleStart()
-          "
-        >
-          <AppIcon name="Play" :size="15" />
-        </button>
-
-        <!-- 重试 -->
-        <button
-          v-if="task.status === 'failed'"
-          class="action-btn text-primary"
-          title="重试"
-          @click.stop="handleRetry"
-        >
-          <AppIcon name="RefreshCw" :size="15" />
-        </button>
-
-        <!-- 停止 -->
-        <button
-          v-if="task.status === 'downloading' || task.status === 'paused'"
-          class="action-btn text-destructive"
-          title="停止"
-          @click.stop="handleStop"
-        >
-          <AppIcon name="Square" :size="15" />
-        </button>
-
-        <!-- 删除 -->
-        <button
-          v-if="['cancelled', 'failed', 'completed'].includes(task.status)"
-          class="action-btn text-destructive"
-          title="删除"
-          @click.stop="handleRemoveClick"
-        >
-          <AppIcon name="Trash2" :size="15" />
-        </button>
-      </div>
+      <!-- 快速操作按钮 -->
+      <TaskQuickActions
+        :task="task"
+        :file-exists="fileExists ?? false"
+        :has-logs="hasLogs"
+        @open-folder="handleOpenFolder"
+        @open-file="handleOpenFile"
+        @show-logs="showLogViewer = true"
+        @pause="handlePause"
+        @start="handleStart"
+        @resume="handleResume"
+        @retry="handleRetry"
+        @stop="handleStop"
+        @delete="handleRemoveClick"
+      />
     </div>
 
     <!-- 日志查看器 -->
     <LogViewer v-model:open="showLogViewer" :task-id="task.id" />
 
     <!-- 删除确认对话框 -->
-    <Dialog v-model:open="showDeleteDialog">
-      <DialogContent class="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>确认删除</DialogTitle>
-          <DialogDescription>确定要删除此任务记录吗？</DialogDescription>
-        </DialogHeader>
-
-        <div class="py-4">
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              v-model="deleteWithFile"
-              class="w-4 h-4 rounded border accent-primary"
-            />
-            <span class="text-sm">同时删除下载的文件</span>
-          </label>
-          <p
-            v-if="deleteWithFile && task.outputPath"
-            class="mt-2 text-xs text-muted-foreground truncate"
-          >
-            {{ task.outputPath }}
-          </p>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="showDeleteDialog = false"
-            >取消</Button
-          >
-          <Button
-            variant="destructive"
-            :disabled="isDeleting"
-            @click="handleConfirmDelete"
-          >
-            {{ isDeleting ? "删除中..." : "确认删除" }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <TaskDeleteDialog
+      v-model:open="showDeleteDialog"
+      :task="task"
+      :file-exists="fileExists ?? false"
+      :is-deleting="isDeleting"
+      @confirm="performDelete"
+    />
   </div>
 </template>
 
@@ -454,7 +412,44 @@ const handleClick = () => emit("click", props.task);
   cursor: pointer;
 }
 
-.action-btn {
-  @apply p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors;
+/* 进度条轨道 */
+.progress-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+/* 进度条 */
+.progress-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease-out;
+  min-width: 0;
+}
+
+/* 进度条动画（条纹移动效果） */
+.progress-animated {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 10px 10px;
+  animation: progress-stripes 0.8s linear infinite;
+}
+
+@keyframes progress-stripes {
+  from {
+    background-position: 10px 0;
+  }
+  to {
+    background-position: 0 0;
+  }
 }
 </style>

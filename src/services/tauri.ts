@@ -37,12 +37,6 @@ export async function tauriListen<T>(
 // 下载相关命令
 // ============================================
 
-export interface StartDownloadArgs {
-  taskId: string;
-  url: string;
-  args: string[];
-}
-
 export interface DownloadProgressEvent {
   taskId: string;
   type: "progress" | "completed" | "error" | "log";
@@ -63,46 +57,6 @@ export interface DownloadProgressEvent {
 }
 
 /**
- * 开始下载任务
- */
-export async function startDownload(args: StartDownloadArgs): Promise<void> {
-  // 使用 snake_case 与 Rust 后端匹配
-  return tauriInvoke("start_download", {
-    task_id: args.taskId,
-    url: args.url,
-    args: args.args,
-  });
-}
-
-/**
- * 停止下载任务
- */
-export async function stopDownload(taskId: string): Promise<void> {
-  return tauriInvoke("stop_download", { task_id: taskId });
-}
-
-/**
- * 暂停下载任务
- */
-export async function pauseDownload(taskId: string): Promise<void> {
-  return tauriInvoke("pause_download", { task_id: taskId });
-}
-
-/**
- * 恢复下载任务
- */
-export async function resumeDownload(taskId: string): Promise<void> {
-  return tauriInvoke("resume_download", { task_id: taskId });
-}
-
-/**
- * 解析 URL 获取流信息
- */
-export async function parseUrl(url: string): Promise<unknown> {
-  return tauriInvoke("parse_url", { url });
-}
-
-/**
  * 订阅下载进度事件
  */
 export async function subscribeToDownloadProgress(
@@ -110,40 +64,6 @@ export async function subscribeToDownloadProgress(
   handler: (event: DownloadProgressEvent) => void,
 ): Promise<UnlistenFn> {
   return tauriListen<DownloadProgressEvent>(`download:${taskId}`, handler);
-}
-
-// ============================================
-// 配置相关命令
-// ============================================
-
-/**
- * 加载应用配置
- */
-export async function loadConfig(): Promise<Record<string, unknown>> {
-  return tauriInvoke("load_config");
-}
-
-/**
- * 保存应用配置
- */
-export async function saveConfig(
-  config: Record<string, unknown>,
-): Promise<void> {
-  return tauriInvoke("save_config", { config });
-}
-
-/**
- * 获取默认下载目录
- */
-export async function getDefaultDownloadDir(): Promise<string> {
-  return tauriInvoke("get_default_download_dir");
-}
-
-/**
- * 获取默认临时目录
- */
-export async function getDefaultTempDir(): Promise<string> {
-  return tauriInvoke("get_default_temp_dir");
 }
 
 // ============================================
@@ -171,13 +91,6 @@ export async function getN_m3u8dlVersion(): Promise<string> {
   return tauriInvoke("get_n_m3u8dl_version");
 }
 
-/**
- * 检查 FFmpeg 是否可用
- */
-export async function checkFfmpegAvailable(): Promise<boolean> {
-  return tauriInvoke("check_ffmpeg_available");
-}
-
 // ============================================
 // 导出
 // ============================================
@@ -186,22 +99,11 @@ export const tauriApi = {
   invoke: tauriInvoke,
   listen: tauriListen,
   // 下载
-  startDownload,
-  stopDownload,
-  pauseDownload,
-  resumeDownload,
-  parseUrl,
   subscribeToDownloadProgress,
-  // 配置
-  loadConfig,
-  saveConfig,
-  getDefaultDownloadDir,
-  getDefaultTempDir,
   // 系统
   openInExplorer,
   fileExists,
   getN_m3u8dlVersion,
-  checkFfmpegAvailable,
 };
 
 // 别名导出，方便其他模块使用

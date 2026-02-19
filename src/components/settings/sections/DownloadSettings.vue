@@ -1,18 +1,21 @@
 <script setup lang="ts">
 /**
  * DownloadSettings - 下载设置 UI 组件
+ *
+ * 重构后：
+ * - 广告过滤关键字管理提取到 AdKeywordManager 组件
+ * - 简化主组件逻辑
  */
 
 import { computed } from "vue";
 import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { AppIcon } from "@/components/common";
 import {
   SettingSwitch,
   SettingInput,
   SettingSlider,
   SettingSelect,
   SettingsGroup,
+  AdKeywordManager,
 } from "..";
 import type { DownloadSettings } from "@/types";
 
@@ -36,29 +39,8 @@ const updateDownload = (value: Partial<DownloadSettings>) => {
   emit("update:settings", value);
 };
 
-// 广告过滤关键字
-const adKeywords = computed(() => props.settings.download.adFilter.keywords);
-
-// 添加广告关键字
-const addAdKeyword = () => {
-  const keywords = [...adKeywords.value, ""];
-  updateDownload({
-    adFilter: { ...props.settings.download.adFilter, keywords },
-  });
-};
-
-// 删除广告关键字
-const removeAdKeyword = (index: number) => {
-  const keywords = adKeywords.value.filter((_, i) => i !== index);
-  updateDownload({
-    adFilter: { ...props.settings.download.adFilter, keywords },
-  });
-};
-
-// 更新广告关键字
-const updateAdKeyword = (index: number, value: string) => {
-  const keywords = [...adKeywords.value];
-  keywords[index] = value;
+// 广告过滤关键字更新
+const updateAdKeywords = (keywords: string[]) => {
   updateDownload({
     adFilter: { ...props.settings.download.adFilter, keywords },
   });
@@ -188,50 +170,10 @@ const subFormatOptions = [
 
       <template v-if="settings.download.adFilter.enabled">
         <Separator class="my-4" />
-
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">过滤关键字（正则表达式）</span>
-          <Button variant="outline" size="sm" @click="addAdKeyword">
-            <AppIcon name="Plus" :size="14" class="mr-1" />
-            添加
-          </Button>
-        </div>
-
-        <div
-          v-if="adKeywords.length === 0"
-          class="text-sm text-muted-foreground py-2"
-        >
-          暂无过滤关键字
-        </div>
-
-        <div v-else class="space-y-2">
-          <div
-            v-for="(_, index) in adKeywords"
-            :key="index"
-            class="flex items-center gap-2"
-          >
-            <input
-              :value="adKeywords[index]"
-              type="text"
-              placeholder="例如: ad\.domain\.com"
-              class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-              @input="
-                updateAdKeyword(
-                  index,
-                  ($event.target as HTMLInputElement).value,
-                )
-              "
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              class="h-9 w-9 text-destructive hover:text-destructive"
-              @click="removeAdKeyword(index)"
-            >
-              <AppIcon name="Trash2" :size="16" />
-            </Button>
-          </div>
-        </div>
+        <AdKeywordManager
+          :keywords="settings.download.adFilter.keywords"
+          @update:keywords="updateAdKeywords"
+        />
       </template>
     </SettingsGroup>
 

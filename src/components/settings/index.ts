@@ -9,3 +9,4 @@ export { default as SettingSlider } from "./SettingSlider.vue";
 export { default as SettingPath } from "./SettingPath.vue";
 export { default as SettingsGroup } from "./SettingsGroup.vue";
 export { default as SettingsNav } from "./SettingsNav.vue";
+export { default as AdKeywordManager } from "./AdKeywordManager.vue";
