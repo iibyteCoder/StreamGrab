@@ -2,17 +2,11 @@
 //!
 //! 处理任务的 CRUD 操作
 
-use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
-use crate::db::{Database, TaskRecord};
+use crate::db::TaskRecord;
 
-/// 获取数据库实例
-fn get_db(app: &AppHandle) -> Result<Arc<Database>, String> {
-    app.try_state::<Arc<Database>>()
-        .map(|s| s.inner().clone())
-        .ok_or_else(|| "Database not initialized".to_string())
-}
+use super::utils::get_db;
 
 /// 加载所有任务
 #[tauri::command]

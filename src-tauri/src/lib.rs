@@ -6,10 +6,11 @@ mod commands;
 mod db;
 mod process;
 mod tray;
+mod types;
 
 use tauri::Manager;
 
-use commands::{config::*, download::*, task::*};
+use commands::{config::*, dialog::*, download::*, fs::*, task::*};
 use db::Database;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -64,14 +65,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // 下载命令
+            // === 下载命令 ===
             start_download,
             stop_download,
             pause_download,
             resume_download,
             parse_url,
             get_n_m3u8dl_version,
-            // 配置命令（SQLite）
+            // === 配置命令 ===
             load_settings,
             save_setting,
             save_settings,
@@ -79,13 +80,15 @@ pub fn run() {
             reset_all_settings,
             export_config,
             import_config,
+            // === 文件系统命令 ===
             get_db_path,
             open_in_explorer,
             file_exists,
             delete_file_or_folder,
+            // === 对话框命令 ===
             select_directory,
             select_file,
-            // 任务命令
+            // === 任务命令 ===
             load_all_tasks,
             load_recoverable_tasks,
             save_task,
