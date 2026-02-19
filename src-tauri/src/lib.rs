@@ -9,7 +9,7 @@ mod tray;
 
 use tauri::Manager;
 
-use commands::{config::*, download::*, keys::*, task::*};
+use commands::{config::*, download::*, task::*};
 use db::Database;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -96,13 +96,6 @@ pub fn run() {
             clear_finished_tasks,
             mark_active_tasks_interrupted,
             clear_all_tasks,
-            // 密钥命令
-            load_keys,
-            add_key,
-            update_key,
-            delete_key,
-            clear_keys,
-            record_key_usage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

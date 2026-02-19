@@ -27,20 +27,6 @@ fn create_tables(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Failed to create settings table: {}", e))?;
 
-    // 密钥库表
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS keys (
-            id TEXT PRIMARY KEY,
-            kid TEXT,
-            key TEXT NOT NULL,
-            name TEXT,
-            created_at TEXT NOT NULL,
-            last_used_at TEXT
-        )",
-        [],
-    )
-    .map_err(|e| format!("Failed to create keys table: {}", e))?;
-
     // 任务表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS tasks (
@@ -75,41 +61,6 @@ fn create_tables(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(|e| format!("Failed to create tasks created_at index: {}", e))?;
-
-    // 配置模板表
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS config_templates (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            settings_json TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )",
-        [],
-    )
-    .map_err(|e| format!("Failed to create config_templates table: {}", e))?;
-
-    // 定时任务表
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS scheduled_tasks (
-            id TEXT PRIMARY KEY,
-            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-            scheduled_time TEXT NOT NULL,
-            repeat TEXT NOT NULL DEFAULT 'none',
-            enabled INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL
-        )",
-        [],
-    )
-    .map_err(|e| format!("Failed to create scheduled_tasks table: {}", e))?;
-
-    // 定时任务索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_time ON scheduled_tasks(scheduled_time)",
-        [],
-    )
-    .map_err(|e| format!("Failed to create scheduled_tasks time index: {}", e))?;
 
     log::info!("Database tables created successfully");
     Ok(())

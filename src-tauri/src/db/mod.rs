@@ -2,12 +2,10 @@
 //!
 //! 使用 SQLite 进行统一数据持久化
 
-mod keys;
 mod schema;
 mod settings;
 mod task;
 
-pub use keys::*;
 pub use schema::*;
 pub use settings::*;
 pub use task::*;
@@ -21,7 +19,6 @@ use std::sync::Arc;
 /// 包含所有子模块的数据库操作
 pub struct Database {
     pub settings: SettingsDb,
-    pub keys: KeysDb,
     pub tasks: TaskDb,
 }
 
@@ -54,11 +51,6 @@ impl Database {
                 .map_err(|e| format!("Failed to open settings connection: {}", e))?,
         )?;
 
-        let keys = KeysDb::new(
-            Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open keys connection: {}", e))?,
-        )?;
-
         let tasks = TaskDb::new(
             Connection::open(&db_path)
                 .map_err(|e| format!("Failed to open tasks connection: {}", e))?,
@@ -66,10 +58,6 @@ impl Database {
 
         log::info!("Database initialized successfully");
 
-        Ok(Arc::new(Self {
-            settings,
-            keys,
-            tasks,
-        }))
+        Ok(Arc::new(Self { settings, tasks }))
     }
 }
