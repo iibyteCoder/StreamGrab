@@ -66,7 +66,7 @@ pub fn create_tray<R: Runtime>(
 fn load_tray_icon() -> Result<tauri::image::Image<'static>, Box<dyn std::error::Error>> {
     // 使用内嵌的图标数据
     // 32x32 PNG 图标
-    let icon_bytes = include_bytes!("../icons/32x32.png");
+    let icon_bytes = include_bytes!("../../icons/32x32.png");
     let img = image::load_from_memory(icon_bytes)?;
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();

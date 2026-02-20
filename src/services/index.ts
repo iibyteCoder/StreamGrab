@@ -16,11 +16,11 @@ export { taskService } from "./taskService";
 export {
   getNm3u8dlInfo,
   getFfmpegInfo,
+  getFfprobeInfo,
   getNm3u8dlLatestRelease,
   getFfmpegLatestRelease,
   downloadTool,
   checkAllToolsStatus,
-  getDefaultToolsDir,
   type ToolInfo,
   type DownloadProgress,
   type ToolReleaseInfo,

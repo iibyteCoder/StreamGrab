@@ -4,7 +4,7 @@
 
 use tauri::AppHandle;
 
-use crate::db::task::{FullTaskRecord, TaskMediaInfo, TaskRecord};
+use crate::infrastructure::db::task::{FullTaskRecord, TaskMediaInfo, TaskRecord};
 
 use super::utils::get_db;
 
@@ -145,7 +145,7 @@ pub async fn get_progress_history(
     task_id: String,
     limit: Option<usize>,
     app: AppHandle,
-) -> Result<Vec<crate::db::task::ProgressHistoryRecord>, String> {
+) -> Result<Vec<crate::infrastructure::db::task::ProgressHistoryRecord>, String> {
     log::info!("Getting progress history for task: {}", task_id);
 
     let db = get_db(&app)?;

@@ -372,11 +372,19 @@ impl TaskDb {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let now = chrono::Utc::now().to_rfc3339();
 
-        conn.execute(
-            "UPDATE tasks SET status = ?1, error = ?2, updated_at = ?3 WHERE id = ?4",
-            params![status, error, now, id],
-        )
-        .map_err(|e| format!("Failed to update task status: {}", e))?;
+        // 根据状态更新对应的时间戳
+        // - downloading: 设置 started_at（如果之前没有设置）
+        // - completed: 设置 completed_at
+        let sql = if status == "downloading" {
+            "UPDATE tasks SET status = ?1, error = ?2, updated_at = ?3, started_at = COALESCE(started_at, ?3) WHERE id = ?4"
+        } else if status == "completed" {
+            "UPDATE tasks SET status = ?1, error = ?2, updated_at = ?3, completed_at = ?3 WHERE id = ?4"
+        } else {
+            "UPDATE tasks SET status = ?1, error = ?2, updated_at = ?3 WHERE id = ?4"
+        };
+
+        conn.execute(sql, params![status, error, now, id])
+            .map_err(|e| format!("Failed to update task status: {}", e))?;
 
         Ok(())
     }
@@ -835,6 +843,7 @@ impl TaskDb {
 
 /// 进度历史记录
 #[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProgressHistoryRecord {
     pub id: i64,
     pub task_id: String,

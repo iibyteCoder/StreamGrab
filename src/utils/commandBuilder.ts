@@ -117,9 +117,9 @@ function addAdvancedArgs(args: string[], settings: AppSettings): void {
   if (settings.advanced.urlProcessorArgs) {
     args.push("--urlprocessor-args", settings.advanced.urlProcessorArgs);
   }
-  if (settings.advanced.ffmpegPath) {
-    args.push("--ffmpeg-binary-path", settings.advanced.ffmpegPath);
-  }
+  // 注意：不再传递 --ffmpeg-binary-path 参数
+  // N_m3u8DL-RE 会使用自己的逻辑在 PATH 或同目录下查找 ffmpeg
+  // 用户配置的 ffmpeg 目录路径用于后端直接调用 ffprobe/ffmpeg 的场景
 }
 
 // ============================================
@@ -146,8 +146,10 @@ export function buildCommandArgs(
   if (config.saveName) {
     args.push("--save-name", config.saveName);
   }
-  if (settings.general.tmpDir) {
-    args.push("--tmp-dir", settings.general.tmpDir);
+  // 临时目录：优先使用设置的 tmpDir，否则使用 saveDir
+  const tmpDir = settings.general.tmpDir || config.saveDir;
+  if (tmpDir) {
+    args.push("--tmp-dir", tmpDir);
   }
 
   // === 下载参数 ===

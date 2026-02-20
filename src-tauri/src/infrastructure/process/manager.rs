@@ -47,6 +47,7 @@ impl ProcessManager {
     /// * `task_id` - 任务 ID
     /// * `program` - 程序路径
     /// * `args` - 命令行参数
+    /// * `working_dir` - 工作目录（可选，用于设置临时文件存放位置）
     /// * `on_output` - 输出回调
     /// * `on_complete` - 完成回调
     #[allow(clippy::type_complexity)]
@@ -55,6 +56,7 @@ impl ProcessManager {
         task_id: String,
         program: &str,
         args: Vec<String>,
+        working_dir: Option<&str>,
         on_output: F,
         on_complete: G,
     ) -> Result<()>
@@ -90,6 +92,19 @@ impl ProcessManager {
         cmd.args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        // 设置工作目录（用于临时文件存放）
+        if let Some(dir) = working_dir {
+            if !dir.is_empty() {
+                let work_path = Path::new(dir);
+                if work_path.exists() {
+                    cmd.current_dir(work_path);
+                    log::info!("Working directory set to: {}", dir);
+                } else {
+                    log::warn!("Working directory does not exist, using default: {}", dir);
+                }
+            }
+        }
 
         // Windows 平台：隐藏控制台窗口
         #[cfg(target_os = "windows")]

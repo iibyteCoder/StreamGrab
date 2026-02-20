@@ -95,8 +95,8 @@ const closeDialog = () => {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-w-3xl max-h-[80vh] flex flex-col">
-      <DialogHeader>
+    <DialogContent class="max-w-3xl h-[70vh] flex flex-col overflow-hidden">
+      <DialogHeader class="shrink-0">
         <div class="flex items-center justify-between">
           <DialogTitle class="text-base">
             任务日志
@@ -132,13 +132,25 @@ const closeDialog = () => {
         </div>
       </DialogHeader>
 
-      <div class="flex-1 min-h-0 border rounded-md bg-muted/30">
-        <ScrollArea ref="scrollAreaRef" class="h-[400px]">
+      <div class="flex-1 min-h-0 border rounded-md bg-muted/30 overflow-hidden">
+        <ScrollArea ref="scrollAreaRef" class="h-full">
           <div
             v-if="logs.length === 0"
-            class="flex items-center justify-center h-full text-muted-foreground text-sm"
+            class="flex flex-col items-center justify-center h-full min-h-[300px] text-center"
           >
-            暂无日志
+            <div
+              class="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-3"
+            >
+              <AppIcon
+                name="ScrollText"
+                :size="24"
+                class="text-muted-foreground/60"
+              />
+            </div>
+            <p class="text-sm font-medium text-muted-foreground">暂无日志</p>
+            <p class="text-xs text-muted-foreground/70 mt-1">
+              开始下载后将显示日志
+            </p>
           </div>
           <div v-else class="p-2 font-mono text-xs space-y-0.5">
             <div
@@ -183,7 +195,7 @@ const closeDialog = () => {
       </div>
 
       <div
-        class="flex justify-between items-center pt-2 text-xs text-muted-foreground"
+        class="shrink-0 flex justify-between items-center pt-2 text-xs text-muted-foreground"
       >
         <span>共 {{ logs.length }} 条日志</span>
         <Button variant="outline" size="sm" @click="closeDialog"> 关闭 </Button>

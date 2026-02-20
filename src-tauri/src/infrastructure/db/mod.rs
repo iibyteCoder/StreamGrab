@@ -2,10 +2,12 @@
 //!
 //! 使用 SQLite 进行统一数据持久化
 
+mod progress_repo;
 mod schema;
 mod settings;
 pub mod task;
 
+pub use progress_repo::*;
 pub use schema::*;
 pub use settings::*;
 pub use task::*;

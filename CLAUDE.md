@@ -229,3 +229,4 @@ chore: 构建/工具
 ## 参考文档
 
 - [n_m3u8dl-re-reference.md](docs/n_m3u8dl-re-reference.md) - N_m3u8DL-RE 命令行工具参数参考
+- [RELEASE_NOTES_TEMPLATE.md](docs/RELEASE_NOTES_TEMPLATE.md) - **发行说明格式规范**

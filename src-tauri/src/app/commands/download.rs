@@ -9,10 +9,15 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 
-use crate::process::manager::ProcessManager;
-use crate::process::parser::OutputParser;
-use crate::types::{
-    parse_resolution, AudioStream, BaseStream, StreamInfo, SubtitleStream, UrlType, VideoStream,
+use super::utils::get_tool_paths_from_config;
+use crate::domain::download::{
+    flush_progress, parse_resolution, record_progress, AudioStream, BaseStream, StreamInfo,
+    SubtitleStream, UrlType, VideoStream,
+};
+use crate::infrastructure::process::manager::ProcessManager;
+use crate::infrastructure::process::parser::OutputParser;
+use crate::infrastructure::tools::{
+    get_downloader_exe_path, get_ffmpeg_exe_path, get_ffprobe_exe_path,
 };
 
 /// 进程管理器状态
@@ -27,25 +32,49 @@ pub async fn start_download(
     args: Vec<String>,
     save_dir: String,
     save_name: Option<String>,
-    program_path: Option<String>,
     app: AppHandle,
 ) -> Result<(), String> {
     log::info!("Starting download: task_id={}, url={}", task_id, url);
 
     let manager = PROCESS_MANAGER.clone();
 
-    // 获取 N_m3u8DL-RE 程序路径（必须在设置中配置绝对路径）
-    let program_path = match program_path {
-        Some(path) if !path.is_empty() => {
-            log::info!("Using N_m3u8DL-RE path: {}", path);
-            path
+    // 从配置中获取工具路径
+    let tool_paths = get_tool_paths_from_config(&app);
+
+    // 获取 N_m3u8DL-RE 可执行文件路径
+    let program_path = match get_downloader_exe_path(tool_paths.downloader_dir.as_deref()) {
+        Some(path) => {
+            let path_str = path.to_string_lossy().to_string();
+            log::info!("Using N_m3u8DL-RE: {}", path_str);
+            path_str
         }
-        _ => {
+        None => {
             return Err(
-                "N_m3u8DL-RE 路径未配置，请在设置中配置 N_m3u8DL-RE 的绝对路径".to_string(),
+                "N_m3u8DL-RE 未找到。请在设置中配置工具目录路径，或使用设置页面的【下载】按钮自动下载。".to_string(),
             );
         }
     };
+
+    // 提取混流格式（需要在修改 args 之前）
+    let mux_format = args
+        .iter()
+        .position(|a| a.starts_with("-M") || a == "-M")
+        .and_then(|idx| args.get(idx + 1))
+        .and_then(|s| {
+            // 解析 format=xxx
+            s.split(':')
+                .find_map(|part| part.strip_prefix("format=").map(|f| f.to_lowercase()))
+        });
+
+    // 获取 FFmpeg 可执行文件路径，用于 N_m3u8DL-RE 的混流操作
+    let mut final_args = args;
+    if let Some(ffmpeg_path) = get_ffmpeg_exe_path(tool_paths.ffmpeg_dir.as_deref()) {
+        let ffmpeg_path_str = ffmpeg_path.to_string_lossy().to_string();
+        log::info!("Using FFmpeg for muxing: {}", ffmpeg_path_str);
+        final_args.extend_from_slice(&["--ffmpeg-binary-path".to_string(), ffmpeg_path_str]);
+    } else {
+        log::warn!("FFmpeg not found, N_m3u8DL-RE may fail for muxing operations");
+    }
 
     // 克隆用于回调的变量
     let task_id_clone = task_id.clone();
@@ -119,6 +148,19 @@ pub async fn start_download(
                     progress_data["totalDownloadedSegments"] = serde_json::json!(total_downloaded);
                     progress_data["totalSegments"] = serde_json::json!(total_segments);
 
+                    // 记录进度历史（后端持久化）
+                    let speed = event
+                        .data
+                        .get("speed")
+                        .and_then(|s| s.as_i64())
+                        .unwrap_or(0);
+                    let downloaded_size = event
+                        .data
+                        .get("downloadedSize")
+                        .and_then(|s| s.as_i64())
+                        .unwrap_or(0);
+                    record_progress(&task_id_clone, overall_percent, speed, downloaded_size);
+
                     let _ = app_clone.emit(
                         &format!("download:progress:{}", task_id_clone),
                         &progress_data,
@@ -141,18 +183,11 @@ pub async fn start_download(
     let app_clone = app.clone();
     let save_dir_clone = save_dir.clone();
     let save_name_clone = save_name.clone();
-    // 从 args 中提取混流格式
-    let mux_format = args
-        .iter()
-        .position(|a| a.starts_with("-M") || a == "-M")
-        .and_then(|idx| args.get(idx + 1))
-        .and_then(|s| {
-            // 解析 format=xxx
-            s.split(':')
-                .find_map(|part| part.strip_prefix("format=").map(|f| f.to_lowercase()))
-        });
 
     let on_complete = move |success: bool, error_msg: Option<String>| {
+        // 刷新进度历史到数据库
+        flush_progress(&task_id_clone);
+
         if success {
             // 尝试找到实际生成的输出文件
             let output_path = find_output_file(
@@ -176,7 +211,14 @@ pub async fn start_download(
     // 启动进程
     let mut manager_guard = manager.lock().await;
     manager_guard
-        .start_process(task_id, &program_path, args, on_output, on_complete)
+        .start_process(
+            task_id,
+            &program_path,
+            final_args,
+            Some(&save_dir),
+            on_output,
+            on_complete,
+        )
         .await
         .map_err(|e| e.to_string())?;
 
@@ -184,7 +226,7 @@ pub async fn start_download(
 }
 
 /// 停止下载命令
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn stop_download(task_id: String) -> Result<(), String> {
     log::info!("Stopping download: task_id={}", task_id);
 
@@ -200,7 +242,7 @@ pub async fn stop_download(task_id: String) -> Result<(), String> {
 }
 
 /// 暂停下载命令
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn pause_download(task_id: String) -> Result<(), String> {
     log::info!("Pausing download: task_id={}", task_id);
 
@@ -219,32 +261,26 @@ pub async fn pause_download(task_id: String) -> Result<(), String> {
 }
 
 /// 恢复下载命令
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn resume_download(
     task_id: String,
     url: String,
     args: Vec<String>,
     save_dir: String,
     save_name: Option<String>,
-    program_path: Option<String>,
     app: AppHandle,
 ) -> Result<(), String> {
     log::info!("Resuming download: task_id={}", task_id);
 
     // 恢复下载实际上就是重新启动下载
     // 前端需要在暂停时保存当前进度
-    start_download(task_id, url, args, save_dir, save_name, program_path, app).await
+    start_download(task_id, url, args, save_dir, save_name, app).await
 }
 
 /// 解析 URL 获取流信息（接收完整参数数组）
 /// 前端使用 buildParseArgs 构建参数，复用所有应用设置
 #[tauri::command(rename_all = "camelCase")]
-pub async fn parse_url(
-    args: Vec<String>,
-    program_path: Option<String>,
-    ffmpeg_path: Option<String>,
-    _app: AppHandle,
-) -> Result<StreamInfo, String> {
+pub async fn parse_url(args: Vec<String>, app: AppHandle) -> Result<StreamInfo, String> {
     // 从参数中提取 URL（第一个参数）
     let url = args.first().cloned().unwrap_or_default();
     log::info!("Parsing URL: {}", url);
@@ -253,9 +289,12 @@ pub async fn parse_url(
     let url_type = UrlType::detect(&url);
     log::info!("Detected URL type: {:?}", url_type);
 
+    // 从配置中获取工具路径
+    let tool_paths = get_tool_paths_from_config(&app);
+
     // 如果是 HTTP 直链视频，使用 ffmpeg 获取信息
     if url_type.needs_ffmpeg() {
-        return parse_http_video_url(&url, ffmpeg_path).await;
+        return parse_http_video_url(&url, tool_paths.ffmpeg_dir.as_deref()).await;
     }
 
     // 如果不是流媒体格式，返回错误
@@ -263,12 +302,12 @@ pub async fn parse_url(
         return Err("不支持的 URL 格式。请输入 M3U8、DASH 或 MSS 流媒体链接。".to_string());
     }
 
-    // 获取 N_m3u8DL-RE 程序路径
-    let program = match program_path {
-        Some(path) if !path.is_empty() => path,
-        _ => {
+    // 获取 N_m3u8DL-RE 可执行文件路径
+    let program = match get_downloader_exe_path(tool_paths.downloader_dir.as_deref()) {
+        Some(path) => path.to_string_lossy().to_string(),
+        None => {
             return Err(
-                "N_m3u8DL-RE 路径未配置，请在设置中配置 N_m3u8DL-RE 的绝对路径".to_string(),
+                "N_m3u8DL-RE 未找到。请在设置中配置工具目录路径，或使用设置页面的【下载】按钮自动下载。".to_string(),
             );
         }
     };
@@ -324,23 +363,18 @@ pub async fn parse_url(
 }
 
 /// 使用 FFmpeg 解析 HTTP 直链视频
-async fn parse_http_video_url(
-    url: &str,
-    ffmpeg_path: Option<String>,
-) -> Result<StreamInfo, String> {
-    let ffmpeg = match ffmpeg_path {
-        Some(path) if !path.is_empty() => path,
-        _ => "ffmpeg".to_string(), // 尝试使用系统 PATH 中的 ffmpeg
+async fn parse_http_video_url(url: &str, ffmpeg_dir: Option<&str>) -> Result<StreamInfo, String> {
+    // 获取 ffprobe 可执行文件路径
+    let ffprobe = match get_ffprobe_exe_path(ffmpeg_dir) {
+        Some(path) => path.to_string_lossy().to_string(),
+        None => {
+            return Err(
+                "FFprobe 未找到。请在设置中配置 FFmpeg 目录路径，或使用设置页面的【下载】按钮自动下载。".to_string(),
+            );
+        }
     };
 
-    log::info!("Parsing HTTP video URL with ffmpeg: {}", ffmpeg);
-
-    // 使用 ffprobe 获取视频信息
-    let ffprobe = if ffmpeg.ends_with("ffmpeg.exe") || ffmpeg.ends_with("ffmpeg") {
-        ffmpeg.replace("ffmpeg", "ffprobe")
-    } else {
-        format!("{}probe", ffmpeg.trim_end_matches(".exe"))
-    };
+    log::info!("Parsing HTTP video URL with ffprobe: {}", ffprobe);
 
     let output = Command::new(&ffprobe)
         .args([
@@ -721,7 +755,6 @@ pub async fn start_http_video_download(
     url: String,
     save_dir: String,
     save_name: String,
-    ffmpeg_path: Option<String>,
     app: AppHandle,
 ) -> Result<(), String> {
     log::info!(
@@ -732,22 +765,32 @@ pub async fn start_http_video_download(
 
     let manager = PROCESS_MANAGER.clone();
 
-    // 获取 FFmpeg 路径
-    let ffmpeg = match ffmpeg_path {
-        Some(path) if !path.is_empty() => path,
-        _ => "ffmpeg".to_string(),
+    // 从配置中获取工具路径
+    let tool_paths = get_tool_paths_from_config(&app);
+
+    // 获取 FFmpeg 可执行文件路径
+    let ffmpeg = match get_ffmpeg_exe_path(tool_paths.ffmpeg_dir.as_deref()) {
+        Some(path) => path.to_string_lossy().to_string(),
+        None => {
+            return Err(
+                "FFmpeg 未找到。请在设置中配置 FFmpeg 目录路径，或使用设置页面的【下载】按钮自动下载。".to_string(),
+            );
+        }
     };
 
     // 构建输出路径
     let output_path = PathBuf::from(&save_dir).join(&save_name);
 
-    // FFmpeg 下载命令: ffmpeg -i URL -c copy output.mp4
+    // FFmpeg 下载命令: ffmpeg -i URL -c copy -progress pipe:2 output.mp4
+    // 使用 -progress pipe:2 让 FFmpeg 输出进度信息到 stderr
     let args = vec![
         "-i".to_string(),
         url,
         "-c".to_string(),
         "copy".to_string(), // 直接复制流，不重新编码
-        "-y".to_string(),   // 覆盖已存在文件
+        "-progress".to_string(),
+        "pipe:2".to_string(), // 输出进度到 stderr
+        "-y".to_string(),     // 覆盖已存在文件
         output_path.display().to_string(),
     ];
 
@@ -758,20 +801,88 @@ pub async fn start_http_video_download(
     let app_clone = app.clone();
     let output_path_clone = output_path.clone();
 
+    // 用于累积 FFmpeg 进度输出的缓冲区
+    // FFmpeg -progress 模式下，每行输出一个 key=value，需要累积后解析
+    use std::sync::Mutex;
+    let progress_buffer: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let progress_buffer_clone = progress_buffer.clone();
+
+    // 用于跟踪总时长（从初始输出中提取）
+    use std::sync::atomic::{AtomicI64, Ordering};
+    let total_duration = Arc::new(AtomicI64::new(0)); // 微秒
+    let total_duration_clone = total_duration.clone();
+
     // 输出回调函数
     let on_output = move |output: String| {
-        // 解析 ffmpeg 输出发送进度
-        if let Some(progress) = parse_ffmpeg_progress(&output) {
+        // 检查是否是 Duration 行（在进度输出之前）
+        if output.contains("Duration:") {
+            if let Some(duration) = parse_ffmpeg_duration(&output) {
+                total_duration_clone.store(duration, Ordering::Relaxed);
+                log::debug!("Detected video duration: {} us", duration);
+            }
+        }
+
+        // 检查是否是进度输出的行（包含 = 但不是普通信息）
+        let is_progress_line = output.contains('=')
+            && !output.starts_with("Input")
+            && !output.starts_with("Output")
+            && !output.starts_with("Stream")
+            && !output.starts_with("Metadata")
+            && !output.starts_with("  ");
+
+        if is_progress_line {
+            // 累积到缓冲区
+            if let Ok(mut buffer) = progress_buffer_clone.lock() {
+                buffer.push_str(&output);
+                buffer.push('\n');
+
+                // 检查是否是一个完整的进度块（以 progress= 结尾）
+                if output.starts_with("progress=") {
+                    // 解析累积的进度数据
+                    let progress_data = buffer.clone();
+                    buffer.clear();
+
+                    // 解析进度
+                    if let Some((current_time_us, total_size)) =
+                        parse_ffmpeg_progress_detailed(&progress_data)
+                    {
+                        let duration = total_duration_clone.load(Ordering::Relaxed);
+                        let percent = if duration > 0 {
+                            ((current_time_us as f64 / duration as f64) * 100.0).min(100.0) as i32
+                        } else {
+                            0
+                        };
+
+                        // 获取速度
+                        let speed = parse_ffmpeg_speed_from_buffer(&progress_data).unwrap_or(0);
+
+                        // 记录进度历史（后端持久化）
+                        record_progress(
+                            &task_id_clone,
+                            percent,
+                            speed,
+                            total_size.unwrap_or(0) as i64,
+                        );
+
+                        let _ = app_clone.emit(
+                            &format!("download:progress:{}", task_id_clone),
+                            serde_json::json!({
+                                "percent": percent,
+                                "overallPercent": percent,
+                                "speed": speed,
+                                "downloadedSize": total_size.unwrap_or(0)
+                            }),
+                        );
+                    }
+                }
+            }
+        } else if !output.is_empty() {
+            // 非进度信息，作为日志发送
             let _ = app_clone.emit(
-                &format!("download:progress:{}", task_id_clone),
-                serde_json::json!({ "percent": progress }),
+                &format!("download:log:{}", task_id_clone),
+                serde_json::json!({ "message": output }),
             );
         }
-        // 发送日志
-        let _ = app_clone.emit(
-            &format!("download:log:{}", task_id_clone),
-            serde_json::json!({ "message": output }),
-        );
     };
 
     // 完成回调函数
@@ -779,6 +890,9 @@ pub async fn start_http_video_download(
     let app_clone = app;
 
     let on_complete = move |success: bool, error_msg: Option<String>| {
+        // 刷新进度历史到数据库
+        flush_progress(&task_id_clone);
+
         if success {
             let _ = app_clone.emit(
                 &format!("download:complete:{}", task_id_clone),
@@ -795,21 +909,118 @@ pub async fn start_http_video_download(
     // 启动进程
     let mut manager_guard = manager.lock().await;
     manager_guard
-        .start_process(task_id, &ffmpeg, args, on_output, on_complete)
+        .start_process(
+            task_id,
+            &ffmpeg,
+            args,
+            Some(&save_dir),
+            on_output,
+            on_complete,
+        )
         .await
         .map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
-/// 解析 FFmpeg 进度输出
-fn parse_ffmpeg_progress(output: &str) -> Option<f64> {
-    // FFmpeg 输出格式: frame=  123 fps= 30 q=-1.0 size=   12345kB time=00:01:23.45 bitrate=1234.5kbits/s
-    // 提取 time 并计算进度（需要知道总时长，这里简化处理）
+/// 解析 FFmpeg 进度输出（详细版本）
+///
+/// FFmpeg -progress 输出格式（每个 key=value 一行）：
+/// frame=123
+/// fps=30.00
+/// stream_0_0_q=-1.0
+/// bitrate=1234.5kbits/s
+/// total_size=12345678
+/// out_time_us=83450000
+/// out_time_ms=83450
+/// out_time=00:01:23.450000
+/// dup_frames=0
+/// drop_frames=0
+/// speed=1.00x
+/// progress=continue
+///
+/// 返回 (当前时间微秒, 已下载字节数)
+fn parse_ffmpeg_progress_detailed(output: &str) -> Option<(i64, Option<u64>)> {
+    let mut out_time_us: Option<i64> = None;
+    let mut total_size: Option<u64> = None;
 
-    // 简单返回 None，进度计算需要更多上下文
-    // 实际可以通过解析 time= 字段来计算
-    let _ = output;
+    for line in output.lines() {
+        let line = line.trim();
+        if line.starts_with("out_time_us=") {
+            // 解析 out_time_us（微秒）
+            out_time_us = line.strip_prefix("out_time_us=")?.parse().ok();
+        } else if line.starts_with("total_size=") {
+            // 解析 total_size
+            total_size = line.strip_prefix("total_size=")?.parse().ok();
+        }
+    }
+
+    out_time_us.map(|time| (time, total_size))
+}
+
+/// 从累积的进度缓冲区中解析速度
+fn parse_ffmpeg_speed_from_buffer(buffer: &str) -> Option<i64> {
+    for line in buffer.lines() {
+        let line = line.trim();
+
+        // 优先从 bitrate 获取实际速度
+        if line.starts_with("bitrate=") {
+            // 格式: bitrate=1234.5kbits/s 或 bitrate= 1234.5kbits/s
+            let bitrate_str = line.strip_prefix("bitrate=")?;
+            let bitrate_str = bitrate_str.trim().trim_end_matches("kbits/s");
+            if let Ok(bitrate) = bitrate_str.parse::<f64>() {
+                // kbits/s -> bits/s
+                return Some((bitrate * 1000.0) as i64);
+            }
+        }
+
+        // 备用：从 speed 估算
+        if line.starts_with("speed=") {
+            let speed_str = line.strip_prefix("speed=")?;
+            let speed_str = speed_str.trim_end_matches('x').trim();
+            if speed_str.parse::<f64>().is_ok() {
+                // speed 解析成功，但在 bitrate 之前，继续查找 bitrate
+            }
+        }
+    }
+
+    // 如果没有找到 bitrate，尝试从 speed 估算（假设视频约 1.5Mbps）
+    for line in buffer.lines() {
+        let line = line.trim();
+        if line.starts_with("speed=") {
+            let speed_str = line.strip_prefix("speed=")?;
+            let speed_str = speed_str.trim_end_matches('x').trim();
+            if let Ok(speed) = speed_str.parse::<f64>() {
+                // 估算：speed * 1.5Mbps
+                return Some((speed * 1_500_000.0) as i64);
+            }
+        }
+    }
+
+    None
+}
+
+/// 解析 FFmpeg 输出中的视频总时长
+///
+/// FFmpeg 在开始时会输出类似这样的信息：
+///   Duration: 00:05:30.00, start: 0.000000, bitrate: 1234 kb/s
+fn parse_ffmpeg_duration(output: &str) -> Option<i64> {
+    // 查找 Duration: HH:MM:SS.ms 格式
+    let duration_re = regex::Regex::new(r"Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})").ok()?;
+
+    for line in output.lines() {
+        if let Some(caps) = duration_re.captures(line) {
+            let hours: i64 = caps.get(1)?.as_str().parse().ok()?;
+            let minutes: i64 = caps.get(2)?.as_str().parse().ok()?;
+            let seconds: i64 = caps.get(3)?.as_str().parse().ok()?;
+            let centiseconds: i64 = caps.get(4)?.as_str().parse().ok()?;
+
+            // 转换为微秒
+            let total_us =
+                (hours * 3600 + minutes * 60 + seconds) * 1_000_000 + centiseconds * 10_000;
+            return Some(total_us);
+        }
+    }
     None
 }
 
@@ -978,4 +1189,215 @@ pub struct FileInfo {
     pub modified: Option<i64>,
     /// 文件是否存在
     pub exists: bool,
+}
+
+/// 媒体文件分析结果
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaFileInfo {
+    /// 分辨率 (如 "1920x1080")
+    pub resolution: Option<String>,
+    /// 视频宽度
+    pub width: Option<u32>,
+    /// 视频高度
+    pub height: Option<u32>,
+    /// 帧率
+    pub frame_rate: Option<f64>,
+    /// 视频编码
+    pub video_codec: Option<String>,
+    /// 视频范围 (SDR/HDR/DV)
+    pub video_range: Option<String>,
+    /// 音频编码
+    pub audio_codec: Option<String>,
+    /// 音频声道数
+    pub audio_channels: Option<String>,
+    /// 音频语言
+    pub audio_language: Option<String>,
+    /// 总时长（秒）
+    pub duration: Option<f64>,
+    /// 文件大小（字节）
+    pub file_size: Option<u64>,
+    /// 比特率 (bps)
+    pub bit_rate: Option<u64>,
+    /// 文件格式
+    pub format: Option<String>,
+}
+
+/// 分析媒体文件（使用 ffprobe）
+#[tauri::command(rename_all = "camelCase")]
+pub async fn analyze_media_file(
+    file_path: String,
+    app: AppHandle,
+) -> Result<MediaFileInfo, String> {
+    log::info!("Analyzing media file: {}", file_path);
+
+    let path = PathBuf::from(&file_path);
+    if !path.exists() {
+        return Err(format!("文件不存在: {}", file_path));
+    }
+
+    // 从配置中获取工具路径
+    let tool_paths = get_tool_paths_from_config(&app);
+
+    // 获取 ffprobe 可执行文件路径
+    let ffprobe = match get_ffprobe_exe_path(tool_paths.ffmpeg_dir.as_deref()) {
+        Some(path) => path.to_string_lossy().to_string(),
+        None => {
+            return Err(
+                "FFprobe 未找到。请在设置中配置 FFmpeg 目录路径，或使用设置页面的【下载】按钮自动下载。".to_string(),
+            );
+        }
+    };
+
+    log::info!("Analyzing media file with ffprobe: {}", ffprobe);
+
+    // 执行 ffprobe
+    let output = Command::new(&ffprobe)
+        .args([
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            &file_path,
+        ])
+        .output()
+        .map_err(|e| format!("执行 ffprobe 失败: {}。请确保 FFmpeg 已安装。", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("分析媒体文件失败: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_media_file_info(&stdout)
+}
+
+/// 解析 ffprobe 输出为 MediaFileInfo
+fn parse_media_file_info(json: &str) -> Result<MediaFileInfo, String> {
+    let parsed: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| format!("解析 ffprobe 输出失败: {}", e))?;
+
+    let mut info = MediaFileInfo {
+        resolution: None,
+        width: None,
+        height: None,
+        frame_rate: None,
+        video_codec: None,
+        video_range: None,
+        audio_codec: None,
+        audio_channels: None,
+        audio_language: None,
+        duration: None,
+        file_size: None,
+        bit_rate: None,
+        format: None,
+    };
+
+    // 解析 format 信息
+    if let Some(format) = parsed.get("format") {
+        // 时长
+        if let Some(dur) = format.get("duration").and_then(|d| d.as_str()) {
+            info.duration = dur.parse().ok();
+        } else if let Some(dur) = format.get("duration").and_then(|d| d.as_f64()) {
+            info.duration = Some(dur);
+        }
+
+        // 文件大小
+        if let Some(size) = format.get("size").and_then(|s| s.as_str()) {
+            info.file_size = size.parse().ok();
+        } else if let Some(size) = format.get("size").and_then(|s| s.as_u64()) {
+            info.file_size = Some(size);
+        }
+
+        // 比特率
+        if let Some(br) = format.get("bit_rate").and_then(|b| b.as_str()) {
+            info.bit_rate = br.parse().ok();
+        } else if let Some(br) = format.get("bit_rate").and_then(|b| b.as_u64()) {
+            info.bit_rate = Some(br);
+        }
+
+        // 格式
+        info.format = format
+            .get("format_long_name")
+            .and_then(|n| n.as_str())
+            .map(|s| s.to_string());
+    }
+
+    // 解析流信息
+    if let Some(streams) = parsed.get("streams").and_then(|s| s.as_array()) {
+        for stream in streams {
+            let codec_type = stream
+                .get("codec_type")
+                .and_then(|t| t.as_str())
+                .unwrap_or("");
+
+            if codec_type == "video" && info.video_codec.is_none() {
+                // 只取第一个视频流
+                let width = stream.get("width").and_then(|w| w.as_u64()).unwrap_or(0) as u32;
+                let height = stream.get("height").and_then(|h| h.as_u64()).unwrap_or(0) as u32;
+
+                info.width = Some(width);
+                info.height = Some(height);
+                info.resolution = Some(format!("{}x{}", width, height));
+
+                info.video_codec = stream
+                    .get("codec_name")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_string());
+
+                // 帧率 (可能是 "30/1" 或 "29.97" 格式)
+                info.frame_rate = stream
+                    .get("r_frame_rate")
+                    .and_then(|r| r.as_str())
+                    .and_then(|r| {
+                        // 处理 "30000/1001" 格式
+                        if r.contains('/') {
+                            let parts: Vec<&str> = r.split('/').collect();
+                            if parts.len() == 2 {
+                                let num: f64 = parts[0].parse().ok()?;
+                                let den: f64 = parts[1].parse().ok()?;
+                                return Some(num / den);
+                            }
+                        }
+                        r.parse().ok()
+                    });
+
+                // 视频范围 (HDR/SDR)
+                // 从 side_data_list 或 color_transfer 检测
+                let transfer = stream
+                    .get("color_transfer")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                let is_hdr = stream.get("side_data_list").is_some()
+                    || transfer.contains("smpte2084")
+                    || transfer.contains("arib-std-b67");
+                info.video_range = Some(if is_hdr {
+                    "HDR".to_string()
+                } else {
+                    "SDR".to_string()
+                });
+            } else if codec_type == "audio" && info.audio_codec.is_none() {
+                // 只取第一个音频流
+                info.audio_codec = stream
+                    .get("codec_name")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_string());
+
+                info.audio_channels = stream
+                    .get("channels")
+                    .and_then(|c| c.as_u64())
+                    .map(|c| c.to_string());
+
+                info.audio_language = stream
+                    .get("tags")
+                    .and_then(|t| t.get("language"))
+                    .and_then(|l| l.as_str())
+                    .map(|s| s.to_string());
+            }
+        }
+    }
+
+    Ok(info)
 }

@@ -68,6 +68,7 @@ impl UrlType {
 
 /// 流信息 - 与前端类型匹配
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StreamInfo {
     pub videos: Vec<VideoStream>,
     pub audios: Vec<AudioStream>,
@@ -80,6 +81,7 @@ pub struct StreamInfo {
 
 /// 基础流
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BaseStream {
     pub id: String,
     pub bandwidth: u32,
@@ -94,6 +96,7 @@ pub struct BaseStream {
 
 /// 视频流
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoStream {
     #[serde(flatten)]
     pub base: BaseStream,
@@ -106,6 +109,7 @@ pub struct VideoStream {
 
 /// 音频流
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioStream {
     #[serde(flatten)]
     pub base: BaseStream,
@@ -116,6 +120,7 @@ pub struct AudioStream {
 
 /// 字幕流
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SubtitleStream {
     #[serde(flatten)]
     pub base: BaseStream,

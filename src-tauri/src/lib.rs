@@ -2,17 +2,26 @@
 //!
 //! 基于 Tauri 2.0 的现代视频流下载器 GUI 应用
 
-mod commands;
-mod db;
-mod process;
-mod tray;
-mod types;
+// 模块声明 - 分层架构
+pub mod app;
+pub mod domain;
+pub mod infrastructure;
+pub mod shared;
+
+// 重新导出常用类型（保持向后兼容）
+pub use app::{commands, create_tray};
+pub use domain::download::{flush_progress, init_progress_tracker, record_progress};
+pub use domain::{MediaAnalyzer, StreamInfo, TaskEntity, UrlType};
+pub use infrastructure::{
+    Database, DbProgressRepository, Platform, SuiteInfo, ToolInfo, ToolPaths,
+};
+pub use shared::{AppError, AppResult};
 
 use serde::Deserialize;
+use std::sync::Arc;
 use tauri::Manager;
 
-use commands::{config::*, dialog::*, download::*, fs::*, task::*, tools::*};
-use db::Database;
+use app::commands::{config::*, dialog::*, download::*, fs::*, task::*, tools::*};
 
 /// 通用设置结构（用于解析 minimizeToTray）
 #[derive(Debug, Deserialize)]
@@ -55,17 +64,21 @@ pub fn run() {
                 Database::initialize(&config_dir).expect("Failed to initialize database");
             app.manage(database.clone());
 
+            // 初始化进度跟踪器
+            let progress_repo = Arc::new(DbProgressRepository::new(database.clone()));
+            init_progress_tracker(progress_repo);
+            log::info!("Progress tracker initialized");
+
             // 创建系统托盘
-            let _tray = tray::create_tray(app.handle())
+            let _tray = app::create_tray(app.handle())
                 .map_err(|e| log::error!("Failed to create tray: {}", e));
 
-            // 监听窗口关闭事件，根据设置决定是最小化到托盘还是退出
+            // 监听窗口关闭事件
             if let Some(window) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();
                 let db_for_close = database.clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        // 从数据库读取 minimizeToTray 设置
                         let should_minimize = db_for_close
                             .settings
                             .load("general")
@@ -75,13 +88,11 @@ pub fn run() {
                             .unwrap_or(true);
 
                         if should_minimize {
-                            // 最小化到托盘
                             api.prevent_close();
                             if let Some(win) = app_handle.get_webview_window("main") {
                                 let _ = win.hide();
                             }
                         }
-                        // 如果 minimizeToTray 为 false，允许窗口正常关闭（退出应用）
                     }
                 });
             }
@@ -99,6 +110,7 @@ pub fn run() {
             parse_url,
             get_n_m3u8dl_version,
             get_file_info,
+            analyze_media_file,
             detect_url_type,
             start_http_video_download,
             // === 配置命令 ===
@@ -135,6 +147,7 @@ pub fn run() {
             // === 工具管理命令 ===
             get_nm3u8dl_info,
             get_ffmpeg_info,
+            get_ffprobe_info,
             get_nm3u8dl_latest_release,
             get_ffmpeg_latest_release,
             download_tool,

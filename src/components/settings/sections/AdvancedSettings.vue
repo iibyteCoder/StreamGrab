@@ -28,6 +28,7 @@ import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from "..";
 import {
   getNm3u8dlInfo,
   getFfmpegInfo,
+  getFfprobeInfo,
   getNm3u8dlLatestRelease,
   getFfmpegLatestRelease,
   downloadTool,
@@ -67,6 +68,7 @@ const toast = useToast();
 // 工具状态
 const nm3u8dlInfo = ref<ToolInfo | null>(null);
 const ffmpegInfo = ref<ToolInfo | null>(null);
+const ffprobeInfo = ref<ToolInfo | null>(null);
 const isLoadingTools = ref(false);
 
 // 最新版本信息
@@ -128,15 +130,26 @@ function compareVersions(v1: string, v2: string): number {
 }
 
 // 检查工具状态
-async function checkToolsStatus() {
+async function checkToolsStatus(newPaths?: {
+  nm3u8dlPath?: string;
+  ffmpegPath?: string;
+}) {
   isLoadingTools.value = true;
   try {
-    const [nm3u8dl, ffmpeg] = await Promise.all([
-      getNm3u8dlInfo(props.settings.advanced.n_m3u8dlPath || undefined),
-      getFfmpegInfo(props.settings.advanced.ffmpegPath || undefined),
+    // 优先使用传入的新路径，否则使用配置中的路径
+    const nm3u8dlPath =
+      newPaths?.nm3u8dlPath ?? props.settings.advanced.n_m3u8dlPath;
+    const ffmpegPath =
+      newPaths?.ffmpegPath ?? props.settings.advanced.ffmpegPath;
+
+    const [nm3u8dl, ffmpeg, ffprobe] = await Promise.all([
+      getNm3u8dlInfo(nm3u8dlPath || undefined),
+      getFfmpegInfo(ffmpegPath || undefined),
+      getFfprobeInfo(ffmpegPath || undefined),
     ]);
     nm3u8dlInfo.value = nm3u8dl;
     ffmpegInfo.value = ffmpeg;
+    ffprobeInfo.value = ffprobe;
   } catch (e) {
     console.error("Failed to check tools status:", e);
   } finally {
@@ -190,8 +203,8 @@ async function handleDownloadNm3u8dl() {
 
     toast.success("N_m3u8DL-RE 下载完成");
 
-    // 重新检查状态
-    await checkToolsStatus();
+    // 重新检查状态（使用新路径）
+    await checkToolsStatus({ nm3u8dlPath: extractedPath });
   } catch (e) {
     console.error("Failed to download N_m3u8DL-RE:", e);
     toast.error(`下载失败: ${e}`);
@@ -233,8 +246,8 @@ async function handleDownloadFfmpeg() {
 
     toast.success("FFmpeg 下载完成");
 
-    // 重新检查状态
-    await checkToolsStatus();
+    // 重新检查状态（使用新路径）
+    await checkToolsStatus({ ffmpegPath: extractedPath });
   } catch (e) {
     console.error("Failed to download FFmpeg:", e);
     toast.error(`下载失败: ${e}`);
@@ -244,25 +257,27 @@ async function handleDownloadFfmpeg() {
   }
 }
 
-// 组件挂载时检查工具状态
+// 组件挂载时检查工具状态（不获取最新版本，避免频繁 API 请求）
 onMounted(async () => {
   await checkToolsStatus();
-  await fetchLatestReleases();
+  // 不在页面加载时获取最新版本，改为点击下载按钮时获取
 });
 </script>
 
 <template>
   <div class="space-y-2">
-    <SettingsGroup title="工具路径" description="配置外部工具的路径">
+    <SettingsGroup title="工具路径" description="配置外部工具的目录路径">
       <!-- N_m3u8DL-RE 设置 -->
       <div class="space-y-3">
         <div class="flex items-end gap-2">
           <div class="flex-1">
             <SettingInput
               :model-value="settings.advanced.n_m3u8dlPath"
-              label="N_m3u8DL-RE 路径"
-              placeholder="留空则使用系统 PATH"
+              label="N_m3u8DL-RE 目录"
+              placeholder="留空使用系统 PATH"
+              help="填写包含 N_m3u8DL-RE.exe 的目录路径。例如: D:\Tools\n_m3u8dl"
               @update:model-value="updateAdvanced({ n_m3u8dlPath: $event })"
+              @blur="checkToolsStatus()"
             />
           </div>
           <Button
@@ -287,22 +302,27 @@ onMounted(async () => {
         </div>
 
         <!-- N_m3u8DL-RE 状态显示 -->
-        <div v-if="nm3u8dlInfo" class="flex items-center gap-2 text-xs">
-          <template v-if="nm3u8dlInfo.installed">
-            <Check class="h-3.5 w-3.5 text-green-500" />
-            <span class="text-muted-foreground">
-              已安装 v{{ nm3u8dlInfo.version || "未知" }}
-            </span>
-            <span v-if="hasNm3u8dlUpdate" class="text-primary">
-              (有新版本 {{ nm3u8dlLatest?.version }})
-            </span>
-          </template>
-          <template v-else>
-            <X class="h-3.5 w-3.5 text-red-500" />
-            <span class="text-destructive">
-              {{ nm3u8dlInfo.error || "未找到" }}
-            </span>
-          </template>
+        <div v-if="nm3u8dlInfo" class="flex flex-col gap-1 text-xs">
+          <div class="flex items-center gap-2">
+            <template v-if="nm3u8dlInfo.installed">
+              <Check class="h-3.5 w-3.5 text-green-500" />
+              <span class="text-muted-foreground">
+                已安装 v{{ nm3u8dlInfo.version || "未知" }}
+              </span>
+              <span v-if="hasNm3u8dlUpdate" class="text-primary">
+                (有新版本 {{ nm3u8dlLatest?.version }})
+              </span>
+            </template>
+            <template v-else>
+              <X class="h-3.5 w-3.5 text-red-500" />
+              <span class="text-destructive">
+                {{ nm3u8dlInfo.error || "未找到" }}
+              </span>
+            </template>
+          </div>
+          <div v-if="nm3u8dlInfo.exePath" class="text-muted-foreground/70 pl-5">
+            可执行文件: {{ nm3u8dlInfo.exePath }}
+          </div>
         </div>
 
         <!-- 下载进度 -->
@@ -325,9 +345,11 @@ onMounted(async () => {
           <div class="flex-1">
             <SettingInput
               :model-value="settings.advanced.ffmpegPath"
-              label="FFmpeg 路径"
-              placeholder="留空则使用系统 PATH"
+              label="FFmpeg 目录"
+              placeholder="留空使用系统 PATH"
+              help="填写包含 ffmpeg.exe 和 ffprobe.exe 的目录路径。例如: D:\Tools\ffmpeg\bin"
               @update:model-value="updateAdvanced({ ffmpegPath: $event })"
+              @blur="checkToolsStatus()"
             />
           </div>
           <Button
@@ -352,22 +374,46 @@ onMounted(async () => {
         </div>
 
         <!-- FFmpeg 状态显示 -->
-        <div v-if="ffmpegInfo" class="flex items-center gap-2 text-xs">
-          <template v-if="ffmpegInfo.installed">
-            <Check class="h-3.5 w-3.5 text-green-500" />
-            <span class="text-muted-foreground">
-              已安装 v{{ ffmpegInfo.version || "未知" }}
-            </span>
-            <span v-if="hasFfmpegUpdate" class="text-primary">
-              (有新版本 {{ ffmpegLatest?.version }})
-            </span>
-          </template>
-          <template v-else>
-            <X class="h-3.5 w-3.5 text-red-500" />
-            <span class="text-destructive">
-              {{ ffmpegInfo.error || "未找到" }}
-            </span>
-          </template>
+        <div v-if="ffmpegInfo" class="flex flex-col gap-1 text-xs">
+          <div class="flex items-center gap-2">
+            <template v-if="ffmpegInfo.installed">
+              <Check class="h-3.5 w-3.5 text-green-500" />
+              <span class="text-muted-foreground">
+                FFmpeg 已安装 v{{ ffmpegInfo.version || "未知" }}
+              </span>
+              <span v-if="hasFfmpegUpdate" class="text-primary">
+                (有新版本 {{ ffmpegLatest?.version }})
+              </span>
+            </template>
+            <template v-else>
+              <X class="h-3.5 w-3.5 text-red-500" />
+              <span class="text-destructive">
+                {{ ffmpegInfo.error || "未找到" }}
+              </span>
+            </template>
+          </div>
+          <div v-if="ffmpegInfo.exePath" class="text-muted-foreground/70 pl-5">
+            可执行文件: {{ ffmpegInfo.exePath }}
+          </div>
+        </div>
+
+        <!-- FFprobe 状态显示 -->
+        <div v-if="ffprobeInfo" class="flex flex-col gap-1 text-xs">
+          <div class="flex items-center gap-2">
+            <template v-if="ffprobeInfo.installed">
+              <Check class="h-3.5 w-3.5 text-green-500" />
+              <span class="text-muted-foreground"> FFprobe 已安装 </span>
+            </template>
+            <template v-else>
+              <AlertTriangle class="h-3.5 w-3.5 text-amber-500" />
+              <span class="text-amber-500">
+                {{ ffprobeInfo.error || "FFprobe 未找到" }}
+              </span>
+            </template>
+          </div>
+          <div v-if="ffprobeInfo.exePath" class="text-muted-foreground/70 pl-5">
+            可执行文件: {{ ffprobeInfo.exePath }}
+          </div>
         </div>
 
         <!-- 下载进度 -->

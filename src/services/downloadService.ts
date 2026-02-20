@@ -69,6 +69,25 @@ export interface LogEventData {
 }
 
 /**
+ * 媒体文件分析结果（ffprobe 输出）
+ */
+export interface MediaFileAnalysisResult {
+  resolution?: string;
+  width?: number;
+  height?: number;
+  frameRate?: number;
+  videoCodec?: string;
+  videoRange?: string;
+  audioCodec?: string;
+  audioChannels?: string;
+  audioLanguage?: string;
+  duration?: number;
+  fileSize?: number;
+  bitRate?: number;
+  format?: string;
+}
+
+/**
  * 下载服务类
  */
 class DownloadService {
@@ -122,14 +141,13 @@ class DownloadService {
     // 构建命令行参数
     const args = buildCommandArgs(task.url, config, settings);
 
-    // 调用 Tauri 命令启动下载
+    // 调用 Tauri 命令启动下载（工具路径由后端从配置中读取）
     await invokeTauri("start_download", {
       taskId: task.id,
       url: task.url,
       args,
       saveDir: config.saveDir || settings.general.saveDir,
       saveName: config.saveName,
-      programPath: settings.advanced.n_m3u8dlPath || null,
     });
   }
 
@@ -146,12 +164,12 @@ class DownloadService {
     // 确保文件名有扩展名
     const finalSaveName = saveName.includes(".") ? saveName : `${saveName}.mp4`;
 
+    // 调用 Tauri 命令（工具路径由后端从配置中读取）
     await invokeTauri("start_http_video_download", {
       taskId: task.id,
       url: task.url,
       saveDir: config.saveDir || settings.general.saveDir,
       saveName: finalSaveName,
-      ffmpegPath: settings.advanced.ffmpegPath || null,
     });
   }
 
@@ -160,7 +178,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async stopDownload(taskId: string): Promise<void> {
-    await invokeTauri("stop_download", { task_id: taskId });
+    await invokeTauri("stop_download", { taskId });
   }
 
   /**
@@ -168,7 +186,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async pauseDownload(taskId: string): Promise<void> {
-    await invokeTauri("pause_download", { task_id: taskId });
+    await invokeTauri("pause_download", { taskId });
   }
 
   /**
@@ -176,7 +194,7 @@ class DownloadService {
    * @param taskId 任务 ID
    */
   async resumeDownload(taskId: string): Promise<void> {
-    await invokeTauri("resume_download", { task_id: taskId });
+    await invokeTauri("resume_download", { taskId });
   }
 
   /**
@@ -209,8 +227,6 @@ class DownloadService {
 
     return await invokeTauri<StreamInfo>("parse_url", {
       args,
-      programPath: settings.advanced.n_m3u8dlPath || null,
-      ffmpegPath: settings.advanced.ffmpegPath || null,
     });
   }
 
@@ -219,12 +235,10 @@ class DownloadService {
    */
   private async parseHttpVideoUrl(
     url: string,
-    settings: AppSettings,
+    _settings: AppSettings,
   ): Promise<StreamInfo> {
     return await invokeTauri<StreamInfo>("parse_url", {
       args: [url], // 对于 HTTP 视频，只需要 URL
-      programPath: null,
-      ffmpegPath: settings.advanced.ffmpegPath || null,
     });
   }
 
@@ -352,6 +366,17 @@ class DownloadService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * 分析媒体文件（使用 ffprobe）
+   * 工具路径由后端从配置中读取
+   * @param filePath 文件路径
+   */
+  async analyzeMediaFile(filePath: string): Promise<MediaFileAnalysisResult> {
+    return await invokeTauri<MediaFileAnalysisResult>("analyze_media_file", {
+      filePath,
+    });
   }
 }
 

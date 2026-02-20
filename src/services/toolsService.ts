@@ -1,21 +1,38 @@
 /**
  * 工具管理服务
+ *
  * 提供外部工具（N_m3u8DL-RE、FFmpeg）的版本检测、下载和管理功能
+ *
+ * ## 核心概念
+ *
+ * - **dirPath**: 用户配置的目录路径，包含可执行文件
+ * - **exePath**: 检测到的实际可执行文件完整路径
  */
 
 import { listen } from "@tauri-apps/api/event";
 import { tauriInvoke } from "./tauri";
 
-// 工具信息接口
+// ========================================
+// 类型定义
+// ========================================
+
+/** 工具信息 */
 export interface ToolInfo {
+  /** 工具名称 */
   name: string;
+  /** 是否已安装（可执行文件存在且可运行） */
   installed: boolean;
+  /** 版本号 */
   version: string | null;
-  path: string | null;
+  /** 可执行文件完整路径（检测后获得） */
+  exePath: string | null;
+  /** 配置的目录路径（用户设置） */
+  dirPath: string | null;
+  /** 错误信息（未安装时） */
   error: string | null;
 }
 
-// 工具下载进度接口
+/** 工具下载进度 */
 export interface DownloadProgress {
   tool: string;
   status: "downloading" | "extracting" | "complete" | "error";
@@ -24,7 +41,7 @@ export interface DownloadProgress {
   percent: number;
 }
 
-// 工具版本信息接口
+/** 工具发布信息 */
 export interface ToolReleaseInfo {
   version: string;
   downloadUrl: string;
@@ -32,104 +49,79 @@ export interface ToolReleaseInfo {
   publishedAt: string;
 }
 
-// 下载状态回调类型
+/** 工具状态检查结果 */
+export interface ToolsStatus {
+  downloader: ToolInfo;
+  ffmpeg: ToolInfo;
+  ffprobe: ToolInfo;
+}
+
 type DownloadProgressCallback = (progress: DownloadProgress) => void;
 
-/**
- * 获取 N_m3u8DL-RE 工具信息
- */
-export async function getNm3u8dlInfo(path?: string): Promise<ToolInfo> {
-  return tauriInvoke("get_nm3u8dl_info", { path: path || null });
+// ========================================
+// API 函数
+// ========================================
+
+/** 获取 N_m3u8DL-RE 工具信息 */
+export async function getNm3u8dlInfo(dirPath?: string): Promise<ToolInfo> {
+  return tauriInvoke("get_nm3u8dl_info", { path: dirPath || null });
 }
 
-/**
- * 获取 FFmpeg 工具信息
- */
-export async function getFfmpegInfo(path?: string): Promise<ToolInfo> {
-  return tauriInvoke("get_ffmpeg_info", { path: path || null });
+/** 获取 FFmpeg 工具信息 */
+export async function getFfmpegInfo(dirPath?: string): Promise<ToolInfo> {
+  return tauriInvoke("get_ffmpeg_info", { path: dirPath || null });
 }
 
-/**
- * 获取 N_m3u8DL-RE 最新版本信息
- */
+/** 获取 FFprobe 工具信息 */
+export async function getFfprobeInfo(
+  ffmpegDirPath?: string,
+): Promise<ToolInfo> {
+  return tauriInvoke("get_ffprobe_info", { ffmpegPath: ffmpegDirPath || null });
+}
+
+/** 获取 N_m3u8DL-RE 最新版本信息 */
 export async function getNm3u8dlLatestRelease(): Promise<ToolReleaseInfo> {
   return tauriInvoke("get_nm3u8dl_latest_release");
 }
 
-/**
- * 获取 FFmpeg 最新版本信息
- */
+/** 获取 FFmpeg 最新版本信息 */
 export async function getFfmpegLatestRelease(): Promise<ToolReleaseInfo> {
   return tauriInvoke("get_ffmpeg_latest_release");
 }
 
-/**
- * 下载工具
- * @param tool 工具名称（"N_m3u8DL-RE" 或 "FFmpeg"）
- * @param downloadUrl 下载链接
- * @param targetDir 目标目录
- * @param onProgress 进度回调
- */
+/** 下载工具 */
 export async function downloadTool(
   tool: string,
   downloadUrl: string,
   targetDir: string,
   onProgress?: DownloadProgressCallback,
 ): Promise<string> {
-  // 设置进度监听
   let unlisten: (() => void) | null = null;
 
   if (onProgress) {
     unlisten = await listen<DownloadProgress>(
       `tool:download:progress:${tool}`,
-      (event) => {
-        onProgress(event.payload);
-      },
+      (event) => onProgress(event.payload),
     );
   }
 
   try {
-    const result = await tauriInvoke("download_tool", {
-      tool,
-      downloadUrl,
-      targetDir,
-    });
-    return result as string;
+    return await tauriInvoke("download_tool", { tool, downloadUrl, targetDir });
   } finally {
-    if (unlisten) {
-      unlisten();
-    }
+    unlisten?.();
   }
 }
 
-/**
- * 工具状态检查结果
- */
-export interface ToolsStatus {
-  nm3u8dl: ToolInfo;
-  ffmpeg: ToolInfo;
-}
-
-/**
- * 检查所有工具状态
- */
+/** 检查所有工具状态 */
 export async function checkAllToolsStatus(
-  nm3u8dlPath?: string,
-  ffmpegPath?: string,
+  downloaderDir?: string,
+  ffmpegDir?: string,
 ): Promise<ToolsStatus> {
-  const [nm3u8dl, ffmpeg] = await Promise.all([
-    getNm3u8dlInfo(nm3u8dlPath),
-    getFfmpegInfo(ffmpegPath),
+  const [downloader, ffmpeg, ffprobe] = await Promise.all([
+    getNm3u8dlInfo(downloaderDir),
+    getFfmpegInfo(ffmpegDir),
+    getFfprobeInfo(ffmpegDir),
   ]);
 
-  return { nm3u8dl, ffmpeg };
-}
-
-/**
- * 获取默认工具目录
- */
-export function getDefaultToolsDir(): string {
-  // 返回应用目录下的 tools 子目录
-  // 这个路径会在后端根据实际应用目录解析
-  return "tools";
+  return { downloader, ffmpeg, ffprobe };
 }

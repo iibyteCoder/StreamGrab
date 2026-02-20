@@ -8,7 +8,6 @@ import { ref, onUnmounted } from "vue";
 import { useTaskStore, useSettingsStore } from "@/stores";
 import {
   downloadService,
-  taskService,
   type DownloadEvent,
   type UnlistenFn,
 } from "@/services";
@@ -27,10 +26,6 @@ export function useDownloader() {
 
   // 正在启动的任务
   const startingTasks = ref<Set<string>>(new Set());
-
-  // 进度历史保存时间戳（节流）
-  const progressHistoryTimestamps = new Map<string, number>();
-  const PROGRESS_HISTORY_INTERVAL = 5000; // 5秒保存一次
 
   // 事件订阅清理函数
   const unlisteners = new Map<string, UnlistenFn>();
@@ -287,6 +282,50 @@ export function useDownloader() {
   };
 
   /**
+   * 分析媒体文件并更新任务媒体信息
+   * 在下载完成后调用，使用 ffprobe 分析已下载的文件
+   */
+  const analyzeAndUpdateMediaInfo = async (
+    taskId: string,
+    filePath: string,
+  ): Promise<void> => {
+    try {
+      const result = await downloadService.analyzeMediaFile(filePath);
+
+      // 更新任务的媒体信息
+      taskStore.updateTaskMediaInfo(taskId, {
+        resolution: result.resolution,
+        width: result.width,
+        height: result.height,
+        frameRate: result.frameRate,
+        videoCodec: result.videoCodec,
+        videoRange: result.videoRange,
+        audioCodec: result.audioCodec,
+        audioChannels: result.audioChannels,
+        audioLanguage: result.audioLanguage,
+        duration: result.duration,
+        // 更新总大小（如果分析成功）
+        ...(result.fileSize
+          ? { segmentCount: undefined } // 文件大小单独处理
+          : {}),
+      });
+
+      // 同时更新进度中的总大小
+      const task = taskStore.getTask(taskId);
+      if (task && result.fileSize) {
+        taskStore.updateTaskProgress(taskId, {
+          totalSize: result.fileSize,
+        });
+      }
+
+      console.log("Media file analyzed successfully:", result);
+    } catch (e) {
+      console.warn("Failed to analyze media file:", e);
+      // 分析失败不影响下载完成状态，只是媒体信息可能不完整
+    }
+  };
+
+  /**
    * 处理下载事件
    */
   const handleDownloadEvent = (event: DownloadEvent): void => {
@@ -311,22 +350,7 @@ export function useDownloader() {
           totalSize: progressData.totalSize,
           eta: progressData.eta,
         });
-
-        // 定期保存进度历史（节流）
-        const now = Date.now();
-        const lastSave = progressHistoryTimestamps.get(taskId) ?? 0;
-        if (now - lastSave >= PROGRESS_HISTORY_INTERVAL) {
-          progressHistoryTimestamps.set(taskId, now);
-          const percent = progressData.overallPercent ?? progressData.percent;
-          taskService
-            .saveProgressHistory(
-              taskId,
-              percent,
-              progressData.speed,
-              progressData.downloadedSize,
-            )
-            .catch(console.error);
-        }
+        // 进度历史由后端自动保存，前端无需处理
         break;
       }
 
@@ -371,6 +395,15 @@ export function useDownloader() {
         if (task) {
           notification.sendDownloadCompleteNotification(
             task.fileName || "文件",
+          );
+        }
+
+        // 下载完成后分析媒体文件，更新详细的媒体信息
+        if (completeData.outputPath) {
+          analyzeAndUpdateMediaInfo(taskId, completeData.outputPath).catch(
+            (e) => {
+              console.warn("Failed to analyze media file:", e);
+            },
           );
         }
 
