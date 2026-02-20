@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
@@ -163,7 +164,7 @@ pub async fn get_ffmpeg_info(path: Option<String>) -> Result<ToolInfo, String> {
 pub async fn get_nm3u8dl_latest_release() -> Result<ToolReleaseInfo, String> {
     let url = "https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest";
 
-    println!("[Tools] 获取 N_m3u8DL-RE 最新版本: {}", url);
+    info!("[Tools] 获取 N_m3u8DL-RE 最新版本: {}", url);
 
     let client = reqwest::Client::builder()
         .user_agent("StreamGrab-Tool-Checker")
@@ -178,7 +179,7 @@ pub async fn get_nm3u8dl_latest_release() -> Result<ToolReleaseInfo, String> {
         .await
         .map_err(|e| format!("请求 GitHub API 失败: {}", e))?;
 
-    println!("[Tools] 响应状态: {}", response.status());
+    info!("[Tools] 响应状态: {}", response.status());
 
     if !response.status().is_success() {
         return Err(format!("GitHub API 返回错误: {}", response.status()));
@@ -213,7 +214,7 @@ pub async fn get_nm3u8dl_latest_release() -> Result<ToolReleaseInfo, String> {
         .unwrap_or("N_m3u8DL-RE.zip")
         .to_string();
 
-    println!(
+    info!(
         "[Tools] N_m3u8DL-RE 版本: {}, 下载链接: {}",
         version, download_url
     );
@@ -236,7 +237,7 @@ pub async fn get_ffmpeg_latest_release() -> Result<ToolReleaseInfo, String> {
     // 使用 BtbN GitHub releases 作为 FFmpeg 下载源
     let url = "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest";
 
-    println!("[Tools] 获取 FFmpeg 最新版本: {}", url);
+    info!("[Tools] 获取 FFmpeg 最新版本: {}", url);
 
     let client = reqwest::Client::builder()
         .user_agent("StreamGrab-Tool-Checker")
@@ -251,7 +252,7 @@ pub async fn get_ffmpeg_latest_release() -> Result<ToolReleaseInfo, String> {
         .await
         .map_err(|e| format!("请求 GitHub API 失败: {}", e))?;
 
-    println!("[Tools] 响应状态: {}", response.status());
+    info!("[Tools] 响应状态: {}", response.status());
 
     if !response.status().is_success() {
         return Err(format!("GitHub API 返回错误: {}", response.status()));
@@ -289,7 +290,7 @@ pub async fn get_ffmpeg_latest_release() -> Result<ToolReleaseInfo, String> {
         .unwrap_or("ffmpeg.zip")
         .to_string();
 
-    println!(
+    info!(
         "[Tools] FFmpeg 版本: {}, 下载链接: {}",
         version, download_url
     );
@@ -316,13 +317,13 @@ pub async fn download_tool(
 ) -> Result<String, String> {
     let target_path = PathBuf::from(&target_dir);
 
-    println!("[Tools] 开始下载 {} 到 {}", tool, target_dir);
-    println!("[Tools] 下载链接: {}", download_url);
+    info!("[Tools] 开始下载 {} 到 {}", tool, target_dir);
+    info!("[Tools] 下载链接: {}", download_url);
 
     // 确保目标目录存在
     if !target_path.exists() {
         std::fs::create_dir_all(&target_path).map_err(|e| format!("创建目录失败: {}", e))?;
-        println!("[Tools] 创建目录: {}", target_dir);
+        info!("[Tools] 创建目录: {}", target_dir);
     }
 
     // 发送开始下载事件
@@ -352,13 +353,13 @@ pub async fn download_tool(
     let total_size = response.content_length().unwrap_or(0);
     let mut downloaded: u64 = 0;
 
-    println!("[Tools] 文件大小: {} bytes", total_size);
+    info!("[Tools] 文件大小: {} bytes", total_size);
 
     // 确定文件名
     let filename = download_url.rsplit('/').next().unwrap_or("download.zip");
     let zip_path = target_path.join(filename);
 
-    println!("[Tools] 保存到: {:?}", zip_path);
+    info!("[Tools] 保存到: {:?}", zip_path);
 
     // 创建临时文件
     let mut file = std::fs::File::create(&zip_path).map_err(|e| format!("创建文件失败: {}", e))?;
@@ -393,7 +394,7 @@ pub async fn download_tool(
         );
     }
 
-    println!("[Tools] 下载完成，开始解压...");
+    info!("[Tools] 下载完成，开始解压...");
 
     // 发送解压开始事件
     let _ = app.emit(
@@ -410,7 +411,7 @@ pub async fn download_tool(
     // 解压文件
     let extracted_path = extract_zip(&zip_path, &target_path, &tool)?;
 
-    println!("[Tools] 解压完成，可执行文件: {}", extracted_path);
+    info!("[Tools] 解压完成，可执行文件: {}", extracted_path);
 
     // 删除 zip 文件
     let _ = std::fs::remove_file(&zip_path);
@@ -430,7 +431,7 @@ fn extract_zip(
     target_dir: &std::path::Path,
     tool: &str,
 ) -> Result<String, String> {
-    println!("[Tools] 解压 ZIP 文件: {:?}", zip_path);
+    info!("[Tools] 解压 ZIP 文件: {:?}", zip_path);
 
     let file = std::fs::File::open(zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
 
@@ -444,7 +445,7 @@ fn extract_zip(
         "N_m3u8DL-RE.exe"
     };
 
-    println!("[Tools] 查找可执行文件: {}", exe_name);
+    info!("[Tools] 查找可执行文件: {}", exe_name);
 
     let mut found_exe_path: Option<String> = None;
     let total_files = archive.len();
@@ -482,12 +483,12 @@ fn extract_zip(
                 .unwrap_or(false)
             {
                 found_exe_path = Some(outpath.to_string_lossy().to_string());
-                println!("[Tools] 找到可执行文件: {:?}", outpath);
+                info!("[Tools] 找到可执行文件: {:?}", outpath);
             }
         }
     }
 
-    println!("[Tools] 解压完成，共 {} 个文件", total_files);
+    info!("[Tools] 解压完成，共 {} 个文件", total_files);
 
     found_exe_path.ok_or_else(|| format!("未找到 {} 可执行文件", exe_name))
 }
