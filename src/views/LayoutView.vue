@@ -10,6 +10,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppIcon } from "@/components/common";
 import { useDownloader, useSettings } from "@/composables";
 
+// 应用版本号（由 Vite 从 package.json 注入）
+declare const __APP_VERSION__: string;
+const appVersion = __APP_VERSION__;
+
 // Tauri 2.0 缩放方向类型
 type ResizeDirection =
   | "North"
@@ -325,7 +329,7 @@ const toggleTheme = () => {
       <!-- 左侧：软件信息 -->
       <div class="flex items-center gap-4">
         <span class="font-medium text-foreground/80">StreamGrab</span>
-        <span>v0.4.0</span>
+        <span>v{{ appVersion }}</span>
         <span class="text-border">|</span>
         <span>by iibyteCoder</span>
       </div>
