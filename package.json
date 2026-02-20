@@ -1,7 +1,7 @@
 {
   "name": "streamgrab",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,7 +18,9 @@
     "rust:fmt:check": "cd src-tauri && cargo fmt --check",
     "rust:clippy": "cd src-tauri && cargo clippy -- -D warnings",
     "ci:check": "npm run type-check && npm run lint:check && npm run rust:fmt:check && npm run rust:clippy",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "version": "node scripts/bump-version.cjs",
+    "release": "node scripts/release.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
