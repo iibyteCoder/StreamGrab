@@ -90,13 +90,28 @@ impl ToolDetector {
         let tool_name = config.name();
         let exe_str = exe_path.to_string_lossy().to_string();
 
+        log::info!("[Detector] 检查工具: {}, 路径: {}", tool_name, exe_str);
+
         let output = Command::new(&exe_path).args(config.version_args()).output();
 
         match output {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
+
+                log::info!(
+                    "[Detector] {} stdout: {}",
+                    tool_name,
+                    stdout.lines().next().unwrap_or("")
+                );
+                log::debug!(
+                    "[Detector] {} stderr: {}",
+                    tool_name,
+                    stderr.lines().next().unwrap_or("")
+                );
+
                 let version = config.parse_version(&stdout, &stderr);
+                log::info!("[Detector] {} 解析版本: {:?}", tool_name, version);
 
                 ToolInfo {
                     name: tool_name.to_string(),
@@ -107,14 +122,17 @@ impl ToolDetector {
                     error: None,
                 }
             }
-            Err(e) => ToolInfo {
-                name: tool_name.to_string(),
-                installed: false,
-                version: None,
-                exe_path: Some(exe_str),
-                dir_path: dir_path.map(|p| p.to_string_lossy().to_string()),
-                error: Some(format!("执行失败: {}", e)),
-            },
+            Err(e) => {
+                log::warn!("[Detector] {} 执行失败: {}", tool_name, e);
+                ToolInfo {
+                    name: tool_name.to_string(),
+                    installed: false,
+                    version: None,
+                    exe_path: Some(exe_str),
+                    dir_path: dir_path.map(|p| p.to_string_lossy().to_string()),
+                    error: Some(format!("执行失败: {}", e)),
+                }
+            }
         }
     }
 }

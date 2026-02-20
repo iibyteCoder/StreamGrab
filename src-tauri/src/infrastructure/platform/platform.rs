@@ -80,15 +80,34 @@ impl Platform {
         }
     }
 
+    /// 获取组合的平台+架构关键字
+    /// 这些关键字同时表示平台和架构，如 "win64" 同时表示 Windows 和 x64
+    pub fn combined_keywords(&self) -> &'static [&'static str] {
+        match self {
+            Platform::Windows => &["win64", "win-x64", "windows-x64"],
+            Platform::MacOS => &["macos-arm64", "darwin-arm64", "osx-arm64"],
+            Platform::Linux => &["linux-x64", "linux-amd64"],
+        }
+    }
+
     /// 判断给定的文件名是否适合当前平台
     pub fn is_platform_asset(&self, filename: &str) -> bool {
         let filename_lower = filename.to_lowercase();
+
+        // 检查是否包含组合关键字（如 win64 同时满足平台和架构要求）
+        let has_combined = self
+            .combined_keywords()
+            .iter()
+            .any(|kw| filename_lower.contains(kw));
+
+        // 或者同时满足平台关键字和架构关键字
         let has_platform = self
             .release_keywords()
             .iter()
             .any(|kw| filename_lower.contains(kw));
         let has_arch = filename_lower.contains(self.arch_keywords());
-        has_platform && has_arch
+
+        has_combined || (has_platform && has_arch)
     }
 }
 
@@ -143,6 +162,27 @@ mod tests {
             platform,
             Platform::Windows | Platform::MacOS | Platform::Linux
         ));
+    }
+
+    #[test]
+    fn test_is_platform_asset() {
+        let platform = Platform::current();
+
+        // 测试 FFmpeg 资源名
+        assert!(
+            platform.is_platform_asset("ffmpeg-master-latest-win64-gpl-shared.zip"),
+            "Should match FFmpeg win64 asset"
+        );
+        assert!(
+            platform.is_platform_asset("ffmpeg-n8.0-latest-win64-gpl-shared-8.0.zip"),
+            "Should match FFmpeg n8.0 win64 asset"
+        );
+
+        // 测试 N_m3u8DL-RE 资源名
+        assert!(
+            platform.is_platform_asset("N_m3u8DL-RE_v0.5.1-beta_win-x64_20251029.zip"),
+            "Should match N_m3u8DL-RE win-x64 asset"
+        );
     }
 
     #[test]

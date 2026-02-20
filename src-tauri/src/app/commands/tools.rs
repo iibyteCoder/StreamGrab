@@ -224,7 +224,7 @@ where
     F: FnOnce(&[serde_json::Value]) -> Option<(String, String)>,
 {
     let client = reqwest::Client::builder()
-        .user_agent("StreamGrab/0.4.0")
+        .user_agent("StreamGrab/0.5.0")
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
@@ -251,9 +251,28 @@ where
         .await
         .map_err(|e| format!("解析响应失败: {}", e))?;
 
-    let version = json["tag_name"].as_str().unwrap_or("unknown").to_string();
+    let tag_name = json["tag_name"].as_str().unwrap_or("unknown");
+    let release_name = json["name"].as_str().unwrap_or("");
     let published_at = json["published_at"].as_str().unwrap_or("").to_string();
     let assets = json["assets"].as_array().cloned().unwrap_or_default();
+
+    // 如果 tag_name 是 "latest"（如 FFmpeg-Builds），则从 name 字段提取版本信息
+    // name 格式: "Latest Auto-Build (2026-02-19 13:07)"
+    let version = if tag_name == "latest" && !release_name.is_empty() {
+        // 尝试从 name 中提取日期作为版本标识
+        let date_re = regex::Regex::new(r"\((\d{4}-\d{2}-\d{2})").ok();
+        if let Some(re) = date_re {
+            if let Some(cap) = re.captures(release_name) {
+                format!("latest-{}", cap.get(1).map_or("unknown", |m| m.as_str()))
+            } else {
+                release_name.to_string()
+            }
+        } else {
+            release_name.to_string()
+        }
+    } else {
+        tag_name.to_string()
+    };
 
     let (download_url, filename) = find_asset(&assets).ok_or_else(|| {
         format!(
@@ -293,23 +312,30 @@ pub async fn download_tool(
         &serde_json::json!({ "url": &download_url }),
     );
 
-    // 创建 HTTP 客户端
+    // 创建 HTTP 客户端（继承系统代理设置，增加超时时间）
     let client = reqwest::Client::builder()
         .user_agent("StreamGrab-Downloader")
+        .timeout(Duration::from_secs(300)) // 5 分钟超时
+        .connect_timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
+    info!("[Tools] 开始下载文件: {}", download_url);
+
     // 下载
-    let mut response = client
+    let response = client
         .get(&download_url)
         .send()
         .await
         .map_err(|e| format!("下载请求失败: {}", e))?;
 
+    info!("[Tools] 下载响应状态: {}", response.status());
+
     if !response.status().is_success() {
         return Err(format!("下载失败: HTTP {}", response.status()));
     }
 
+    // 获取响应内容长度用于进度显示
     let total_size = response.content_length().unwrap_or(0);
     let filename = download_url.rsplit('/').next().unwrap_or("download.zip");
     let zip_path = target_path.join(filename);
@@ -319,37 +345,52 @@ pub async fn download_tool(
         total_size, zip_path
     );
 
-    let mut file = std::fs::File::create(&zip_path).map_err(|e| format!("创建文件失败: {}", e))?;
-    let mut downloaded: u64 = 0;
-
-    use std::io::Write;
-    while let Some(chunk) = response
-        .chunk()
+    // 下载整个文件到内存（避免流式下载可能的中断问题）
+    let bytes = response
+        .bytes()
         .await
-        .map_err(|e| format!("下载数据块失败: {}", e))?
-    {
-        file.write_all(&chunk)
-            .map_err(|e| format!("写入文件失败: {}", e))?;
-        downloaded += chunk.len() as u64;
+        .map_err(|e| format!("下载文件内容失败: {}", e))?;
 
-        let percent = if total_size > 0 {
-            (downloaded as f64 / total_size as f64) * 100.0
-        } else {
-            0.0
-        };
-        let _ = app.emit(
-            &format!("tool:download:progress:{}", tool),
-            &DownloadProgress {
-                tool: tool.clone(),
-                status: "downloading".to_string(),
-                downloaded,
-                total: total_size,
-                percent,
-            },
-        );
+    let actual_size = bytes.len() as u64;
+    info!("[Tools] 实际下载大小: {} bytes", actual_size);
+
+    // 验证下载完整性
+    if total_size > 0 && actual_size != total_size {
+        return Err(format!(
+            "下载不完整: 期望 {} bytes, 实际 {} bytes",
+            total_size, actual_size
+        ));
     }
 
-    info!("[Tools] 下载完成，开始解压...");
+    // 检查是否是有效的 ZIP 文件（ZIP 文件以 PK 开头）
+    if bytes.len() < 4 {
+        return Err("下载的文件太小，可能不是有效的 ZIP 文件".to_string());
+    }
+    if &bytes[0..2] != b"PK" {
+        return Err("下载的文件不是有效的 ZIP 格式（缺少 PK 签名）".to_string());
+    }
+
+    // 发送下载完成事件
+    let _ = app.emit(
+        &format!("tool:download:progress:{}", tool),
+        &DownloadProgress {
+            tool: tool.clone(),
+            status: "downloaded".to_string(),
+            downloaded: actual_size,
+            total: total_size,
+            percent: 100.0,
+        },
+    );
+
+    // 保存文件
+    let mut file = std::fs::File::create(&zip_path).map_err(|e| format!("创建文件失败: {}", e))?;
+    use std::io::Write;
+    file.write_all(&bytes)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+    file.sync_all()
+        .map_err(|e| format!("同步文件失败: {}", e))?;
+
+    info!("[Tools] 文件保存完成，开始解压...");
 
     // 发送解压事件
     let _ = app.emit(
@@ -385,6 +426,8 @@ fn extract_zip(
     target_dir: &std::path::Path,
     tool: &str,
 ) -> Result<String, String> {
+    info!("[Tools] 开始解压 ZIP 文件: {:?}", zip_path);
+
     let file = std::fs::File::open(zip_path).map_err(|e| format!("打开 ZIP 失败: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("读取 ZIP 失败: {}", e))?;
 
@@ -395,14 +438,19 @@ fn extract_zip(
         registry.downloader().exe_names().all_exe()
     };
 
-    info!("[Tools] 查找可执行文件: {:?}", exe_names);
+    info!("[Tools] 期望的可执行文件名: {:?}", exe_names);
+    info!("[Tools] ZIP 包含 {} 个文件", archive.len());
 
-    let mut found_exe_dir: Option<PathBuf> = Option::None;
+    // 创建小写版本用于不区分大小写匹配
+    let exe_names_lower: Vec<String> = exe_names.iter().map(|s| s.to_lowercase()).collect();
+
+    let mut found_exe_dir: Option<PathBuf> = None;
+    let mut all_files: Vec<String> = Vec::new();
 
     for i in 0..archive.len() {
         let mut file = archive
             .by_index(i)
-            .map_err(|e| format!("读取条目失败: {}", e))?;
+            .map_err(|e| format!("读取条目 {} 失败: {}", i, e))?;
 
         let outpath = match file.enclosed_name() {
             Some(p) => target_dir.join(p),
@@ -412,6 +460,11 @@ fn extract_zip(
         if file.name().ends_with('/') {
             std::fs::create_dir_all(&outpath).map_err(|e| format!("创建目录失败: {}", e))?;
         } else {
+            // 记录所有文件名
+            if let Some(filename) = outpath.file_name().and_then(|n| n.to_str()) {
+                all_files.push(filename.to_string());
+            }
+
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
                     std::fs::create_dir_all(p).map_err(|e| format!("创建目录失败: {}", e))?;
@@ -422,14 +475,24 @@ fn extract_zip(
                 std::fs::File::create(&outpath).map_err(|e| format!("创建文件失败: {}", e))?;
             std::io::copy(&mut file, &mut outfile).map_err(|e| format!("写入文件失败: {}", e))?;
 
-            // 检查是否是目标可执行文件
+            // 检查是否是目标可执行文件（不区分大小写）
             if let Some(filename) = outpath.file_name().and_then(|n| n.to_str()) {
-                if exe_names.contains(&filename.to_string()) && found_exe_dir.is_none() {
+                let filename_lower = filename.to_lowercase();
+                if exe_names_lower.contains(&filename_lower) && found_exe_dir.is_none() {
                     found_exe_dir = outpath.parent().map(|p| p.to_path_buf());
                     info!("[Tools] 找到可执行文件: {:?}", outpath);
                 }
             }
         }
+    }
+
+    if found_exe_dir.is_none() {
+        // 打印所有找到的文件，帮助调试
+        info!("[Tools] ZIP 中的所有文件: {:?}", all_files);
+        return Err(format!(
+            "未找到可执行文件。期望: {:?}, ZIP 中实际文件: {:?}",
+            exe_names, all_files
+        ));
     }
 
     found_exe_dir

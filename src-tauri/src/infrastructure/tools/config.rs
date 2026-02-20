@@ -31,29 +31,26 @@ impl ToolDefinition for Nm3u8dlReConfig {
     }
 
     fn parse_version(&self, stdout: &str, stderr: &str) -> Option<String> {
-        let version_re = Regex::new(r"(\d+\.\d+\.\d+)").ok()?;
+        // N_m3u8DL-RE 版本输出格式示例：
+        // "N_m3u8DL-RE version 0.3.0.0"
+        // 或直接输出版本号
 
-        // 优先从 stdout 解析
-        for line in stdout.lines() {
-            if line.contains("version") || line.contains("Version") {
-                // 尝试提取 "version X.X.X" 格式
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                for (i, part) in parts.iter().enumerate() {
-                    if part.to_lowercase().contains("version") && i + 1 < parts.len() {
-                        return Some(parts[i + 1].to_string());
+        let combined = format!("{}\n{}", stdout, stderr);
+
+        // 尝试匹配 "version X.X.X" 或 "vX.X.X" 格式
+        let patterns = [
+            r"version\s+(\d+\.\d+\.\d+(?:\.\d+)?)", // version 0.3.0.0
+            r"v(\d+\.\d+\.\d+(?:\.\d+)?)",          // v0.3.0.0
+            r"(\d+\.\d+\.\d+(?:\.\d+)?)",           // 直接版本号 0.3.0.0
+        ];
+
+        for pattern in &patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                if let Some(cap) = re.captures(&combined) {
+                    if let Some(m) = cap.get(1) {
+                        return Some(m.as_str().to_string());
                     }
                 }
-                // 尝试直接匹配版本号
-                if let Some(cap) = version_re.captures(line) {
-                    return Some(cap.get(1)?.as_str().to_string());
-                }
-            }
-        }
-
-        // 从 stderr 解析（某些版本输出在 stderr）
-        for line in stderr.lines() {
-            if let Some(cap) = version_re.captures(line) {
-                return Some(cap.get(1)?.as_str().to_string());
             }
         }
 
@@ -103,10 +100,36 @@ impl ToolDefinition for FfmpegConfig {
     }
 
     fn parse_version(&self, stdout: &str, _stderr: &str) -> Option<String> {
+        // FFmpeg 版本输出格式示例：
+        // 标准版本: "ffmpeg version 8.0"
+        // BtbN 构建: "ffmpeg version N-118800-gbe4c3c2859-20260219"
+
         let first_line = stdout.lines().next()?;
-        let re = Regex::new(r"ffmpeg\s+version\s+(\d+\.\d+(?:\.\d+)?)").ok()?;
-        re.captures(first_line)
-            .and_then(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+
+        // 尝试匹配标准版本号格式
+        let std_re = Regex::new(r"ffmpeg\s+version\s+(\d+\.\d+(?:\.\d+)?)").ok()?;
+        if let Some(cap) = std_re.captures(first_line) {
+            return cap.get(1).map(|m| m.as_str().to_string());
+        }
+
+        // 尝试匹配 BtbN 构建格式：N-118800-gbe4c3c2859-20260219
+        // 提取日期部分作为版本标识
+        let btbm_re = Regex::new(r"ffmpeg\s+version\s+N-\d+-[a-f0-9]+-(\d{8})").ok()?;
+        if let Some(cap) = btbm_re.captures(first_line) {
+            if let Some(date_match) = cap.get(1) {
+                let date = date_match.as_str();
+                // 格式化为 YYYY-MM-DD
+                return Some(format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..8]));
+            }
+        }
+
+        // 回退：提取任何类似版本号的模式
+        let fallback_re = Regex::new(r"(\d{4}-\d{2}-\d{2})").ok()?;
+        if let Some(cap) = fallback_re.captures(first_line) {
+            return cap.get(1).map(|m| m.as_str().to_string());
+        }
+
+        None
     }
 
     fn github_repo(&self) -> Option<&'static str> {
