@@ -21,7 +21,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tauri::Manager;
 
-use app::commands::{config::*, dialog::*, download::*, fs::*, task::*, tools::*};
+use app::commands::{config::*, dialog::*, download::*, fs::*, task::*, tools::*, update::*};
 
 /// 通用设置结构（用于解析 minimizeToTray）
 #[derive(Debug, Deserialize)]
@@ -43,6 +43,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // 开发模式下启用日志
             if cfg!(debug_assertions) {
@@ -151,6 +153,10 @@ pub fn run() {
             get_nm3u8dl_latest_release,
             get_ffmpeg_latest_release,
             download_tool,
+            // === 更新命令 ===
+            download_app_update,
+            open_file_in_explorer,
+            run_installer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

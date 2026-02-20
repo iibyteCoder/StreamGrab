@@ -8,4 +8,5 @@ pub mod download;
 pub mod fs;
 pub mod task;
 pub mod tools;
+pub mod update;
 pub mod utils;

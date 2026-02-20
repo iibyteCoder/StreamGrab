@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "StreamGrab",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "identifier": "com.streamgrab.app",
   "build": {
     "frontendDist": "../dist",
@@ -48,6 +48,12 @@
   "plugins": {
     "shell": {
       "open": true
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/iibyteCoder/StreamGrab/releases/latest/download/{{target}}-{{arch}}.json"
+      ],
+      "pubkey": ""
     }
   }
 }
