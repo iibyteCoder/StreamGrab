@@ -17,6 +17,7 @@ export default [
       "**/coverage/**",
       "**/node_modules/**",
       "**/src-tauri/**",
+      "scripts/**",
       "*.config.js",
       "*.config.ts",
     ],
