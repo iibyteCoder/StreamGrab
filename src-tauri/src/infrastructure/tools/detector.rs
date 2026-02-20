@@ -7,6 +7,13 @@ use super::{SuiteInfo, ToolDefinition, ToolInfo, ToolPaths, ToolRegistry};
 use std::path::PathBuf;
 use std::process::Command;
 
+// Windows 平台：隐藏控制台窗口的标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// 工具检测器
 pub struct ToolDetector {
     registry: &'static ToolRegistry,
@@ -92,6 +99,14 @@ impl ToolDetector {
 
         log::info!("[Detector] 检查工具: {}, 路径: {}", tool_name, exe_str);
 
+        // Windows 平台：隐藏控制台窗口
+        #[cfg(target_os = "windows")]
+        let output = Command::new(&exe_path)
+            .args(config.version_args())
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        #[cfg(not(target_os = "windows"))]
         let output = Command::new(&exe_path).args(config.version_args()).output();
 
         match output {

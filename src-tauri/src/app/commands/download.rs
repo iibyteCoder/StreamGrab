@@ -9,6 +9,13 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 
+// Windows 平台：隐藏控制台窗口的标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 use super::utils::get_tool_paths_from_config;
 use crate::domain::download::{
     flush_progress, parse_resolution, record_progress, AudioStream, BaseStream, StreamInfo,
@@ -329,7 +336,15 @@ pub async fn parse_url(args: Vec<String>, app: AppHandle) -> Result<StreamInfo, 
 
     log::info!("Running parse command: {} {:?}", program, processed_args);
 
-    // 执行命令
+    // 执行命令（Windows 平台隐藏窗口）
+    #[cfg(target_os = "windows")]
+    let output = Command::new(&program)
+        .args(&processed_args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("执行解析命令失败: {}", e))?;
+
+    #[cfg(not(target_os = "windows"))]
     let output = Command::new(&program)
         .args(&processed_args)
         .output()
@@ -376,6 +391,23 @@ async fn parse_http_video_url(url: &str, ffmpeg_dir: Option<&str>) -> Result<Str
 
     log::info!("Parsing HTTP video URL with ffprobe: {}", ffprobe);
 
+    // Windows 平台隐藏窗口
+    #[cfg(target_os = "windows")]
+    let output = Command::new(&ffprobe)
+        .args([
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            url,
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("执行 ffprobe 失败: {}。请确保 FFmpeg 已安装并配置正确。", e))?;
+
+    #[cfg(not(target_os = "windows"))]
     let output = Command::new(&ffprobe)
         .args([
             "-v",
@@ -1251,7 +1283,23 @@ pub async fn analyze_media_file(
 
     log::info!("Analyzing media file with ffprobe: {}", ffprobe);
 
-    // 执行 ffprobe
+    // 执行 ffprobe（Windows 平台隐藏窗口）
+    #[cfg(target_os = "windows")]
+    let output = Command::new(&ffprobe)
+        .args([
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            &file_path,
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("执行 ffprobe 失败: {}。请确保 FFmpeg 已安装。", e))?;
+
+    #[cfg(not(target_os = "windows"))]
     let output = Command::new(&ffprobe)
         .args([
             "-v",
