@@ -204,7 +204,7 @@
 | 系统托盘 | P2 | `[x]` | `src-tauri/src/tray.rs` | 最小化到托盘，托盘菜单 |
 | 下载完成通知 | P2 | `[x]` | `src/components/settings/sections/UISettings.vue` | 选项开关 |
 | 剪贴板监控 | P2 | `[x]` | `src/components/settings/sections/UISettings.vue` | 选项开关 |
-| 自动更新 | P3 | `[x]` | `src/composables/useUpdateChecker.ts` | GitHub API 版本检查，手动/自动检查 |
+| 自动更新 | P3 | `[x]` | `src/composables/useUpdateChecker.ts` | GitHub API 版本检查，自动下载安装 |
 
 ---
 
@@ -333,3 +333,4 @@
 | 2026-02-19 | **ProgressChart 实时更新**: 重构 ProgressChart 组件支持实时数据更新，下载中从 taskStore 获取实时进度，下载完成后从数据库加载历史数据，合并显示完整曲线 |
 | 2026-02-19 | **文件大小显示修复**: 修复文件大小在任务卡片和详情面板中不显示的问题，下载中显示"已下载/总大小"，已完成显示总大小 |
 | 2026-02-19 | **进度条显示优化**: TaskCard 进度条在所有有进度时显示（不仅仅是下载中），新增暂停状态显示已下载大小和进度百分比 |
+| 2026-02-20 | **自动更新下载安装功能**: 完善软件更新功能，支持检测到新版本后直接下载到临时目录、自动运行安装程序，UI 显示下载文件路径、打开文件位置、重新运行安装程序 |
