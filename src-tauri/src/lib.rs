@@ -11,7 +11,7 @@ mod types;
 use serde::Deserialize;
 use tauri::Manager;
 
-use commands::{config::*, dialog::*, download::*, fs::*, task::*};
+use commands::{config::*, dialog::*, download::*, fs::*, task::*, tools::*};
 use db::Database;
 
 /// 通用设置结构（用于解析 minimizeToTray）
@@ -33,6 +33,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // 开发模式下启用日志
             if cfg!(debug_assertions) {
@@ -131,6 +132,12 @@ pub fn run() {
             get_progress_history,
             clear_progress_history,
             save_progress_history,
+            // === 工具管理命令 ===
+            get_nm3u8dl_info,
+            get_ffmpeg_info,
+            get_nm3u8dl_latest_release,
+            get_ffmpeg_latest_release,
+            download_tool,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -26,6 +26,7 @@ tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-opener = "2"
 
 # 异步运行时
 tokio = { version = "1", features = ["full"] }
@@ -54,6 +55,15 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 
 # 字符编码处理 (Windows GBK 支持)
 encoding_rs = "0.8"
+
+# HTTP 客户端
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# ZIP 解压
+zip = "2"
+
+# 查找可执行文件
+which = "7"
 
 [dev-dependencies]
 tempfile = "3"

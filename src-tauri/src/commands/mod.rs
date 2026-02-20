@@ -7,4 +7,5 @@ pub mod dialog;
 pub mod download;
 pub mod fs;
 pub mod task;
+pub mod tools;
 pub mod utils;

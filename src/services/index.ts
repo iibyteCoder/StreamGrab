@@ -13,3 +13,16 @@ export {
 } from "./downloadService";
 export { configService, type FileInfo } from "./configService";
 export { taskService } from "./taskService";
+export {
+  getNm3u8dlInfo,
+  getFfmpegInfo,
+  getNm3u8dlLatestRelease,
+  getFfmpegLatestRelease,
+  downloadTool,
+  checkAllToolsStatus,
+  getDefaultToolsDir,
+  type ToolInfo,
+  type DownloadProgress,
+  type ToolReleaseInfo,
+  type ToolsStatus,
+} from "./toolsService";

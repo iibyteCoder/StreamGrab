@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "StreamGrab",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "identifier": "com.streamgrab.app",
   "build": {
     "frontendDist": "../dist",
@@ -14,10 +14,10 @@
       {
         "title": "StreamGrab",
         "label": "main",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 800,
-        "minHeight": 600,
+        "width": 960,
+        "height": 640,
+        "minWidth": 720,
+        "minHeight": 480,
         "resizable": true,
         "fullscreen": false,
         "center": true,
