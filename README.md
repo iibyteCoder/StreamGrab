@@ -2,9 +2,9 @@
 
 # StreamGrab
 
-**现代视频流下载器**
+**现代视频流下载器 | Modern Video Stream Downloader**
 
-基于 Tauri 2.0 + Vue 3 构建的流媒体下载 GUI 应用
+基于 Tauri 2.0 + Vue 3 构建的跨平台流媒体下载 GUI 应用
 
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8?logo=tauri)](https://tauri.app/)
@@ -19,9 +19,7 @@
 
 ## 📖 简介
 
-StreamGrab 是 [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) 和 [FFmpeg](https://ffmpeg.org/) 的图形化界面封装，为用户提供友好的操作界面来管理视频下载任务。
-
-支持流媒体协议和普通 HTTP 链接下载，适用于下载网络视频课程、直播回放、直链视频等场景。
+StreamGrab 是 [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) 和 [FFmpeg](https://ffmpeg.org/) 的图形化界面封装，支持 HLS(m3u8)、DASH(mpd)、MSS 流媒体协议以及普通 HTTP 视频链接下载。适用于下载网络视频课程、直播回放、直链视频等场景，提供任务管理、模板配置、代理设置等便捷功能。
 
 ## ✨ 功能特性
 
