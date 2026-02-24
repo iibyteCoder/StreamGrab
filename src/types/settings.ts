@@ -151,3 +151,6 @@ export interface ScheduledTask {
   repeat: "none" | "daily" | "weekly";
   enabled: boolean;
 }
+
+// 向后兼容：旧版 AppSettings 类型别名
+export type LegacyAppSettings = AppSettings;

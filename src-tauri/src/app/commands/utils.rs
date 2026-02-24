@@ -16,8 +16,9 @@ pub fn get_db(app: &AppHandle) -> Result<Arc<Database>, String> {
 
 /// 工具路径配置
 pub struct ToolPathsConfig {
-    pub downloader_dir: Option<String>,
-    pub ffmpeg_dir: Option<String>,
+    pub m3u8dl_path: Option<String>,
+    pub ffmpeg_path: Option<String>,
+    pub ffprobe_path: Option<String>,
 }
 
 /// 从数据库配置中获取工具路径
@@ -27,45 +28,65 @@ pub fn get_tool_paths_from_config(app: &AppHandle) -> ToolPathsConfig {
         Err(e) => {
             log::error!("Failed to get database for tool paths: {}", e);
             return ToolPathsConfig {
-                downloader_dir: None,
-                ffmpeg_dir: None,
+                m3u8dl_path: None,
+                ffmpeg_path: None,
+                ffprobe_path: None,
             };
         }
     };
 
-    // 加载 advanced 配置
-    let advanced = match db.settings.load("advanced") {
-        Ok(config) => config,
+    // 获取 M3U8DL 配置中的工具路径
+    let m3u8dl_path = match db.config.get_m3u8dl_settings() {
+        Ok(settings) if !settings.n_m3u8dl_path.is_empty() => Some(settings.n_m3u8dl_path.clone()),
+        _ => None,
+    };
+
+    // 获取 FFmpeg 配置中的工具路径
+    let (ffmpeg_path, ffprobe_path) = match db.config.get_ffmpeg_settings() {
+        Ok(settings) => {
+            let ffmpeg = if !settings.ffmpeg_path.is_empty() {
+                Some(settings.ffmpeg_path.clone())
+            } else {
+                None
+            };
+            let ffprobe = if !settings.ffprobe_path.is_empty() {
+                Some(settings.ffprobe_path.clone())
+            } else {
+                None
+            };
+            (ffmpeg, ffprobe)
+        }
         Err(e) => {
-            log::error!("Failed to load advanced settings: {}", e);
-            return ToolPathsConfig {
-                downloader_dir: None,
-                ffmpeg_dir: None,
-            };
+            log::error!("Failed to load ffmpeg settings: {}", e);
+            (None, None)
         }
     };
-
-    // 提取工具路径
-    let downloader_dir = advanced
-        .get("n_m3u8dlPath")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string());
-
-    let ffmpeg_dir = advanced
-        .get("ffmpegPath")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string());
 
     log::debug!(
-        "Tool paths from config: downloader_dir={:?}, ffmpeg_dir={:?}",
-        downloader_dir,
-        ffmpeg_dir
+        "Tool paths from config: m3u8dl_path={:?}, ffmpeg_path={:?}, ffprobe_path={:?}",
+        m3u8dl_path,
+        ffmpeg_path,
+        ffprobe_path
     );
 
     ToolPathsConfig {
-        downloader_dir,
-        ffmpeg_dir,
+        m3u8dl_path,
+        ffmpeg_path,
+        ffprobe_path,
     }
+}
+
+/// 获取 M3U8DL 可执行文件路径
+pub fn get_m3u8dl_path(app: &AppHandle) -> Option<String> {
+    get_tool_paths_from_config(app).m3u8dl_path
+}
+
+/// 获取 FFmpeg 可执行文件路径
+pub fn get_ffmpeg_path(app: &AppHandle) -> Option<String> {
+    get_tool_paths_from_config(app).ffmpeg_path
+}
+
+/// 获取 FFprobe 可执行文件路径
+pub fn get_ffprobe_path(app: &AppHandle) -> Option<String> {
+    get_tool_paths_from_config(app).ffprobe_path
 }

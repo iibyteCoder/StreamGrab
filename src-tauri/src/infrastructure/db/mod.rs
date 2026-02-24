@@ -3,15 +3,18 @@
 //! 使用 SQLite 进行统一数据持久化
 
 mod progress_repo;
+pub mod repository;
 mod schema;
 mod settings;
 pub mod task;
 
 pub use progress_repo::*;
+pub use repository::*;
 pub use schema::*;
 pub use settings::*;
 pub use task::*;
 
+use crate::infrastructure::config::AppConfig;
 use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -22,6 +25,7 @@ use std::sync::Arc;
 pub struct Database {
     pub settings: SettingsDb,
     pub tasks: TaskDb,
+    pub config: ConfigRepository,
 }
 
 impl Database {
@@ -29,11 +33,17 @@ impl Database {
     ///
     /// 创建数据库文件、表结构
     pub fn initialize(app_config_dir: &PathBuf) -> Result<Arc<Self>, String> {
+        // 加载环境配置
+        let config = AppConfig::load(app_config_dir).unwrap_or_else(|e| {
+            log::warn!("Failed to load config, using defaults: {}", e);
+            AppConfig::default()
+        });
+
         // 确保配置目录存在
         std::fs::create_dir_all(app_config_dir)
             .map_err(|e| format!("Failed to create config directory: {}", e))?;
 
-        let db_path = app_config_dir.join(DB_FILE_NAME);
+        let db_path = config.get_database_path(app_config_dir);
         log::info!("Opening database at: {:?}", db_path);
 
         // 打开数据库连接
@@ -58,8 +68,17 @@ impl Database {
                 .map_err(|e| format!("Failed to open tasks connection: {}", e))?,
         )?;
 
+        let config_repo = ConfigRepository::new(
+            Connection::open(&db_path)
+                .map_err(|e| format!("Failed to open config connection: {}", e))?,
+        )?;
+
         log::info!("Database initialized successfully");
 
-        Ok(Arc::new(Self { settings, tasks }))
+        Ok(Arc::new(Self {
+            settings,
+            tasks,
+            config: config_repo,
+        }))
     }
 }

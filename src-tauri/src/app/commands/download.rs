@@ -49,7 +49,7 @@ pub async fn start_download(
     let tool_paths = get_tool_paths_from_config(&app);
 
     // 获取 N_m3u8DL-RE 可执行文件路径
-    let program_path = match get_downloader_exe_path(tool_paths.downloader_dir.as_deref()) {
+    let program_path = match get_downloader_exe_path(tool_paths.m3u8dl_path.as_deref()) {
         Some(path) => {
             let path_str = path.to_string_lossy().to_string();
             log::info!("Using N_m3u8DL-RE: {}", path_str);
@@ -75,7 +75,7 @@ pub async fn start_download(
 
     // 获取 FFmpeg 可执行文件路径，用于 N_m3u8DL-RE 的混流操作
     let mut final_args = args;
-    if let Some(ffmpeg_path) = get_ffmpeg_exe_path(tool_paths.ffmpeg_dir.as_deref()) {
+    if let Some(ffmpeg_path) = get_ffmpeg_exe_path(tool_paths.ffmpeg_path.as_deref()) {
         let ffmpeg_path_str = ffmpeg_path.to_string_lossy().to_string();
         log::info!("Using FFmpeg for muxing: {}", ffmpeg_path_str);
         final_args.extend_from_slice(&["--ffmpeg-binary-path".to_string(), ffmpeg_path_str]);
@@ -301,7 +301,7 @@ pub async fn parse_url(args: Vec<String>, app: AppHandle) -> Result<StreamInfo, 
 
     // 如果是 HTTP 直链视频，使用 ffmpeg 获取信息
     if url_type.needs_ffmpeg() {
-        return parse_http_video_url(&url, tool_paths.ffmpeg_dir.as_deref()).await;
+        return parse_http_video_url(&url, tool_paths.ffmpeg_path.as_deref()).await;
     }
 
     // 如果不是流媒体格式，返回错误
@@ -310,7 +310,7 @@ pub async fn parse_url(args: Vec<String>, app: AppHandle) -> Result<StreamInfo, 
     }
 
     // 获取 N_m3u8DL-RE 可执行文件路径
-    let program = match get_downloader_exe_path(tool_paths.downloader_dir.as_deref()) {
+    let program = match get_downloader_exe_path(tool_paths.m3u8dl_path.as_deref()) {
         Some(path) => path.to_string_lossy().to_string(),
         None => {
             return Err(
@@ -801,7 +801,7 @@ pub async fn start_http_video_download(
     let tool_paths = get_tool_paths_from_config(&app);
 
     // 获取 FFmpeg 可执行文件路径
-    let ffmpeg = match get_ffmpeg_exe_path(tool_paths.ffmpeg_dir.as_deref()) {
+    let ffmpeg = match get_ffmpeg_exe_path(tool_paths.ffmpeg_path.as_deref()) {
         Some(path) => path.to_string_lossy().to_string(),
         None => {
             return Err(
@@ -1272,7 +1272,7 @@ pub async fn analyze_media_file(
     let tool_paths = get_tool_paths_from_config(&app);
 
     // 获取 ffprobe 可执行文件路径
-    let ffprobe = match get_ffprobe_exe_path(tool_paths.ffmpeg_dir.as_deref()) {
+    let ffprobe = match get_ffprobe_exe_path(tool_paths.ffprobe_path.as_deref()) {
         Some(path) => path.to_string_lossy().to_string(),
         None => {
             return Err(

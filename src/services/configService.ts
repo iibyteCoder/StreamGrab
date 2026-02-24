@@ -1,14 +1,35 @@
 /**
  * 配置服务
- * 管理应用配置的持久化（使用 SQLite）
+ *
+ * 管理应用配置的持久化，使用字段级别更新
  */
 
 import { invokeTauri } from "./tauri";
-import type { AppSettings } from "@/types";
-import { DEFAULT_SETTINGS } from "@/utils/constants";
+import type {
+  AppSettings,
+  M3U8DLSettings,
+  FFmpegSettings,
+  NetworkSettings,
+  DecryptionSettings,
+  NetworkHeader,
+  DecryptionKey,
+  AllConfig,
+} from "@/domain/config";
+import {
+  DEFAULT_APP_SETTINGS,
+  DEFAULT_M3U8DL_SETTINGS,
+  DEFAULT_FFMPEG_SETTINGS,
+  DEFAULT_NETWORK_SETTINGS,
+  DEFAULT_DECRYPTION_SETTINGS,
+} from "@/domain/config";
 
-// 配置模块的 key 类型
-export type SettingsKey = keyof AppSettings;
+// 配置表类型
+export type ConfigTable =
+  | "app"
+  | "m3u8dl"
+  | "ffmpeg"
+  | "network"
+  | "decryption";
 
 /**
  * 文件信息接口
@@ -32,52 +53,212 @@ export interface FileInfo {
  * 配置服务类
  */
 class ConfigService {
+  // ========================================
+  // 新版 API：字段级别更新
+  // ========================================
+
+  /**
+   * 获取应用配置
+   */
+  async getAppSettings(): Promise<AppSettings> {
+    return await invokeTauri<AppSettings>("get_app_settings");
+  }
+
+  /**
+   * 更新应用配置字段
+   * @param field 字段名
+   * @param value 字段值
+   */
+  async updateAppSettingField(
+    field: keyof AppSettings,
+    value: string | boolean,
+  ): Promise<void> {
+    await invokeTauri("update_app_setting_field", {
+      field,
+      value: String(value),
+    });
+  }
+
+  /**
+   * 获取 M3U8DL 配置
+   */
+  async getM3U8DLSettings(): Promise<M3U8DLSettings> {
+    return await invokeTauri<M3U8DLSettings>("get_m3u8dl_settings");
+  }
+
+  /**
+   * 更新 M3U8DL 配置字段
+   * @param field 字段名
+   * @param value 字段值
+   */
+  async updateM3U8DLSettingField(
+    field: keyof M3U8DLSettings,
+    value: string | number | boolean | null,
+  ): Promise<void> {
+    await invokeTauri("update_m3u8dl_setting_field", {
+      field,
+      value: value === null ? "" : String(value),
+    });
+  }
+
+  /**
+   * 获取 FFmpeg 配置
+   */
+  async getFFmpegSettings(): Promise<FFmpegSettings> {
+    return await invokeTauri<FFmpegSettings>("get_ffmpeg_settings");
+  }
+
+  /**
+   * 更新 FFmpeg 配置字段
+   * @param field 字段名
+   * @param value 字段值
+   */
+  async updateFFmpegSettingField(
+    field: keyof FFmpegSettings,
+    value: string | number | boolean | null,
+  ): Promise<void> {
+    await invokeTauri("update_ffmpeg_setting_field", {
+      field,
+      value: value === null ? "" : String(value),
+    });
+  }
+
+  /**
+   * 获取网络配置
+   */
+  async getNetworkSettings(): Promise<NetworkSettings> {
+    return await invokeTauri<NetworkSettings>("get_network_settings");
+  }
+
+  /**
+   * 更新网络配置字段
+   * @param field 字段名
+   * @param value 字段值
+   */
+  async updateNetworkSettingField(
+    field: keyof NetworkSettings,
+    value: string | boolean | null,
+  ): Promise<void> {
+    await invokeTauri("update_network_setting_field", {
+      field,
+      value: value === null ? "" : String(value),
+    });
+  }
+
+  /**
+   * 获取解密配置
+   */
+  async getDecryptionSettings(): Promise<DecryptionSettings> {
+    return await invokeTauri<DecryptionSettings>("get_decryption_settings");
+  }
+
+  /**
+   * 更新解密配置字段
+   * @param field 字段名
+   * @param value 字段值
+   */
+  async updateDecryptionSettingField(
+    field: keyof DecryptionSettings,
+    value: string | boolean | null,
+  ): Promise<void> {
+    await invokeTauri("update_decryption_setting_field", {
+      field,
+      value: value === null ? "" : String(value),
+    });
+  }
+
+  // ========================================
+  // 网络请求头管理
+  // ========================================
+
+  /**
+   * 获取所有网络请求头
+   */
+  async getNetworkHeaders(): Promise<NetworkHeader[]> {
+    return await invokeTauri<NetworkHeader[]>("get_network_headers");
+  }
+
+  /**
+   * 添加网络请求头
+   */
+  async addNetworkHeader(name: string, value: string): Promise<number> {
+    return await invokeTauri<number>("add_network_header", { name, value });
+  }
+
+  /**
+   * 更新网络请求头
+   */
+  async updateNetworkHeader(
+    id: number,
+    name: string,
+    value: string,
+    enabled: boolean,
+  ): Promise<void> {
+    await invokeTauri("update_network_header", { id, name, value, enabled });
+  }
+
+  /**
+   * 删除网络请求头
+   */
+  async deleteNetworkHeader(id: number): Promise<void> {
+    await invokeTauri("delete_network_header", { id });
+  }
+
+  // ========================================
+  // 解密密钥管理
+  // ========================================
+
+  /**
+   * 获取所有解密密钥
+   */
+  async getDecryptionKeys(): Promise<DecryptionKey[]> {
+    return await invokeTauri<DecryptionKey[]>("get_decryption_keys");
+  }
+
+  /**
+   * 添加解密密钥
+   */
+  async addDecryptionKey(kid: string | null, key: string): Promise<number> {
+    return await invokeTauri<number>("add_decryption_key", { kid, key });
+  }
+
+  /**
+   * 删除解密密钥
+   */
+  async deleteDecryptionKey(id: number): Promise<void> {
+    await invokeTauri("delete_decryption_key", { id });
+  }
+
+  // ========================================
+  // 加载所有配置
+  // ========================================
+
   /**
    * 加载所有配置
    */
-  async loadSettings(): Promise<AppSettings> {
+  async loadAllConfig(): Promise<AllConfig> {
     const settingsMap =
-      await invokeTauri<Record<string, Record<string, unknown>>>(
-        "load_settings",
-      );
+      await invokeTauri<Record<string, unknown>>("load_settings");
 
-    const settings = this.mapToAppSettings(settingsMap);
-    return this.mergeWithDefaults(settings);
+    return {
+      app: (settingsMap["app"] as AppSettings) || DEFAULT_APP_SETTINGS,
+      m3u8dl:
+        (settingsMap["m3u8dl"] as M3U8DLSettings) || DEFAULT_M3U8DL_SETTINGS,
+      ffmpeg:
+        (settingsMap["ffmpeg"] as FFmpegSettings) || DEFAULT_FFMPEG_SETTINGS,
+      network:
+        (settingsMap["network"] as NetworkSettings) || DEFAULT_NETWORK_SETTINGS,
+      decryption:
+        (settingsMap["decryption"] as DecryptionSettings) ||
+        DEFAULT_DECRYPTION_SETTINGS,
+      headers: (settingsMap["headers"] as NetworkHeader[]) || [],
+      keys: (settingsMap["keys"] as DecryptionKey[]) || [],
+    };
   }
 
-  /**
-   * 保存单个配置模块
-   * @param key 配置模块名称
-   * @param value 配置值
-   */
-  async saveSetting<K extends SettingsKey>(
-    key: K,
-    value: AppSettings[K],
-  ): Promise<void> {
-    await invokeTauri("save_setting", { key, value });
-  }
-
-  /**
-   * 保存所有配置（用于导入配置后）
-   */
-  async saveAllSettings(settings: AppSettings): Promise<void> {
-    const settingsMap = this.appSettingsToMap(settings);
-    await invokeTauri("save_settings", { settings: settingsMap });
-  }
-
-  /**
-   * 重置单个配置模块
-   */
-  async resetSetting(key: SettingsKey): Promise<void> {
-    await invokeTauri("reset_setting", { key });
-  }
-
-  /**
-   * 重置所有配置为默认值
-   */
-  async resetAllSettings(): Promise<void> {
-    await invokeTauri("reset_all_settings");
-  }
+  // ========================================
+  // 导入/导出
+  // ========================================
 
   /**
    * 导出配置到文件
@@ -89,12 +270,14 @@ class ConfigService {
   /**
    * 从文件导入配置
    */
-  async importConfig(filePath: string): Promise<AppSettings> {
+  async importConfig(filePath: string): Promise<AllConfig> {
     await invokeTauri("import_config", { filePath });
-    return this.loadSettings();
+    return this.loadAllConfig();
   }
 
-  // ========== 工具方法 ==========
+  // ========================================
+  // 工具方法
+  // ========================================
 
   async getDbPath(): Promise<string> {
     return await invokeTauri<string>("get_db_path");
@@ -124,7 +307,6 @@ class ConfigService {
 
   /**
    * 获取文件详细信息
-   * @param path 文件路径
    */
   async getFileInfo(path: string): Promise<FileInfo> {
     const info = await invokeTauri<{
@@ -146,74 +328,56 @@ class ConfigService {
     };
   }
 
-  // ========== 私有方法 ==========
+  // ========================================
+  // 通用字段更新方法
+  // ========================================
 
-  private mapToAppSettings(
-    map: Record<string, Record<string, unknown>>,
-  ): Partial<AppSettings> {
-    return {
-      general: map["general"] as unknown as AppSettings["general"],
-      download: map["download"] as unknown as AppSettings["download"],
-      mux: map["mux"] as unknown as AppSettings["mux"],
-      network: map["network"] as unknown as AppSettings["network"],
-      live: map["live"] as unknown as AppSettings["live"],
-      decryption: map["decryption"] as unknown as AppSettings["decryption"],
-      advanced: map["advanced"] as unknown as AppSettings["advanced"],
-      ui: map["ui"] as unknown as AppSettings["ui"],
-    };
-  }
+  /**
+   * 通用更新配置字段方法
+   * @param table 配置表名
+   * @param field 字段名
+   * @param value 字段值
+   */
+  async updateSettingField(
+    table: ConfigTable,
+    field: string,
+    value: string | number | boolean | null,
+  ): Promise<void> {
+    const stringValue = value === null ? "" : String(value);
 
-  private appSettingsToMap(
-    settings: AppSettings,
-  ): Record<string, Record<string, unknown>> {
-    const keys: SettingsKey[] = [
-      "general",
-      "download",
-      "mux",
-      "network",
-      "live",
-      "decryption",
-      "advanced",
-      "ui",
-    ];
-    const result: Record<string, Record<string, unknown>> = {};
-    for (const key of keys) {
-      result[key] = settings[key] as unknown as Record<string, unknown>;
-    }
-    return result;
-  }
-
-  private mergeWithDefaults(settings: Partial<AppSettings>): AppSettings {
-    const result = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as AppSettings;
-    this.deepMerge(
-      result as unknown as Record<string, unknown>,
-      settings as unknown as Record<string, unknown>,
-    );
-    return result;
-  }
-
-  private deepMerge(
-    target: Record<string, unknown>,
-    source: Record<string, unknown> | undefined,
-  ): void {
-    if (!source) return;
-    for (const key of Object.keys(source)) {
-      if (
-        key in target &&
-        typeof target[key] === "object" &&
-        target[key] !== null &&
-        !Array.isArray(target[key]) &&
-        typeof source[key] === "object" &&
-        source[key] !== null &&
-        !Array.isArray(source[key])
-      ) {
-        this.deepMerge(
-          target[key] as Record<string, unknown>,
-          source[key] as Record<string, unknown>,
+    switch (table) {
+      case "app":
+        await this.updateAppSettingField(
+          field as keyof AppSettings,
+          stringValue,
         );
-      } else if (source[key] !== undefined) {
-        target[key] = source[key];
-      }
+        break;
+      case "m3u8dl":
+        await this.updateM3U8DLSettingField(
+          field as keyof M3U8DLSettings,
+          value,
+        );
+        break;
+      case "ffmpeg":
+        await this.updateFFmpegSettingField(
+          field as keyof FFmpegSettings,
+          value,
+        );
+        break;
+      case "network":
+        await this.updateNetworkSettingField(
+          field as keyof NetworkSettings,
+          stringValue,
+        );
+        break;
+      case "decryption":
+        await this.updateDecryptionSettingField(
+          field as keyof DecryptionSettings,
+          stringValue,
+        );
+        break;
+      default:
+        throw new Error(`Unknown config table: ${table}`);
     }
   }
 }

@@ -6,7 +6,15 @@
 import { computed, onMounted } from "vue";
 import { useSettingsStore } from "@/stores";
 import { configService } from "@/services";
-import type { AppSettings } from "@/types";
+import type {
+  AppSettings,
+  M3U8DLSettings,
+  FFmpegSettings,
+  NetworkSettings,
+  DecryptionSettings,
+  Theme,
+  Language,
+} from "@/domain/config";
 
 /**
  * 设置组合式函数
@@ -15,59 +23,55 @@ export function useSettings() {
   const store = useSettingsStore();
 
   // Computed
-  const settings = computed(() => store.settings);
+  const appSettings = computed(() => store.appSettings);
+  const m3u8dlSettings = computed(() => store.m3u8dlSettings);
+  const ffmpegSettings = computed(() => store.ffmpegSettings);
+  const networkSettings = computed(() => store.networkSettings);
+  const decryptionSettings = computed(() => store.decryptionSettings);
+  const networkHeaders = computed(() => store.networkHeaders);
+  const decryptionKeys = computed(() => store.decryptionKeys);
+
   const theme = computed(() => store.theme);
   const isLoaded = computed(() => store.isLoaded);
 
-  /**
-   * 加载设置
-   */
+  // Actions
   const loadSettings = (): Promise<void> => store.loadSettings();
-
-  /**
-   * 重置设置
-   */
   const resetSettings = (): Promise<void> => store.resetSettings();
+  const setTheme = (newTheme: Theme) => store.setTheme(newTheme);
+  const setLanguage = (lang: Language) => store.setLanguage(lang);
 
-  // 更新方法 - 直接调用 store，会自动保存到数据库
-  const updateGeneral = (value: Partial<AppSettings["general"]>) =>
-    store.updateGeneral(value);
+  // 字段更新方法
+  const updateAppField = <K extends keyof AppSettings>(
+    field: K,
+    value: AppSettings[K],
+  ) => store.updateAppField(field, value);
 
-  const updateDownload = (value: Partial<AppSettings["download"]>) =>
-    store.updateDownload(value);
+  const updateM3U8DLField = <K extends keyof M3U8DLSettings>(
+    field: K,
+    value: M3U8DLSettings[K],
+  ) => store.updateM3U8DLField(field, value);
 
-  const updateMux = (value: Partial<AppSettings["mux"]>) =>
-    store.updateMux(value);
+  const updateFFmpegField = <K extends keyof FFmpegSettings>(
+    field: K,
+    value: FFmpegSettings[K],
+  ) => store.updateFFmpegField(field, value);
 
-  const updateNetwork = (value: Partial<AppSettings["network"]>) =>
-    store.updateNetwork(value);
+  const updateNetworkField = <K extends keyof NetworkSettings>(
+    field: K,
+    value: NetworkSettings[K],
+  ) => store.updateNetworkField(field, value);
 
-  const updateDecryption = (value: Partial<AppSettings["decryption"]>) =>
-    store.updateDecryption(value);
+  const updateDecryptionField = <K extends keyof DecryptionSettings>(
+    field: K,
+    value: DecryptionSettings[K],
+  ) => store.updateDecryptionField(field, value);
 
-  const updateLive = (value: Partial<AppSettings["live"]>) =>
-    store.updateLive(value);
-
-  const updateAdvanced = (value: Partial<AppSettings["advanced"]>) =>
-    store.updateAdvanced(value);
-
-  const updateUi = (value: Partial<AppSettings["ui"]>) => store.updateUi(value);
-
-  const setTheme = (newTheme: "light" | "dark" | "system") =>
-    store.setTheme(newTheme);
-
-  /**
-   * 导出配置
-   */
+  // 导入导出
   const exportConfig = (filePath: string): Promise<void> =>
     configService.exportConfig(filePath);
 
-  /**
-   * 导入配置
-   */
   const importConfig = async (filePath: string): Promise<void> => {
-    const imported = await configService.importConfig(filePath);
-    await store.setSettings(imported);
+    await store.importConfig(filePath);
     store.initTheme();
   };
 
@@ -85,7 +89,15 @@ export function useSettings() {
 
   return {
     // State
-    settings,
+    appSettings,
+    m3u8dlSettings,
+    ffmpegSettings,
+    networkSettings,
+    decryptionSettings,
+    networkHeaders,
+    decryptionKeys,
+
+    // Computed
     theme,
     isLoaded,
 
@@ -93,16 +105,14 @@ export function useSettings() {
     loadSettings,
     resetSettings,
     setTheme,
+    setLanguage,
 
-    // 更新方法
-    updateGeneral,
-    updateDownload,
-    updateMux,
-    updateNetwork,
-    updateDecryption,
-    updateLive,
-    updateAdvanced,
-    updateUi,
+    // 字段更新
+    updateAppField,
+    updateM3U8DLField,
+    updateFFmpegField,
+    updateNetworkField,
+    updateDecryptionField,
 
     // 导入导出
     exportConfig,

@@ -7,10 +7,10 @@
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { AppIcon } from "@/components/common";
-import type { ConfigTemplate } from "@/types";
+import type { LegacyConfigTemplate } from "@/types";
 
 interface Props {
-  template: ConfigTemplate;
+  template: LegacyConfigTemplate;
   isPreset?: boolean;
 }
 

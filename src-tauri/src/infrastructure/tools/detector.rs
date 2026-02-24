@@ -158,32 +158,57 @@ impl ToolDetector {
 
 /// 获取 N_m3u8DL-RE 可执行文件路径
 ///
-/// 优先使用配置目录，其次从系统 PATH 查找
-pub fn get_downloader_exe_path(configured_dir: Option<&str>) -> Option<PathBuf> {
+/// 支持两种配置方式：
+/// 1. 完整可执行文件路径：直接返回
+/// 2. 目录路径：在目录中查找可执行文件
+/// 3. 从系统 PATH 查找
+pub fn get_downloader_exe_path(configured_path: Option<&str>) -> Option<PathBuf> {
     let registry = ToolRegistry::global();
     let exe_names = registry.downloader().exe_names();
 
-    // 1. 从配置目录查找
-    if let Some(dir) = configured_dir {
-        let dir_path = PathBuf::from(dir);
-        if let Some(exe) = exe_names.find_in_dir(&dir_path) {
-            return Some(exe);
+    if let Some(path) = configured_path {
+        let path_buf = PathBuf::from(path);
+
+        // 如果是文件且存在，直接返回
+        if path_buf.is_file() {
+            return Some(path_buf);
+        }
+
+        // 如果是目录，在目录中查找
+        if path_buf.is_dir() {
+            if let Some(exe) = exe_names.find_in_dir(&path_buf) {
+                return Some(exe);
+            }
         }
     }
 
-    // 2. 从系统 PATH 查找
+    // 从系统 PATH 查找
     which::which(exe_names.main_exe()).ok()
 }
 
 /// 获取 FFmpeg 可执行文件路径
-pub fn get_ffmpeg_exe_path(configured_dir: Option<&str>) -> Option<PathBuf> {
+///
+/// 支持两种配置方式：
+/// 1. 完整可执行文件路径：直接返回
+/// 2. 目录路径：在目录中查找可执行文件
+/// 3. 从系统 PATH 查找
+pub fn get_ffmpeg_exe_path(configured_path: Option<&str>) -> Option<PathBuf> {
     let registry = ToolRegistry::global();
     let exe_names = registry.ffmpeg().exe_names();
 
-    if let Some(dir) = configured_dir {
-        let dir_path = PathBuf::from(dir);
-        if let Some(exe) = exe_names.find_in_dir(&dir_path) {
-            return Some(exe);
+    if let Some(path) = configured_path {
+        let path_buf = PathBuf::from(path);
+
+        // 如果是文件且存在，直接返回
+        if path_buf.is_file() {
+            return Some(path_buf);
+        }
+
+        // 如果是目录，在目录中查找
+        if path_buf.is_dir() {
+            if let Some(exe) = exe_names.find_in_dir(&path_buf) {
+                return Some(exe);
+            }
         }
     }
 
@@ -191,14 +216,28 @@ pub fn get_ffmpeg_exe_path(configured_dir: Option<&str>) -> Option<PathBuf> {
 }
 
 /// 获取 FFprobe 可执行文件路径
-pub fn get_ffprobe_exe_path(configured_dir: Option<&str>) -> Option<PathBuf> {
+///
+/// 支持两种配置方式：
+/// 1. 完整可执行文件路径：直接返回
+/// 2. 目录路径：在目录中查找可执行文件
+/// 3. 从系统 PATH 查找
+pub fn get_ffprobe_exe_path(configured_path: Option<&str>) -> Option<PathBuf> {
     let registry = ToolRegistry::global();
     let exe_names = registry.ffprobe().exe_names();
 
-    if let Some(dir) = configured_dir {
-        let dir_path = PathBuf::from(dir);
-        if let Some(exe) = exe_names.find_in_dir(&dir_path) {
-            return Some(exe);
+    if let Some(path) = configured_path {
+        let path_buf = PathBuf::from(path);
+
+        // 如果是文件且存在，直接返回
+        if path_buf.is_file() {
+            return Some(path_buf);
+        }
+
+        // 如果是目录，在目录中查找
+        if path_buf.is_dir() {
+            if let Some(exe) = exe_names.find_in_dir(&path_buf) {
+                return Some(exe);
+            }
         }
     }
 

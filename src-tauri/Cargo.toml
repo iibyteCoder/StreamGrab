@@ -58,6 +58,9 @@ dashmap = "6.1"
 # SQLite 数据库
 rusqlite = { version = "0.31", features = ["bundled"] }
 
+# TOML 配置解析
+toml = "0.8"
+
 # 字符编码处理 (Windows GBK 支持)
 encoding_rs = "0.8"
 

@@ -1,0 +1,12 @@
+# StreamGrab 环境配置示例
+# 复制此文件为 config.dev.toml (开发) 或 config.prod.toml (生产)
+
+[database]
+# 数据库文件名或绝对路径
+# 开发环境建议: "streamgrab_dev.db"
+# 生产环境建议: "streamgrab.db"
+path = "streamgrab.db"
+
+[logging]
+# 日志级别: DEBUG, INFO, WARN, ERROR, OFF
+level = "INFO"

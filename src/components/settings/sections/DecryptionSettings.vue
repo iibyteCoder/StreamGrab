@@ -8,16 +8,16 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { AppIcon } from "@/components/common";
 import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from "..";
-import type { DecryptionSettings, KeyConfig } from "@/types";
+import type { LegacyDecryptionSettings, KeyConfig } from "@/types";
 
 interface Props {
-  settings: { decryption: DecryptionSettings };
+  settings: { decryption: LegacyDecryptionSettings };
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: "update:settings", value: Partial<DecryptionSettings>): void;
+  (e: "update:settings", value: Partial<LegacyDecryptionSettings>): void;
 }>();
 
 // 解密引擎选项
@@ -46,7 +46,7 @@ const keys = computed(() => props.settings.decryption.keys);
 const customHls = computed(() => props.settings.decryption.customHls);
 
 // 更新设置
-const updateDecryption = (value: Partial<DecryptionSettings>) => {
+const updateDecryption = (value: Partial<LegacyDecryptionSettings>) => {
   emit("update:settings", value);
 };
 
@@ -81,7 +81,9 @@ const updateKeyValue = (index: number, key: string) => {
 };
 
 // 更新自定义 HLS 设置
-const updateCustomHls = (value: Partial<DecryptionSettings["customHls"]>) => {
+const updateCustomHls = (
+  value: Partial<LegacyDecryptionSettings["customHls"]>,
+) => {
   updateDecryption({
     customHls: { ...props.settings.decryption.customHls, ...value },
   });

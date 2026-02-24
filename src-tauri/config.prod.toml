@@ -1,0 +1,7 @@
+# 生产环境配置
+
+[database]
+path = "streamgrab.db"
+
+[logging]
+level = "INFO"

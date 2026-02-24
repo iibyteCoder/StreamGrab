@@ -1,128 +1,199 @@
 /**
  * 设置状态管理
- * 修改配置时立即保存到数据库
+ *
+ * 使用新的配置结构，支持字段级别更新
  */
 
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { AppSettings } from "@/types";
-import { DEFAULT_SETTINGS } from "@/utils/constants";
-import { configService } from "@/services";
+import type {
+  AppSettings,
+  M3U8DLSettings,
+  FFmpegSettings,
+  NetworkSettings,
+  DecryptionSettings,
+  NetworkHeader,
+  DecryptionKey,
+  Theme,
+  Language,
+  AllConfig,
+} from "@/domain/config";
+import {
+  DEFAULT_APP_SETTINGS,
+  DEFAULT_M3U8DL_SETTINGS,
+  DEFAULT_FFMPEG_SETTINGS,
+  DEFAULT_NETWORK_SETTINGS,
+  DEFAULT_DECRYPTION_SETTINGS,
+} from "@/domain/config";
+import { configService } from "@/services/configService";
 import { setLocale } from "@/locales";
 
 export const useSettingsStore = defineStore("settings", () => {
+  // ========================================
   // State
-  const settings = ref<AppSettings>(
-    JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
-  );
+  // ========================================
+
+  const appSettings = ref<AppSettings>({ ...DEFAULT_APP_SETTINGS });
+  const m3u8dlSettings = ref<M3U8DLSettings>({ ...DEFAULT_M3U8DL_SETTINGS });
+  const ffmpegSettings = ref<FFmpegSettings>({ ...DEFAULT_FFMPEG_SETTINGS });
+  const networkSettings = ref<NetworkSettings>({ ...DEFAULT_NETWORK_SETTINGS });
+  const decryptionSettings = ref<DecryptionSettings>({
+    ...DEFAULT_DECRYPTION_SETTINGS,
+  });
+
+  const networkHeaders = ref<NetworkHeader[]>([]);
+  const decryptionKeys = ref<DecryptionKey[]>([]);
+
   const isLoading = ref(false);
   const isLoaded = ref(false);
   const error = ref<string | null>(null);
 
+  // ========================================
   // Computed
-  const theme = computed(() => settings.value.ui.theme);
+  // ========================================
 
+  const theme = computed<Theme>(() => appSettings.value.theme);
+  const m3u8dlPath = computed(() => m3u8dlSettings.value.n_m3u8dl_path);
+  const ffmpegPath = computed(() => ffmpegSettings.value.ffmpeg_path);
+  const ffprobePath = computed(() => ffmpegSettings.value.ffprobe_path);
+
+  // ========================================
   // Actions
+  // ========================================
 
-  /**
-   * 加载配置
-   */
   async function loadSettings(): Promise<void> {
     isLoading.value = true;
     error.value = null;
 
     try {
-      const loaded = await configService.loadSettings();
-      settings.value = loaded;
+      const config = await configService.loadAllConfig();
+
+      appSettings.value = config.app;
+      m3u8dlSettings.value = config.m3u8dl;
+      ffmpegSettings.value = config.ffmpeg;
+      networkSettings.value = config.network;
+      decryptionSettings.value = config.decryption;
+      networkHeaders.value = config.headers;
+      decryptionKeys.value = config.keys;
+
       isLoaded.value = true;
-      setLocale(loaded.general.language);
+      setLocale(appSettings.value.language);
+      applyTheme(appSettings.value.theme);
     } catch (e) {
       error.value = e instanceof Error ? e.message : "加载配置失败";
       console.error("Failed to load settings:", e);
-      settings.value = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+
+      // 使用默认值
+      appSettings.value = { ...DEFAULT_APP_SETTINGS };
+      m3u8dlSettings.value = { ...DEFAULT_M3U8DL_SETTINGS };
+      ffmpegSettings.value = { ...DEFAULT_FFMPEG_SETTINGS };
+      networkSettings.value = { ...DEFAULT_NETWORK_SETTINGS };
+      decryptionSettings.value = { ...DEFAULT_DECRYPTION_SETTINGS };
+      networkHeaders.value = [];
+      decryptionKeys.value = [];
+
       isLoaded.value = true;
     } finally {
       isLoading.value = false;
     }
   }
 
-  /**
-   * 更新配置模块并立即保存
-   */
-  async function updateSection<K extends keyof AppSettings>(
-    section: K,
-    value: Partial<AppSettings[K]>,
+  async function updateAppField<K extends keyof AppSettings>(
+    field: K,
+    value: AppSettings[K],
   ): Promise<void> {
-    // 更新本地状态
-    settings.value[section] = {
-      ...settings.value[section],
-      ...value,
-    } as AppSettings[K];
+    const oldValue = appSettings.value[field];
+    appSettings.value[field] = value;
 
-    // 立即保存到数据库
     try {
-      await configService.saveSetting(section, settings.value[section]);
+      await configService.updateAppSettingField(
+        field,
+        value as string | boolean,
+      );
     } catch (e) {
-      console.error(`Failed to save ${section} settings:`, e);
+      appSettings.value[field] = oldValue;
       throw e;
     }
   }
 
+  async function updateM3U8DLField<K extends keyof M3U8DLSettings>(
+    field: K,
+    value: M3U8DLSettings[K],
+  ): Promise<void> {
+    const oldValue = m3u8dlSettings.value[field];
+    m3u8dlSettings.value[field] = value;
+
+    try {
+      await configService.updateM3U8DLSettingField(field, value);
+    } catch (e) {
+      m3u8dlSettings.value[field] = oldValue;
+      throw e;
+    }
+  }
+
+  async function updateFFmpegField<K extends keyof FFmpegSettings>(
+    field: K,
+    value: FFmpegSettings[K],
+  ): Promise<void> {
+    const oldValue = ffmpegSettings.value[field];
+    ffmpegSettings.value[field] = value;
+
+    try {
+      await configService.updateFFmpegSettingField(field, value);
+    } catch (e) {
+      ffmpegSettings.value[field] = oldValue;
+      throw e;
+    }
+  }
+
+  async function updateNetworkField<K extends keyof NetworkSettings>(
+    field: K,
+    value: NetworkSettings[K],
+  ): Promise<void> {
+    const oldValue = networkSettings.value[field];
+    networkSettings.value[field] = value;
+
+    try {
+      await configService.updateNetworkSettingField(field, value);
+    } catch (e) {
+      networkSettings.value[field] = oldValue;
+      throw e;
+    }
+  }
+
+  async function updateDecryptionField<K extends keyof DecryptionSettings>(
+    field: K,
+    value: DecryptionSettings[K],
+  ): Promise<void> {
+    const oldValue = decryptionSettings.value[field];
+    decryptionSettings.value[field] = value;
+
+    try {
+      await configService.updateDecryptionSettingField(field, value);
+    } catch (e) {
+      decryptionSettings.value[field] = oldValue;
+      throw e;
+    }
+  }
+
+  // ========================================
   // 便捷方法
-  const updateGeneral = (value: Partial<AppSettings["general"]>) =>
-    updateSection("general", value);
+  // ========================================
 
-  const updateDownload = (value: Partial<AppSettings["download"]>) =>
-    updateSection("download", value);
+  const setSaveDir = (dir: string) => updateAppField("default_save_dir", dir);
+  const setTmpDir = (dir: string) => updateAppField("default_tmp_dir", dir);
 
-  const updateMux = (value: Partial<AppSettings["mux"]>) =>
-    updateSection("mux", value);
-
-  const updateNetwork = (value: Partial<AppSettings["network"]>) =>
-    updateSection("network", value);
-
-  const updateLive = (value: Partial<AppSettings["live"]>) =>
-    updateSection("live", value);
-
-  const updateDecryption = (value: Partial<AppSettings["decryption"]>) =>
-    updateSection("decryption", value);
-
-  const updateAdvanced = (value: Partial<AppSettings["advanced"]>) =>
-    updateSection("advanced", value);
-
-  const updateUi = (value: Partial<AppSettings["ui"]>) =>
-    updateSection("ui", value);
-
-  /**
-   * 设置保存目录
-   */
-  const setSaveDir = (dir: string) => updateGeneral({ saveDir: dir });
-
-  /**
-   * 设置临时目录
-   */
-  const setTmpDir = (dir: string) => updateGeneral({ tmpDir: dir });
-
-  /**
-   * 设置语言
-   */
-  const setLanguage = (lang: AppSettings["general"]["language"]) => {
-    updateGeneral({ language: lang });
+  const setLanguage = (lang: Language) => {
+    updateAppField("language", lang);
     setLocale(lang);
   };
 
-  /**
-   * 设置主题
-   */
-  const setTheme = (newTheme: AppSettings["ui"]["theme"]) => {
-    updateUi({ theme: newTheme });
+  const setTheme = (newTheme: Theme) => {
+    updateAppField("theme", newTheme);
     applyTheme(newTheme);
   };
 
-  /**
-   * 应用主题
-   */
-  function applyTheme(theme: AppSettings["ui"]["theme"]): void {
+  function applyTheme(theme: Theme): void {
     const root = document.documentElement;
     if (theme === "system") {
       const prefersDark = window.matchMedia(
@@ -134,113 +205,188 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
-  /**
-   * 初始化主题
-   */
   function initTheme(): void {
-    applyTheme(settings.value.ui.theme);
+    applyTheme(appSettings.value.theme);
     window
       .matchMedia("(prefers-color-scheme: dark)")
       .addEventListener("change", (e) => {
-        if (settings.value.ui.theme === "system") {
+        if (appSettings.value.theme === "system") {
           document.documentElement.classList.toggle("dark", e.matches);
         }
       });
   }
 
-  /**
-   * 重置所有配置
-   */
-  async function resetSettings(): Promise<void> {
-    await configService.resetAllSettings();
-    settings.value = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  // ========================================
+  // 网络请求头操作
+  // ========================================
+
+  async function addHeader(name: string, value: string): Promise<void> {
+    const id = await configService.addNetworkHeader(name, value);
+    networkHeaders.value.push({
+      id,
+      name,
+      value,
+      enabled: true,
+      sort_order: networkHeaders.value.length,
+    });
   }
 
-  /**
-   * 重置单个配置模块
-   */
-  async function resetSection<K extends keyof AppSettings>(
-    section: K,
+  async function removeHeader(id: number): Promise<void> {
+    const index = networkHeaders.value.findIndex((h) => h.id === id);
+    if (index !== -1) {
+      await configService.deleteNetworkHeader(id);
+      networkHeaders.value.splice(index, 1);
+    }
+  }
+
+  async function updateHeader(
+    id: number,
+    name: string,
+    value: string,
+    enabled: boolean,
   ): Promise<void> {
-    await configService.resetSetting(section);
-    settings.value[section] = JSON.parse(
-      JSON.stringify(DEFAULT_SETTINGS[section]),
-    );
-  }
-
-  /**
-   * 设置配置（用于导入配置后）
-   */
-  async function setSettings(newSettings: AppSettings): Promise<void> {
-    settings.value = newSettings;
-    await configService.saveAllSettings(newSettings);
-  }
-
-  // 请求头操作
-  function addHeader(key: string, value: string): void {
-    settings.value.network.headers.push({ key, value, enabled: true });
-    updateSection("network", { headers: settings.value.network.headers });
-  }
-
-  function removeHeader(index: number): void {
-    settings.value.network.headers.splice(index, 1);
-    updateSection("network", { headers: settings.value.network.headers });
-  }
-
-  function updateHeader(index: number, key: string, value: string): void {
-    if (settings.value.network.headers[index]) {
-      settings.value.network.headers[index].key = key;
-      settings.value.network.headers[index].value = value;
-      updateSection("network", { headers: settings.value.network.headers });
+    const header = networkHeaders.value.find((h) => h.id === id);
+    if (header) {
+      await configService.updateNetworkHeader(id, name, value, enabled);
+      header.name = name;
+      header.value = value;
+      header.enabled = enabled;
     }
   }
 
-  function toggleHeader(index: number): void {
-    if (settings.value.network.headers[index]) {
-      settings.value.network.headers[index].enabled =
-        !settings.value.network.headers[index].enabled;
-      updateSection("network", { headers: settings.value.network.headers });
+  async function toggleHeader(id: number): Promise<void> {
+    const header = networkHeaders.value.find((h) => h.id === id);
+    if (header) {
+      await updateHeader(id, header.name, header.value, !header.enabled);
     }
+  }
+
+  // ========================================
+  // 解密密钥操作
+  // ========================================
+
+  async function addDecryptionKey(
+    kid: string | null,
+    key: string,
+  ): Promise<void> {
+    const id = await configService.addDecryptionKey(kid, key);
+    decryptionKeys.value.push({
+      id,
+      kid,
+      key,
+      sort_order: decryptionKeys.value.length,
+    });
+  }
+
+  async function removeDecryptionKey(id: number): Promise<void> {
+    const index = decryptionKeys.value.findIndex((k) => k.id === id);
+    if (index !== -1) {
+      await configService.deleteDecryptionKey(id);
+      decryptionKeys.value.splice(index, 1);
+    }
+  }
+
+  // ========================================
+  // 导入/导出
+  // ========================================
+
+  async function exportConfig(filePath: string): Promise<void> {
+    await configService.exportConfig(filePath);
+  }
+
+  async function importConfig(filePath: string): Promise<void> {
+    const config = await configService.importConfig(filePath);
+
+    appSettings.value = config.app;
+    m3u8dlSettings.value = config.m3u8dl;
+    ffmpegSettings.value = config.ffmpeg;
+    networkSettings.value = config.network;
+    decryptionSettings.value = config.decryption;
+    networkHeaders.value = config.headers;
+    decryptionKeys.value = config.keys;
+
+    setLocale(appSettings.value.language);
+    applyTheme(appSettings.value.theme);
+  }
+
+  // ========================================
+  // 重置
+  // ========================================
+
+  async function resetSettings(): Promise<void> {
+    appSettings.value = { ...DEFAULT_APP_SETTINGS };
+    m3u8dlSettings.value = { ...DEFAULT_M3U8DL_SETTINGS };
+    ffmpegSettings.value = { ...DEFAULT_FFMPEG_SETTINGS };
+    networkSettings.value = { ...DEFAULT_NETWORK_SETTINGS };
+    decryptionSettings.value = { ...DEFAULT_DECRYPTION_SETTINGS };
+    networkHeaders.value = [];
+    decryptionKeys.value = [];
+  }
+
+  // ========================================
+  // 获取完整配置（用于下载等场景）
+  // ========================================
+
+  function getAllConfig(): AllConfig {
+    return {
+      app: { ...appSettings.value },
+      m3u8dl: { ...m3u8dlSettings.value },
+      ffmpeg: { ...ffmpegSettings.value },
+      network: { ...networkSettings.value },
+      decryption: { ...decryptionSettings.value },
+      headers: [...networkHeaders.value],
+      keys: [...decryptionKeys.value],
+    };
   }
 
   return {
     // State
-    settings,
+    appSettings,
+    m3u8dlSettings,
+    ffmpegSettings,
+    networkSettings,
+    decryptionSettings,
+    networkHeaders,
+    decryptionKeys,
     isLoading,
     isLoaded,
     error,
 
     // Computed
     theme,
+    m3u8dlPath,
+    ffmpegPath,
+    ffprobePath,
 
     // Actions
     loadSettings,
-    setSettings,
     resetSettings,
-    resetSection,
+    importConfig,
+    exportConfig,
+    getAllConfig,
+    initTheme,
 
-    // 更新方法
-    updateSection,
-    updateGeneral,
-    updateDownload,
-    updateMux,
-    updateNetwork,
-    updateLive,
-    updateDecryption,
-    updateAdvanced,
-    updateUi,
+    // 字段更新方法
+    updateAppField,
+    updateM3U8DLField,
+    updateFFmpegField,
+    updateNetworkField,
+    updateDecryptionField,
 
     // 便捷方法
     setSaveDir,
     setTmpDir,
     setLanguage,
     setTheme,
-    initTheme,
 
     // 请求头操作
     addHeader,
     removeHeader,
     updateHeader,
     toggleHeader,
+
+    // 解密密钥操作
+    addDecryptionKey,
+    removeDecryptionKey,
   };
 });

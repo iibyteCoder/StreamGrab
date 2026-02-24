@@ -28,7 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const toast = useToast();
-const { settings } = useSettings();
+const { appSettings, m3u8dlSettings } = useSettings();
 const { addTask, updateTaskConfig, getTask } = useTasks();
 const { startDownload, startPendingTasks, parseUrl, isParsing } =
   useDownloader();
@@ -102,7 +102,7 @@ const addTaskAndDownload = (
   selection?: StreamSelection,
   startAt?: Date | null,
 ) => {
-  const task = addTask(url, undefined, settings.value.general.saveDir);
+  const task = addTask(url, undefined, appSettings.value.default_save_dir);
 
   const config: Record<string, unknown> = { ...task.config };
 
@@ -121,7 +121,7 @@ const addTaskAndDownload = (
     updateTaskConfig(task.id, config);
   }
 
-  if (settings.value.general.autoStartDownload && !startAt) {
+  if (appSettings.value.auto_start_download && !startAt) {
     startDownload(getTask(task.id)!);
   }
 
@@ -140,7 +140,7 @@ const handleDownload = async () => {
   isSubmitting.value = true;
 
   try {
-    if (urls.length === 1 && !settings.value.download.autoSelect) {
+    if (urls.length === 1 && !m3u8dlSettings.value.auto_select) {
       const url = urls[0]!;
       pendingUrl.value = url;
       const info = await parseUrl(url);
@@ -164,7 +164,7 @@ const handleDownload = async () => {
         }
       }
 
-      if (settings.value.general.autoStartDownload) {
+      if (appSettings.value.auto_start_download) {
         await startPendingTasks();
       }
 

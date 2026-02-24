@@ -12,18 +12,18 @@ export type {
   MediaInfo,
 } from "./task";
 
-// 设置相关
+// 设置相关（旧版，保持兼容）
 export type {
-  AppSettings,
+  AppSettings as LegacyAppSettings,
   GeneralSettings,
   DownloadSettings,
   MuxSettings,
-  NetworkSettings,
-  DecryptionSettings,
+  NetworkSettings as LegacyNetworkSettings,
+  DecryptionSettings as LegacyDecryptionSettings,
   LiveSettings,
   AdvancedSettings,
   UISettings,
-  ConfigTemplate,
+  ConfigTemplate as LegacyConfigTemplate,
   ScheduledTask,
 } from "./settings";
 
@@ -60,3 +60,6 @@ export {
   DEFAULT_AD_FILTER_PRESETS,
   HLS_ENCRYPTION_METHODS,
 } from "./common";
+
+// 新版领域类型
+export * from "@/domain";

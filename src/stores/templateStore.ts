@@ -5,7 +5,7 @@
 
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { ConfigTemplate, AppSettings } from "@/types";
+import type { LegacyConfigTemplate, LegacyAppSettings } from "@/types";
 
 const STORAGE_KEY = "streamgrab-config-templates";
 
@@ -19,13 +19,13 @@ function generateId(): string {
 /**
  * 从 localStorage 加载模板
  */
-function loadTemplatesFromStorage(): ConfigTemplate[] {
+function loadTemplatesFromStorage(): LegacyConfigTemplate[] {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
       const templates = JSON.parse(data);
       // 转换日期
-      return templates.map((t: ConfigTemplate) => ({
+      return templates.map((t: LegacyConfigTemplate) => ({
         ...t,
         createdAt: new Date(t.createdAt),
         updatedAt: new Date(t.updatedAt),
@@ -40,7 +40,7 @@ function loadTemplatesFromStorage(): ConfigTemplate[] {
 /**
  * 保存模板到 localStorage
  */
-function saveTemplatesToStorage(templates: ConfigTemplate[]): void {
+function saveTemplatesToStorage(templates: LegacyConfigTemplate[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
   } catch (error) {
@@ -51,7 +51,7 @@ function saveTemplatesToStorage(templates: ConfigTemplate[]): void {
 /**
  * 默认模板
  */
-const DEFAULT_TEMPLATES: ConfigTemplate[] = [
+const DEFAULT_TEMPLATES: LegacyConfigTemplate[] = [
   {
     id: "default-best",
     name: "最佳质量",
@@ -62,7 +62,7 @@ const DEFAULT_TEMPLATES: ConfigTemplate[] = [
         selectVideo: "best",
         selectAudio: "best",
       },
-    } as Partial<AppSettings>,
+    } as Partial<LegacyAppSettings>,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
@@ -76,7 +76,7 @@ const DEFAULT_TEMPLATES: ConfigTemplate[] = [
         selectVideo: 'res="1920*"',
         selectAudio: "best",
       },
-    } as Partial<AppSettings>,
+    } as Partial<LegacyAppSettings>,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
@@ -90,7 +90,7 @@ const DEFAULT_TEMPLATES: ConfigTemplate[] = [
         selectVideo: 'res="1280*"',
         selectAudio: "best",
       },
-    } as Partial<AppSettings>,
+    } as Partial<LegacyAppSettings>,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
@@ -98,7 +98,7 @@ const DEFAULT_TEMPLATES: ConfigTemplate[] = [
 
 export const useTemplateStore = defineStore("template", () => {
   // State
-  const templates = ref<ConfigTemplate[]>([]);
+  const templates = ref<LegacyConfigTemplate[]>([]);
   const isInitialized = ref(false);
 
   // Getters
@@ -134,7 +134,7 @@ export const useTemplateStore = defineStore("template", () => {
   /**
    * 获取模板
    */
-  function getTemplate(id: string): ConfigTemplate | undefined {
+  function getTemplate(id: string): LegacyConfigTemplate | undefined {
     return templates.value.find((t) => t.id === id);
   }
 
@@ -144,10 +144,10 @@ export const useTemplateStore = defineStore("template", () => {
   function addTemplate(
     name: string,
     description: string,
-    settings: Partial<AppSettings>,
-  ): ConfigTemplate {
+    settings: Partial<LegacyAppSettings>,
+  ): LegacyConfigTemplate {
     const now = new Date();
-    const template: ConfigTemplate = {
+    const template: LegacyConfigTemplate = {
       id: generateId(),
       name,
       description,
@@ -167,7 +167,9 @@ export const useTemplateStore = defineStore("template", () => {
    */
   function updateTemplate(
     id: string,
-    updates: Partial<Pick<ConfigTemplate, "name" | "description" | "settings">>,
+    updates: Partial<
+      Pick<LegacyConfigTemplate, "name" | "description" | "settings">
+    >,
   ): boolean {
     const index = templates.value.findIndex((t) => t.id === id);
     if (index === -1) return false;
@@ -208,7 +210,7 @@ export const useTemplateStore = defineStore("template", () => {
   /**
    * 复制模板
    */
-  function duplicateTemplate(id: string): ConfigTemplate | null {
+  function duplicateTemplate(id: string): LegacyConfigTemplate | null {
     const template = getTemplate(id);
     if (!template) return null;
 
@@ -224,8 +226,8 @@ export const useTemplateStore = defineStore("template", () => {
    */
   function applyTemplate(
     templateId: string,
-    currentSettings: AppSettings,
-  ): AppSettings {
+    currentSettings: LegacyAppSettings,
+  ): LegacyAppSettings {
     const template = getTemplate(templateId);
     if (!template) return currentSettings;
 
@@ -233,7 +235,7 @@ export const useTemplateStore = defineStore("template", () => {
     const newSettings = JSON.parse(JSON.stringify(currentSettings));
 
     for (const key of Object.keys(template.settings) as Array<
-      keyof AppSettings
+      keyof LegacyAppSettings
     >) {
       if (template.settings[key]) {
         newSettings[key] = {

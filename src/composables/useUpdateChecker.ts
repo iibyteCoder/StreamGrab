@@ -529,7 +529,7 @@ export function useUpdateChecker() {
    * 自动检查更新（如果设置启用且距离上次检查超过间隔）
    */
   async function autoCheckIfNeeded() {
-    if (!settingsStore.settings.general.checkUpdate) return;
+    if (!settingsStore.appSettings.check_update) return;
 
     // 检查是否需要检查（距离上次检查超过24小时）
     const lastCheck = lastCheckTime.value;

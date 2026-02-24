@@ -15,7 +15,7 @@ export function useNotification() {
    * 检查是否允许显示通知
    */
   const canShowNotification = (): boolean => {
-    return settingsStore.settings.ui.showNotification;
+    return settingsStore.appSettings.show_notification;
   };
 
   /**
