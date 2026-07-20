@@ -4,7 +4,7 @@
  * 通过弹窗方式添加下载任务
  */
 
-import { ref, computed } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import {
   Dialog,
   DialogContent,
@@ -12,10 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AppIcon } from "@/components/common";
+import { AppIcon, UrlDuplicateDialog } from "@/components/common";
 import { useToast, useSettings, useDownloader, useTasks } from "@/composables";
 import { StreamSelector } from "@/components/stream";
-import type { StreamInfo, StreamSelection } from "@/types";
+import type { StreamInfo, StreamSelection, DownloadTask } from "@/types";
 
 interface Props {
   open: boolean;
@@ -29,17 +29,23 @@ const emit = defineEmits<{
 
 const toast = useToast();
 const { appSettings, m3u8dlSettings } = useSettings();
-const { addTask, updateTaskConfig, getTask } = useTasks();
+const { addTask, forceAddTask, updateTaskConfig, getTask } = useTasks();
 const { startDownload, startPendingTasks, parseUrl, isParsing } =
   useDownloader();
 
 // 状态
 const urlInput = ref("");
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const isSubmitting = ref(false);
 const showStreamSelector = ref(false);
 const currentStreamInfo = ref<StreamInfo | null>(null);
 const pendingUrl = ref<string | null>(null);
 const pendingStartAt = ref<Date | null>(null);
+const pendingSelection = ref<StreamSelection | undefined>();
+
+// URL 重复弹窗状态
+const showUrlDuplicateDialog = ref(false);
+const duplicateTask = ref<DownloadTask | null>(null);
 
 // 拖拽状态
 const isDragging = ref(false);
@@ -47,6 +53,14 @@ const isDragging = ref(false);
 const isOpen = computed({
   get: () => props.open,
   set: (value) => emit("update:open", value),
+});
+
+// 弹窗打开时自动聚焦输入框
+watch(isOpen, async (open) => {
+  if (open) {
+    await nextTick();
+    textareaRef.value?.focus();
+  }
 });
 
 // 重置状态
@@ -57,6 +71,9 @@ const reset = () => {
   currentStreamInfo.value = null;
   pendingUrl.value = null;
   pendingStartAt.value = null;
+  pendingSelection.value = undefined;
+  showUrlDuplicateDialog.value = false;
+  duplicateTask.value = null;
 };
 
 // URL 解析
@@ -96,14 +113,12 @@ const handleDrop = async (event: DragEvent) => {
   }
 };
 
-// 添加任务并下载
-const addTaskAndDownload = (
-  url: string,
+// 创建任务并启动下载
+const createTaskAndDownload = (
+  task: DownloadTask,
   selection?: StreamSelection,
   startAt?: Date | null,
 ) => {
-  const task = addTask(url, undefined, appSettings.value.default_save_dir);
-
   const config: Record<string, unknown> = { ...task.config };
 
   if (selection) {
@@ -128,6 +143,61 @@ const addTaskAndDownload = (
   return task;
 };
 
+// 添加任务（带 URL 冲突检测）
+const addTaskAndDownload = (
+  url: string,
+  selection?: StreamSelection,
+  startAt?: Date | null,
+  skipUrlCheck = false,
+): { task?: DownloadTask; duplicateUrl?: boolean } => {
+  const saveDir = appSettings.value.default_save_dir;
+
+  // 如果跳过 URL 检查，直接强制添加
+  if (skipUrlCheck) {
+    const { task } = forceAddTask(url, undefined, saveDir);
+    if (task) {
+      createTaskAndDownload(task, selection, startAt);
+    }
+    return { task };
+  }
+
+  // 正常添加（带冲突检测）
+  const result = addTask(url, undefined, saveDir);
+
+  if (result.duplicateUrl && result.existingTask) {
+    return { duplicateUrl: true, task: result.existingTask };
+  }
+
+  if (result.task) {
+    createTaskAndDownload(result.task, selection, startAt);
+  }
+
+  return { task: result.task };
+};
+
+// 处理 URL 重复确认
+const handleUrlDuplicateConfirm = () => {
+  if (pendingUrl.value) {
+    // 用户确认仍然下载，跳过 URL 检查
+    const { task } = addTaskAndDownload(
+      pendingUrl.value,
+      pendingSelection.value,
+      pendingStartAt.value,
+      true, // skipUrlCheck
+    );
+    if (task) {
+      toast.success("已添加任务");
+    }
+    handleClose();
+  }
+};
+
+const handleUrlDuplicateCancel = () => {
+  // 用户取消，关闭弹窗但保持添加任务对话框打开
+  showUrlDuplicateDialog.value = false;
+  isSubmitting.value = false;
+};
+
 // 下载处理
 const handleDownload = async () => {
   const urls = parseUrls(urlInput.value);
@@ -149,16 +219,29 @@ const handleDownload = async () => {
         currentStreamInfo.value = info;
         showStreamSelector.value = true;
       } else {
-        addTaskAndDownload(url);
-        handleClose();
-        toast.success("已添加任务");
+        // 尝试添加任务
+        const result = addTaskAndDownload(url);
+        if (result.duplicateUrl && result.task) {
+          // URL 重复，显示确认弹窗
+          duplicateTask.value = result.task;
+          showUrlDuplicateDialog.value = true;
+        } else if (result.task) {
+          handleClose();
+          toast.success("已添加任务");
+        }
       }
     } else {
       let successCount = 0;
+      let duplicateCount = 0;
+
       for (const url of urls) {
         try {
-          addTaskAndDownload(url);
-          successCount++;
+          const result = addTaskAndDownload(url);
+          if (result.task) {
+            successCount++;
+          } else if (result.duplicateUrl) {
+            duplicateCount++;
+          }
         } catch {
           // ignore
         }
@@ -171,6 +254,9 @@ const handleDownload = async () => {
       if (successCount > 0) {
         toast.success(`已添加 ${successCount} 个任务`);
       }
+      if (duplicateCount > 0) {
+        toast.warning(`${duplicateCount} 个链接已存在，已跳过`);
+      }
       handleClose();
     }
   } catch (error) {
@@ -178,21 +264,37 @@ const handleDownload = async () => {
       `添加任务失败: ${error instanceof Error ? error.message : "未知错误"}`,
     );
   } finally {
-    isSubmitting.value = false;
+    if (!showUrlDuplicateDialog.value) {
+      isSubmitting.value = false;
+    }
   }
 };
 
 // 流选择器
 const handleStreamConfirm = (selection: StreamSelection) => {
   if (pendingUrl.value) {
-    addTaskAndDownload(pendingUrl.value, selection, pendingStartAt.value);
-    toast.success("已添加任务");
-    handleClose();
+    pendingSelection.value = selection;
+    // 尝试添加任务
+    const result = addTaskAndDownload(
+      pendingUrl.value,
+      selection,
+      pendingStartAt.value,
+    );
+    if (result.duplicateUrl && result.task) {
+      // URL 重复，显示确认弹窗
+      duplicateTask.value = result.task;
+      showStreamSelector.value = false;
+      showUrlDuplicateDialog.value = true;
+    } else if (result.task) {
+      toast.success("已添加任务");
+      handleClose();
+    }
   }
 };
 
 const handleStreamCancel = () => {
   pendingUrl.value = null;
+  pendingSelection.value = undefined;
   currentStreamInfo.value = null;
   showStreamSelector.value = false;
 };
@@ -229,6 +331,7 @@ const handleClose = () => {
         </div>
 
         <textarea
+          ref="textareaRef"
           v-model="urlInput"
           placeholder="输入或粘贴下载链接（支持多个链接，每行一个）&#10;&#10;支持格式：&#10;• M3U8 / M3U&#10;• DASH / MPD&#10;• MSS / ISM"
           class="w-full h-40 px-3 py-2 text-sm bg-muted/50 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
@@ -268,6 +371,14 @@ const handleClose = () => {
         :loading="isParsing"
         @confirm="handleStreamConfirm"
         @cancel="handleStreamCancel"
+      />
+
+      <!-- URL 重复确认弹窗 -->
+      <UrlDuplicateDialog
+        v-model:open="showUrlDuplicateDialog"
+        :existing-task="duplicateTask"
+        @confirm="handleUrlDuplicateConfirm"
+        @cancel="handleUrlDuplicateCancel"
       />
     </DialogContent>
   </Dialog>

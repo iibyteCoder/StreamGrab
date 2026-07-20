@@ -7,6 +7,18 @@ import { computed } from "vue";
 import { useTaskStore } from "@/stores";
 import type { DownloadTask, TaskStatus, TaskProgressData } from "@/types";
 
+/** 添加任务的结果 */
+export interface AddTaskResult {
+  /** 创建的任务（成功时） */
+  task?: DownloadTask;
+  /** URL 是否已存在 */
+  duplicateUrl?: boolean;
+  /** 已存在的任务（URL 重复时） */
+  existingTask?: DownloadTask;
+  /** 文件名是否被重命名 */
+  wasRenamed?: boolean;
+}
+
 /**
  * 任务组合式函数
  */
@@ -44,21 +56,73 @@ export function useTasks() {
   const stats = computed(() => store.totalProgress);
 
   /**
-   * 添加新任务
+   * 检查 URL 是否已存在
+   */
+  const checkUrlExists = (url: string): DownloadTask | undefined => {
+    return store.checkUrlExists(url);
+  };
+
+  /**
+   * 添加新任务（带冲突检测）
+   * @param url 下载链接
+   * @param fileName 文件名（可选）
+   * @param saveDir 保存目录（可选）
+   * @param skipUrlCheck 跳过 URL 重复检查（用户确认后使用）
+   * @returns 添加结果，包含任务对象和冲突信息
    */
   const addTask = (
     url: string,
     fileName?: string,
     saveDir?: string,
-  ): DownloadTask => {
+    skipUrlCheck = false,
+  ): AddTaskResult => {
+    // 检查 URL 是否已存在
+    if (!skipUrlCheck) {
+      const existingTask = store.checkUrlExists(url);
+      if (existingTask) {
+        return {
+          duplicateUrl: true,
+          existingTask,
+        };
+      }
+    }
+
+    // 创建任务（文件名冲突会自动重命名）
+    const { task, wasRenamed } = store.addTaskSync(url, fileName, saveDir);
+    return { task, wasRenamed };
+  };
+
+  /**
+   * 强制添加任务（跳过 URL 检查）
+   */
+  const forceAddTask = (
+    url: string,
+    fileName?: string,
+    saveDir?: string,
+  ): { task: DownloadTask; wasRenamed: boolean } => {
     return store.addTaskSync(url, fileName, saveDir);
   };
 
   /**
    * 批量添加任务
    */
-  const addTasks = (urls: string[], saveDir?: string): DownloadTask[] => {
-    return urls.map((url) => addTask(url, undefined, saveDir));
+  const addTasks = (
+    urls: string[],
+    saveDir?: string,
+  ): { tasks: DownloadTask[]; duplicateUrls: string[] } => {
+    const createdTasks: DownloadTask[] = [];
+    const duplicateUrls: string[] = [];
+
+    for (const url of urls) {
+      const result = addTask(url, undefined, saveDir);
+      if (result.task) {
+        createdTasks.push(result.task);
+      } else if (result.duplicateUrl) {
+        duplicateUrls.push(url);
+      }
+    }
+
+    return { tasks: createdTasks, duplicateUrls };
   };
 
   /**
@@ -198,6 +262,8 @@ export function useTasks() {
     // Actions
     addTask,
     addTasks,
+    forceAddTask,
+    checkUrlExists,
     getTask,
     updateTaskStatus,
     updateTaskProgress,

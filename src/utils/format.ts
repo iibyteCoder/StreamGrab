@@ -264,6 +264,44 @@ export function sanitizeFileName(filename: string): string {
     .slice(0, 200);
 }
 
+/**
+ * 分割文件名为名称和扩展名
+ * @param filename 文件名
+ */
+export function splitFilename(filename: string): { stem: string; ext: string } {
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot <= 0) {
+    return { stem: filename, ext: "" };
+  }
+  return {
+    stem: filename.slice(0, lastDot),
+    ext: filename.slice(lastDot + 1),
+  };
+}
+
+/**
+ * 生成带时间戳的唯一文件名
+ * @param baseName 基础文件名（可含扩展名）
+ * @returns 唯一文件名，格式：basename_YYYYMMDD_HHMMSS.ext
+ */
+export function generateTimestampedFilename(baseName: string): string {
+  const { stem, ext } = splitFilename(baseName);
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+  const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+
+  if (ext) {
+    return `${stem}_${timestamp}.${ext}`;
+  }
+  return `${stem}_${timestamp}`;
+}
+
 // 别名导出，保持 API 一致性
 export const formatBytes = formatFileSize;
 export const formatDate = (date: Date | string | number) =>

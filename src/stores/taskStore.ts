@@ -14,7 +14,7 @@ import type {
   TaskCreateParams,
   MediaInfo,
 } from "@/types/task";
-import { extractFileName } from "@/utils/format";
+import { extractFileName, generateTimestampedFilename } from "@/utils/format";
 import { MAX_CONCURRENT_TASKS } from "@/utils/constants";
 import { taskService, configService } from "@/services";
 
@@ -170,21 +170,50 @@ export const useTaskStore = defineStore("task", () => {
   }
 
   /**
+   * 检查文件名是否冲突（同目录下已有同名任务）
+   */
+  function checkFilenameConflict(saveDir: string, fileName: string): boolean {
+    return tasks.value.some(
+      (t) => t.saveDir === saveDir && t.fileName === fileName,
+    );
+  }
+
+  /**
+   * 检查 URL 是否已存在
+   */
+  function checkUrlExists(url: string): DownloadTask | undefined {
+    const trimmedUrl = url.trim();
+    return tasks.value.find((t) => t.url === trimmedUrl);
+  }
+
+  /**
    * 同步添加任务 - 立即返回，后台持久化
+   * @param url 下载链接
+   * @param fileName 文件名（可选）
+   * @param saveDir 保存目录（可选）
+   * @returns 任务对象和是否重命名了文件名
    */
   function addTaskSync(
     url: string,
     fileName?: string,
     saveDir?: string,
-  ): DownloadTask {
+  ): { task: DownloadTask; wasRenamed: boolean } {
     const now = new Date();
     const id = generateId();
+    const targetDir = saveDir || "";
+    const baseName = fileName || extractNameFromUrl(url);
+
+    // 检查文件名冲突，如果冲突则生成唯一文件名
+    const hasConflict = checkFilenameConflict(targetDir, baseName);
+    const finalFileName = hasConflict
+      ? generateTimestampedFilename(baseName)
+      : baseName;
 
     const task: DownloadTask = {
       id,
       url: url.trim(),
-      fileName: fileName || extractNameFromUrl(url),
-      saveDir: saveDir || "",
+      fileName: finalFileName,
+      saveDir: targetDir,
       status: "pending",
       error: undefined,
       outputPath: undefined,
@@ -222,7 +251,7 @@ export const useTaskStore = defineStore("task", () => {
     };
     taskService.createTask(params).catch(console.error);
 
-    return task;
+    return { task, wasRenamed: hasConflict };
   }
 
   /**
@@ -548,6 +577,7 @@ export const useTaskStore = defineStore("task", () => {
     initialize,
     addTask,
     addTaskSync,
+    checkUrlExists,
     getTask,
     updateTaskConfig,
     updateTaskStatus,
