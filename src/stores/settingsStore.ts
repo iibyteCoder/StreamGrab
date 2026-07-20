@@ -25,7 +25,7 @@ import {
   DEFAULT_NETWORK_SETTINGS,
   DEFAULT_DECRYPTION_SETTINGS,
 } from "@/domain/config";
-import { configService } from "@/services/configService";
+import { configService, type ConfigTable } from "@/services/configService";
 import { setLocale } from "@/locales";
 
 export const useSettingsStore = defineStore("settings", () => {
@@ -313,7 +313,37 @@ export const useSettingsStore = defineStore("settings", () => {
   // 重置
   // ========================================
 
+  /** 将某个配置表的默认值逐字段写回数据库 */
+  async function persistDefaults<T extends object>(
+    table: ConfigTable,
+    defaults: T,
+  ): Promise<void> {
+    for (const [field, value] of Object.entries(defaults)) {
+      await configService.updateSettingField(
+        table,
+        field,
+        value as string | number | boolean | null,
+      );
+    }
+  }
+
   async function resetSettings(): Promise<void> {
+    // 1. 删除所有网络请求头和解密密钥（持久化到数据库）
+    for (const id of networkHeaders.value.map((h) => h.id)) {
+      await removeHeader(id);
+    }
+    for (const id of decryptionKeys.value.map((k) => k.id)) {
+      await removeDecryptionKey(id);
+    }
+
+    // 2. 将各配置表重置为默认值并写回数据库
+    await persistDefaults("app", DEFAULT_APP_SETTINGS);
+    await persistDefaults("m3u8dl", DEFAULT_M3U8DL_SETTINGS);
+    await persistDefaults("ffmpeg", DEFAULT_FFMPEG_SETTINGS);
+    await persistDefaults("network", DEFAULT_NETWORK_SETTINGS);
+    await persistDefaults("decryption", DEFAULT_DECRYPTION_SETTINGS);
+
+    // 3. 更新内存状态
     appSettings.value = { ...DEFAULT_APP_SETTINGS };
     m3u8dlSettings.value = { ...DEFAULT_M3U8DL_SETTINGS };
     ffmpegSettings.value = { ...DEFAULT_FFMPEG_SETTINGS };
@@ -321,6 +351,10 @@ export const useSettingsStore = defineStore("settings", () => {
     decryptionSettings.value = { ...DEFAULT_DECRYPTION_SETTINGS };
     networkHeaders.value = [];
     decryptionKeys.value = [];
+
+    // 4. 应用重置后的语言和主题
+    setLocale(appSettings.value.language);
+    applyTheme(appSettings.value.theme);
   }
 
   // ========================================
