@@ -65,9 +65,10 @@ export const useSettingsStore = defineStore("settings", () => {
         settingsService.getFfmpegConfig(),
       ]);
 
-      appSettings.value = app;
-      nm3u8dlConfig.value = nm3u8dl;
-      ffmpegConfig.value = ffmpeg;
+      // 防御性兜底：后端异常返回 null 时回落默认值（正常路径后端保证完整配置）
+      appSettings.value = app ?? { ...DEFAULT_APP_SETTINGS };
+      nm3u8dlConfig.value = nm3u8dl ?? { ...DEFAULT_NM3U8DL_CONFIG };
+      ffmpegConfig.value = ffmpeg ?? { ...DEFAULT_FFMPEG_CONFIG };
 
       loaded.value = true;
 
