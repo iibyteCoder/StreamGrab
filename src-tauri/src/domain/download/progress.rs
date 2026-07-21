@@ -15,6 +15,7 @@
 //! - 进度维度：每隔 N% 记录一次
 //! - 速度维度：速度变化超过 M% 时额外记录
 
+use crate::shared::AppResult;
 use dashmap::DashMap;
 use std::sync::Arc;
 
@@ -57,7 +58,7 @@ impl Default for TaskProgressBuffer {
 /// 由基础设施层实现，解耦领域层与数据库
 pub trait ProgressRepository: Send + Sync {
     /// 保存进度历史记录
-    fn save(&self, task_id: &str, points: &[ProgressPoint]) -> Result<(), String>;
+    fn save(&self, task_id: &str, points: &[ProgressPoint]) -> AppResult<()>;
 }
 
 /// 进度跟踪器

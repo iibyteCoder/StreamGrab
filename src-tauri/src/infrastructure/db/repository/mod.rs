@@ -1,9 +1,16 @@
-//! 数据库仓库模块
+//! 数据仓储
 //!
-//! 提供各领域实体的数据访问层
+//! 每个仓储持有共享连接（`Arc<Mutex<Connection>>`），
+//! 锁获取统一转为 `AppError::Database`（避免 Mutex 中毒级联 panic）
 
-pub mod config_repo;
-pub mod template_repo;
+mod history_repo;
+mod preset_repo;
+mod progress_repo;
+mod settings_repo;
+mod task_repo;
 
-pub use config_repo::*;
-pub use template_repo::*;
+pub use history_repo::*;
+pub use preset_repo::*;
+pub use progress_repo::*;
+pub use settings_repo::*;
+pub use task_repo::*;

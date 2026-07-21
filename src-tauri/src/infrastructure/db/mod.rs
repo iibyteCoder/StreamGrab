@@ -1,84 +1,92 @@
-//! 数据库模块
+//! 数据库子系统
 //!
-//! 使用 SQLite 进行统一数据持久化
+//! 单一 SQLite 连接 + `Arc<Mutex<Connection>>` 共享给各仓储；
+//! schema v4 单表聚合模型，详见 [`schema`]
 
-mod progress_repo;
 pub mod repository;
-mod schema;
-mod settings;
-pub mod task;
+pub mod schema;
 
-pub use progress_repo::*;
-pub use repository::*;
-pub use schema::*;
-pub use settings::*;
-pub use task::*;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
-use crate::infrastructure::config::AppConfig;
 use rusqlite::Connection;
-use std::path::PathBuf;
-use std::sync::Arc;
 
-/// 统一数据库管理器
+use crate::domain::download::{ProgressPoint, ProgressRepository};
+use crate::shared::{AppError, AppResult};
+use repository::{
+    HistoryRepository, PresetRepository, ProgressHistoryRepository, SettingsRepository,
+    TaskRepository,
+};
+
+/// 统一数据库
 ///
-/// 包含所有子模块的数据库操作
+/// 各仓储字段为轻量句柄（内部是共享连接的 Arc 克隆）
+#[derive(Clone)]
 pub struct Database {
-    pub settings: SettingsDb,
-    pub tasks: TaskDb,
-    pub config: ConfigRepository,
+    conn: Arc<Mutex<Connection>>,
+    db_path: PathBuf,
+    /// 任务聚合仓储
+    pub tasks: TaskRepository,
+    /// 应用与工具配置仓储
+    pub settings: SettingsRepository,
+    /// 任务预设仓储
+    pub presets: PresetRepository,
+    /// 历史记录仓储
+    pub history: HistoryRepository,
+    /// 进度历史仓储
+    pub progress: ProgressHistoryRepository,
 }
 
 impl Database {
-    /// 初始化数据库
-    ///
-    /// 创建数据库文件、表结构
-    pub fn initialize(app_config_dir: &PathBuf) -> Result<Arc<Self>, String> {
-        // 加载环境配置
-        let config = AppConfig::load(app_config_dir).unwrap_or_else(|e| {
-            log::warn!("Failed to load config, using defaults: {}", e);
-            AppConfig::default()
-        });
+    /// 打开（或创建）配置目录下的数据库并初始化 schema
+    pub fn initialize(config_dir: &Path) -> AppResult<Self> {
+        std::fs::create_dir_all(config_dir)
+            .map_err(|e| AppError::database(format!("创建配置目录失败: {e}")))?;
 
-        // 确保配置目录存在
-        std::fs::create_dir_all(app_config_dir)
-            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+        let db_path = config_dir.join("streamgrab.db");
+        let conn = Connection::open(&db_path)?;
+        schema::initialize(&conn)?;
 
-        let db_path = config.get_database_path(app_config_dir);
-        log::info!("Opening database at: {:?}", db_path);
+        let conn = Arc::new(Mutex::new(conn));
+        Ok(Self {
+            tasks: TaskRepository::new(Arc::clone(&conn)),
+            settings: SettingsRepository::new(Arc::clone(&conn)),
+            presets: PresetRepository::new(Arc::clone(&conn)),
+            history: HistoryRepository::new(Arc::clone(&conn)),
+            progress: ProgressHistoryRepository::new(Arc::clone(&conn)),
+            db_path,
+            conn,
+        })
+    }
 
-        // 打开数据库连接
-        let conn =
-            Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
+    /// 数据库文件路径
+    pub fn path(&self) -> &Path {
+        &self.db_path
+    }
 
-        // 启用外键约束
-        conn.execute_batch("PRAGMA foreign_keys = ON;")
-            .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
+    /// 共享连接句柄（供进度跟踪器适配器等特殊场景）
+    pub fn connection(&self) -> Arc<Mutex<Connection>> {
+        Arc::clone(&self.conn)
+    }
+}
 
-        // 初始化表结构
-        initialize_database(&conn)?;
+/// 领域层 `ProgressRepository` 的数据库适配器
+///
+/// 供 `ProgressTracker`（领域层）持久化采样点，解耦领域与基础设施
+pub struct DbProgressRepository {
+    inner: ProgressHistoryRepository,
+}
 
-        // 创建各模块管理器
-        let settings = SettingsDb::new(
-            Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open settings connection: {}", e))?,
-        )?;
+impl DbProgressRepository {
+    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
+        Self {
+            inner: ProgressHistoryRepository::new(conn),
+        }
+    }
+}
 
-        let tasks = TaskDb::new(
-            Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open tasks connection: {}", e))?,
-        )?;
-
-        let config_repo = ConfigRepository::new(
-            Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open config connection: {}", e))?,
-        )?;
-
-        log::info!("Database initialized successfully");
-
-        Ok(Arc::new(Self {
-            settings,
-            tasks,
-            config: config_repo,
-        }))
+impl ProgressRepository for DbProgressRepository {
+    fn save(&self, task_id: &str, points: &[ProgressPoint]) -> AppResult<()> {
+        self.inner.save_batch(task_id, points)
     }
 }

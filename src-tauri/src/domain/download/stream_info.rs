@@ -1,25 +1,32 @@
 //! 流信息类型定义
 //!
-//! 用于解析 URL 返回的流信息
+//! `parse_url` 解析结果的领域模型，与前端 `src/domain/stream.ts` 对应
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-/// 流信息 - 与前端类型匹配
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+// 分辨率解析的唯一实现位于 domain/media（消灭重复）
+pub use crate::domain::media::parse_resolution;
+
+/// 流信息
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct StreamInfo {
     pub videos: Vec<VideoStream>,
     pub audios: Vec<AudioStream>,
     pub subtitles: Vec<SubtitleStream>,
+    /// 总时长（秒）
     pub duration: f64,
+    /// 分片数
     pub segment_count: u32,
+    /// 是否直播
     pub is_live: bool,
+    /// 是否加密
     pub is_encrypted: bool,
 }
 
-/// 基础流
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+/// 基础流属性（被各流类型 flatten 复用）
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct BaseStream {
     pub id: String,
     pub bandwidth: u32,
@@ -33,8 +40,8 @@ pub struct BaseStream {
 }
 
 /// 视频流
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct VideoStream {
     #[serde(flatten)]
     pub base: BaseStream,
@@ -46,8 +53,8 @@ pub struct VideoStream {
 }
 
 /// 音频流
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct AudioStream {
     #[serde(flatten)]
     pub base: BaseStream,
@@ -57,24 +64,12 @@ pub struct AudioStream {
 }
 
 /// 字幕流
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct SubtitleStream {
     #[serde(flatten)]
     pub base: BaseStream,
     pub format: String,
     pub is_default: bool,
     pub is_forced: bool,
-}
-
-/// 解析分辨率字符串，例如 "1920x1080" -> (1920, 1080)
-pub fn parse_resolution(resolution: &str) -> (u32, u32) {
-    let parts: Vec<&str> = resolution.split('x').collect();
-    if parts.len() == 2 {
-        let width = parts[0].parse().unwrap_or(0);
-        let height = parts[1].parse().unwrap_or(0);
-        (width, height)
-    } else {
-        (0, 0)
-    }
 }

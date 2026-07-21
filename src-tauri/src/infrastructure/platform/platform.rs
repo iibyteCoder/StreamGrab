@@ -5,6 +5,12 @@
 
 use std::path::{Path, PathBuf};
 
+/// Windows 平台：创建进程时隐藏控制台窗口（`CREATE_NO_WINDOW`）
+///
+/// 子进程执行的唯一定义点（消除 download.rs / manager.rs / detector.rs 的重复）
+#[cfg(target_os = "windows")]
+pub const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// 支持的平台
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Platform {

@@ -12,7 +12,7 @@ use std::process::Command;
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+use crate::infrastructure::platform::CREATE_NO_WINDOW;
 
 /// 工具检测器
 pub struct ToolDetector {
