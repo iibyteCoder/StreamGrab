@@ -1,8 +1,11 @@
 # 开发计划
 
+> **2026-07 已完成完全重构**，架构细节与配置体系设计详见 `07-tool-config-architecture.md`。
+> 本文档为初始开发计划，大部分任务已完成。当前架构状态以 `06-feature-status.md` 为准。
+
 ## 开发阶段总览
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          开发阶段路线图                                  │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -27,422 +30,382 @@
 
 ## Phase 1: 项目搭建
 
-### 目标
+### Phase 1 目标
 
 搭建完整的项目框架，实现基础 UI 布局
 
-### 任务清单
+### Phase 1 任务清单
 
 #### 1.1 环境准备
 
-- [ ] 安装 Node.js 18+
-- [ ] 安装 pnpm
-- [ ] 安装 Rust (rustup)
-- [ ] 安装 VS Code 及扩展
-  - [ ] Vue - Official
-  - [ ] Tauri
-  - [ ] rust-analyzer
-  - [ ] ESLint
-  - [ ] Prettier
-  - [ ] Tailwind CSS IntelliSense
+- [x] 安装 Node.js 18+
+- [x] 安装 npm
+- [x] 安装 Rust (rustup)
+- [x] 安装 VS Code 及扩展
+  - [x] Vue - Official
+  - [x] Tauri
+  - [x] rust-analyzer
+  - [x] ESLint
+  - [x] Prettier
+  - [x] Tailwind CSS IntelliSense
 
 #### 1.2 创建项目
 
-- [ ] 使用 `pnpm create tauri-app` 创建项目
-- [ ] 配置 Vue 3 + TypeScript + Vite
-- [ ] 安装依赖包
+- [x] 使用 `npm create tauri-app` 创建项目
+- [x] 配置 Vue 3 + TypeScript + Vite
+- [x] 安装依赖包
+
   ```bash
-  pnpm add vue-router pinia @vueuse/core
-  pnpm add -D tailwindcss postcss autoprefixer
-  pnpm add -D @tauri-apps/plugin-shell @tauri-apps/plugin-fs
+  npm install vue-router pinia @vueuse/core
+  npm install -D tailwindcss postcss autoprefixer
+  npm install @tauri-apps/plugin-shell @tauri-apps/plugin-fs
   ```
 
 #### 1.3 配置开发工具
 
-- [ ] 配置 TailwindCSS
-- [ ] 配置 ESLint + Prettier
-- [ ] 配置 TypeScript (tsconfig.json)
-- [ ] 配置路径别名 (@/)
+- [x] 配置 TailwindCSS
+- [x] 配置 ESLint + Prettier
+- [x] 配置 TypeScript (tsconfig.json)
+- [x] 配置路径别名 (@/)
 
 #### 1.4 项目结构搭建
 
-- [ ] 创建目录结构 (按 04-architecture.md)
-- [ ] 配置 Vue Router 路由
-- [ ] 配置 Pinia Store
-- [ ] 创建基础布局组件
+- [x] 创建目录结构 (按 04-architecture.md)
+- [x] 配置 Vue Router 路由
+- [x] 配置 Pinia Store
+- [x] 创建基础布局组件
 
 #### 1.5 UI 基础组件
 
-- [ ] Button 组件
-- [ ] Input 组件
-- [ ] Select 组件
-- [ ] Switch 组件
-- [ ] Modal 组件
-- [ ] Toast 组件
+- [x] Button 组件（shadcn-vue）
+- [x] Input 组件（shadcn-vue）
+- [x] Select 组件（shadcn-vue）
+- [x] Switch 组件（shadcn-vue）
+- [x] Modal 组件（shadcn-vue Dialog）
+- [x] Toast 组件（shadcn-vue）
 
 #### 1.6 主题系统
 
-- [ ] CSS 变量定义
-- [ ] 深色主题样式
-- [ ] 浅色主题样式
-- [ ] 主题切换功能
+- [x] CSS 变量定义
+- [x] 深色主题样式
+- [x] 浅色主题样式
+- [x] 主题切换功能
 
 #### 1.7 布局组件
 
-- [ ] TitleBar 标题栏
-- [ ] MainLayout 主布局
-- [ ] Sidebar 侧边栏（可选）
+- [x] LayoutView 布局
+- [x] MainLayout 主布局
 
-### 里程碑
+### Phase 1 里程碑
 
-- [ ] 项目可正常启动
-- [ ] 基础布局显示正常
-- [ ] 主题切换功能正常
+- [x] 项目可正常启动
+- [x] 基础布局显示正常
+- [x] 主题切换功能正常
 
 ---
 
 ## Phase 2: 核心功能
 
-### 目标
+### Phase 2 目标
 
 实现下载核心功能，包括 URL 输入、下载执行、进度显示、任务管理
 
-### 任务清单
+### Phase 2 任务清单
 
 #### 2.1 URL 输入模块
 
-- [ ] UrlInput 组件
-  - [ ] 输入框基础功能
-  - [ ] URL 验证
-  - [ ] 剪贴板粘贴
-- [ ] BatchImport 批量导入组件
-  - [ ] TXT 文件导入
-  - [ ] 多行文本输入
-- [ ] DropZone 拖放区域（可选）
+- [x] AddTaskDialog 组件
+  - [x] 输入框基础功能
+  - [x] URL 验证 + 类型徽章
+  - [x] 剪贴板粘贴
+- [x] 多行文本输入（换行分隔批量）
+- [x] TXT 文件导入
+- [x] 拖放支持（文本链接或 TXT 文件）
 
 #### 2.2 任务数据模型
 
-- [ ] 定义 Task 类型 (types/task.ts)
-- [ ] 定义 TaskProgress 类型
-- [ ] 定义 TaskConfig 类型
-- [ ] 创建 taskStore
+- [x] 定义 Task 类型 (src/domain/task.ts)
+- [x] 定义 TaskProgress 类型
+- [x] 定义 TaskConfig / TaskOverrides 类型
+- [x] 创建 taskStore
 
 #### 2.3 Rust 后端 - 下载命令
 
-- [ ] 创建 `src-tauri/src/commands/` 目录
-- [ ] 实现 `start_download` 命令
-  ```rust
-  #[tauri::command]
-  async fn start_download(task: Task, app: AppHandle) -> Result<(), String>
-  ```
-- [ ] 实现 `stop_download` 命令
-- [ ] 实现进程管理器 (ProcessManager)
-- [ ] 实现输出解析器
+- [x] 创建 `src-tauri/src/app/commands/` 目录
+- [x] 实现 `start_download` 命令（引擎策略分派）
+- [x] 实现 `stop_download` 命令
+- [x] 实现进程管理器 (infrastructure/process/manager.rs)
+- [x] 实现输出解析器 (infrastructure/engines/*/parser.rs)
 
 #### 2.4 前端下载服务
 
-- [ ] 创建 downloaderService
-- [ ] 封装 Tauri invoke 调用
-- [ ] 实现事件订阅机制
+- [x] 创建 downloadService
+- [x] 封装 Tauri invoke 调用
+- [x] 实现事件订阅机制
 
 #### 2.5 任务队列 UI
 
-- [ ] TaskQueue 组件
-- [ ] TaskCard 组件
-  - [ ] 显示任务信息
-  - [ ] 显示下载进度
-  - [ ] 显示下载速度
-  - [ ] 显示状态
-- [ ] ProgressBar 组件
-- [ ] TaskActions 操作按钮
-  - [ ] 开始/暂停
-  - [ ] 取消
-  - [ ] 打开目录
+- [x] TaskList 组件
+- [x] TaskCard 组件
+  - [x] 显示任务信息
+  - [x] 显示下载进度
+  - [x] 显示下载速度
+  - [x] 显示状态
+- [x] ProgressChart 速率曲线组件
+- [x] TaskActionButtons 操作按钮
+  - [x] 开始/暂停
+  - [x] 取消
+  - [x] 打开目录
 
 #### 2.6 任务控制逻辑
 
-- [ ] useDownloader composable
-- [ ] useTasks composable
-- [ ] 任务添加/删除
-- [ ] 任务暂停/继续
-- [ ] 任务取消
-- [ ] 并发控制
+- [x] useDownloader composable（含队列 + 定时调度器）
+- [x] useTasks composable
+- [x] 任务添加/删除
+- [x] 任务暂停/继续（终止/重启语义）
+- [x] 任务取消
+- [x] 并发控制
 
 #### 2.7 基础设置
 
-- [ ] 定义 Settings 类型 (types/settings.ts)
-- [ ] 创建 settingsStore
-- [ ] Rust 配置读写命令
-  - [ ] `load_settings`
-  - [ ] `save_settings`
-- [ ] QuickSettings 快速设置面板
-  - [ ] 保存目录选择
-  - [ ] 格式选择
-  - [ ] 自动选择开关
+- [x] 定义 Settings 类型 (src/domain/config.ts)
+- [x] 创建 settingsStore
+- [x] Rust 配置读写命令
+  - [x] `load_settings` / `patch_app_settings` / `patch_tool_settings`
+- [x] 设置页面（4 标签页）
+  - [x] 保存目录选择
+  - [x] 格式选择
+  - [x] 自动选择开关
 
-#### 2.8 命名模板系统 (新增)
+#### 2.8 命名模板系统
 
-- [ ] SavePatternSettings 类型定义
-- [ ] 预设模板列表
-- [ ] 命名模板 UI 组件
-- [ ] 与下载任务集成
+- [-] ~~命名模板 UI~~ — 旧实现未接入参数构建（空壳），重构中移除
 
-#### 2.9 广告过滤基础 (新增)
+#### 2.9 广告过滤基础
 
-- [ ] AdFilterSettings 类型定义
-- [ ] 预设规则列表
-- [ ] 广告过滤开关 UI
+- [-] ~~广告过滤 UI~~ — 旧实现未接入参数构建（空壳），重构中移除；可用 `--urlprocessor-args` 实现
 
-### 里程碑
+### Phase 2 里程碑
 
-- [ ] 可以输入 URL 并开始下载
-- [ ] 进度实时更新显示
-- [ ] 可以暂停/继续/取消任务
-- [ ] 基础设置可以保存
-- [ ] 命名模板功能正常
-- [ ] 广告过滤功能正常
+- [x] 可以输入 URL 并开始下载
+- [x] 进度实时更新显示
+- [x] 可以暂停/继续/取消任务
+- [x] 基础设置可以保存
 
 ---
 
 ## Phase 3: 完善功能
 
-### 目标
+### Phase 3 目标
 
 完善所有下载相关功能，包括流选择、高级设置、历史记录等
 
-### 任务清单
+### Phase 3 任务清单
 
 #### 3.1 URL 解析功能
 
-- [ ] Rust `parse_url` 命令
-- [ ] 解析结果显示
-- [ ] StreamInfo 类型定义
+- [x] Rust `parse_url` 命令（引擎策略分派）
+- [x] 解析结果显示
+- [x] StreamInfo 类型定义 (src/domain/stream.ts)
 
 #### 3.2 流选择器
 
-- [ ] StreamSelector 组件
-  - [ ] 视频流列表
-  - [ ] 音频流列表
-  - [ ] 字幕流列表
-- [ ] 流信息展示
-  - [ ] 分辨率
-  - [ ] 编码
-  - [ ] 码率
-  - [ ] 语言
-- [ ] 流选择逻辑
-  - [ ] 单选
-  - [ ] 多选
-  - [ ] 正则匹配
+- [x] StreamSelector 组件
+  - [x] 视频流列表
+  - [x] 音频流列表
+  - [x] 字幕流列表
+- [x] 流信息展示
+  - [x] 分辨率
+  - [x] 编码
+  - [x] 码率
+  - [x] 语言
+- [x] 流选择逻辑
+  - [x] 单选
+  - [x] 正则匹配
 
 #### 3.3 高级设置面板
 
-- [ ] SettingsPanel 组件
-- [ ] BasicSettings 基础设置
-  - [ ] 线程数
-  - [ ] 重试次数
-  - [ ] 超时时间
-  - [ ] 限速设置
-- [ ] MuxSettings 混流设置
-  - [ ] 输出格式
-  - [ ] 混流程序
-  - [ ] 程序路径
-- [ ] ProxySettings 代理设置
-  - [ ] 系统代理
-  - [ ] 自定义代理
-  - [ ] 请求头管理
-- [ ] SettingsModal 设置弹窗
+- [x] SettingsView（4 标签页）
+- [x] Nm3u8dlTab — N_m3u8DL-RE 设置（含 ToolManagerCard）
+- [x] FfmpegTab — FFmpeg 设置（含 ToolManagerCard）
+- [x] GeneralTab — 常规·界面设置
+- [x] PresetsTab — 任务预设管理
 
 #### 3.4 命令行参数构建
 
-- [ ] commandBuilder 工具函数
-- [ ] 支持所有参数映射
-- [ ] 参数验证
+- [x] 参数构建已移入后端引擎 (`infrastructure/engines/*/args.rs`)
+- [x] 前端 `commandBuilder.ts` 已删除
 
 #### 3.5 历史记录
 
-- [ ] HistoryRecord 类型定义
-- [ ] Rust 历史记录存储
-- [ ] HistoryView 页面
-- [ ] 历史记录列表
-- [ ] 重新下载功能
-- [ ] 清除历史功能
+- [x] HistoryRecord 类型定义 (src/domain/task.ts)
+- [x] Rust 历史记录存储 (infrastructure/db/repository/history_repo.rs)
+- [x] HistoryView 页面
+- [x] 历史记录列表
+- [x] 重新下载功能（携带原 overrides 快照）
+- [x] 清除历史功能
 
-#### 3.6 配置模板
+#### 3.6 任务预设
 
-- [ ] ConfigTemplate 类型定义
-- [ ] 模板存储
-- [ ] 模板管理 UI
-  - [ ] 保存当前配置为模板
-  - [ ] 应用模板
-  - [ ] 删除模板
+- [x] TaskPreset 类型定义 (src/domain/config.ts)
+- [x] 预设 Store（DB 持久化，src/stores/presetStore.ts）
+- [x] 预设管理 UI (PresetsTab)
+  - [x] 保存当前配置为预设
+  - [x] 应用预设
+  - [x] 删除预设
 
 #### 3.7 统计面板
 
-- [ ] 下载统计
-  - [ ] 总任务数
-  - [ ] 完成数
-  - [ ] 失败数
-  - [ ] 总大小
+- [ ] 下载统计（暂未实现）
 - [ ] 会话统计
 - [ ] 全局统计
 
-#### 3.8 流排除功能 (新增)
+#### 3.8 流排除功能
 
-- [ ] StreamExclusionSettings 类型定义
-- [ ] 流排除 UI 组件
-- [ ] 与流选择器集成
-- [ ] 排除正则表达式支持
+- [x] 流排除 UI（Nm3u8dlTab 内）
+- [x] 排除正则表达式支持
 
-#### 3.9 高级解密选项 (新增)
+#### 3.9 高级解密选项
 
-- [ ] CustomHlsDecryption 类型定义
-- [ ] HLS 加密方法选择
-- [ ] 自定义 Key/IV 输入
-- [ ] 密钥格式支持 (HEX/Base64/文件)
+- [x] DecryptionSettings 组件
+- [x] 密钥配置 (KID:KEY)
+- [x] 解密引擎选择（FFmpeg/MP4Decrypt/Shaka）
+- [x] 自定义 HLS 解密
 
-#### 3.10 日志系统 (新增)
+#### 3.10 日志系统
 
-- [ ] LogSettings 类型定义
-- [ ] 日志级别设置 UI
-- [ ] Rust 日志输出处理
-- [ ] 日志查看器组件
+- [x] LogViewer 组件
+- [x] 实时日志显示
 
-#### 3.11 帮助系统 (新增)
+#### 3.11 帮助系统
 
-- [ ] 内置帮助文档
+- [ ] 内置帮助文档（暂未实现）
 - [ ] 上下文工具提示
-- [ ] CLI 参数说明页面
 - [ ] FAQ 页面
 
-### 里程碑
+### Phase 3 里程碑
 
-- [ ] 可以预览和选择流
-- [ ] 所有设置功能正常
-- [ ] 历史记录功能正常
-- [ ] 配置模板功能正常
-- [ ] 流排除功能正常
-- [ ] 高级解密功能正常
-- [ ] 日志系统正常
-- [ ] 帮助系统正常
+- [x] 可以预览和选择流
+- [x] 所有设置功能正常
+- [x] 历史记录功能正常
+- [x] 预设功能正常
+- [x] 流排除功能正常
+- [x] 高级解密功能正常
+- [x] 日志系统正常
+- [ ] 帮助系统待实现
 
 ---
 
 ## Phase 4: 高级功能
 
-### 目标
+### Phase 4 目标
 
 实现直播、解密、系统托盘等高级功能，完善用户体验
 
-### 任务清单
+### Phase 4 任务清单
 
 #### 4.1 直播录制
 
-- [ ] LiveSettings 组件
-  - [ ] 实时合并选项
-  - [ ] 录制时长限制
-  - [ ] 刷新间隔设置
-- [ ] 直播模式识别
-- [ ] 直播状态展示
-- [ ] 定时录制功能
+- [x] LiveSettings 组件
+  - [x] 实时合并选项
+  - [x] 录制时长限制
+  - [x] 刷新间隔设置
+- [x] 直播模式识别
+- [x] 直播状态展示
 
 #### 4.2 解密功能
 
-- [ ] DecryptSettings 组件
-  - [ ] 密钥输入
-  - [ ] 密钥文件选择
-  - [ ] 解密引擎选择
-- [ ] 解密参数传递
+- [x] DecryptionSettings 组件
+  - [x] 密钥输入
+  - [x] 密钥文件选择
+  - [x] 解密引擎选择
+- [x] 解密参数传递（后端引擎 args.rs）
 
 #### 4.3 系统托盘
 
-- [ ] Tauri 系统托盘配置
-- [ ] 托盘菜单
-  - [ ] 显示/隐藏窗口
-  - [ ] 快速添加任务
-  - [ ] 退出
-- [ ] 最小化到托盘
-- [ ] 下载完成通知
+- [x] Tauri 系统托盘配置 (app/tray.rs)
+- [x] 托盘菜单
+  - [x] 显示/隐藏窗口
+  - [x] 退出
+- [x] 最小化到托盘
+- [x] 下载完成通知
 
 #### 4.4 剪贴板监控
 
-- [ ] 监听剪贴板变化
-- [ ] 自动识别 M3U8 链接
-- [ ] 弹窗提示添加
+- [x] 监听剪贴板变化 (useClipboardWatcher)
+- [x] 自动识别 M3U8/MPD/MSS 链接
 
 #### 4.5 定时任务
 
-- [ ] ScheduledTask 类型定义
-- [ ] 定时任务管理
-- [ ] 定时执行逻辑
+- [x] TaskOverrides.scheduledStartAt 类型定义
+- [x] datetime-local UI (AddTaskDialog)
+- [x] 定时执行逻辑（useDownloader 30s 轮询调度器）
 
 #### 4.6 自动更新
 
-- [ ] 版本检查
-- [ ] 更新提示
-- [ ] 自动下载更新
+- [x] 版本检查 (useUpdateChecker + GitHub API)
+- [x] 更新提示
+- [x] 自动下载更新
 
 #### 4.7 其他优化
 
-- [ ] 错误处理优化
-- [ ] 性能优化
-- [ ] 崩溃报告
+- [x] 错误处理优化（AppError + 命令层边界转换）
+- [ ] 性能优化（待评估）
+- [ ] 崩溃报告（待实现）
 
-#### 4.8 URL 处理增强 (新增)
+#### 4.8 URL 处理增强
 
-- [ ] BaseURL 设置 UI
-- [ ] URL 参数附加功能
-- [ ] URL Processor 参数支持
+- [x] BaseURL 设置 UI (NetworkSettings)
+- [x] URL Processor 参数支持（后端引擎）
 
-#### 4.9 直播字幕修正 (新增)
+#### 4.9 直播字幕修正
 
-- [ ] 直播字幕修正选项
-- [ ] VTT 时间轴校正
+- [x] 直播字幕修正选项（LiveSettings）
 
-#### 4.10 定时开始 (新增)
+#### 4.10 定时开始
 
-- [ ] 任务定时开始功能
-- [ ] 日期时间选择器
-- [ ] 快速时间选择
+- [x] 任务定时开始功能（AddTaskDialog + useDownloader 调度器）
+- [x] 日期时间选择器（原生 datetime-local）
 
-#### 4.11 高级混流选项 (新增)
+#### 4.11 高级混流选项
 
-- [ ] 不写入日期选项
-- [ ] concat 分离器选项
-- [ ] 外部媒体导入功能
+- [-] ~~外部媒体导入~~ — 旧实现未接入参数构建（空壳），重构中移除
+- [x] concat 分离器选项（后端引擎）
 
-#### 4.12 实验性功能 (新增)
+#### 4.12 实验性功能
 
-- [ ] 实验性功能开关
+- [ ] 实验性功能开关（暂未实现）
 - [ ] HLS 多 EXT-X-MAP 支持
 - [ ] 警告提示 UI
 
-#### 4.13 多语言支持 (新增)
+#### 4.13 多语言支持
 
-- [ ] i18n 框架集成
-- [ ] 中文语言包
-- [ ] 英文语言包
-- [ ] 语言切换 UI
+- [x] i18n 框架集成（vue-i18n）
+- [x] 简体中文语言包
+- [x] 繁体中文语言包
+- [x] 英文语言包
+- [x] 语言切换 UI
 
-### 里程碑
+### Phase 4 里程碑
 
-- [ ] 直播录制功能正常
-- [ ] 解密功能正常
-- [ ] 系统托盘功能正常
-- [ ] 自动更新功能正常
-- [ ] URL 处理增强功能正常
-- [ ] 定时开始功能正常
-- [ ] 高级混流功能正常
-- [ ] 多语言支持正常
+- [x] 直播录制功能正常
+- [x] 解密功能正常
+- [x] 系统托盘功能正常
+- [x] 自动更新功能正常
+- [x] URL 处理增强功能正常
+- [x] 定时开始功能正常
+- [x] 多语言支持正常
+- [ ] 实验性功能待实现
 
 ---
 
 ## Phase 5: 打包发布
 
-### 目标
+### Phase 5 目标
 
 完善应用打包，准备发布
 
-### 任务清单
+### Phase 5 任务清单
 
 #### 5.1 图标和资源
 
@@ -465,7 +428,9 @@
 
 #### 5.3 测试
 
-- [ ] 功能测试
+- [x] Rust 单元测试（cargo test，96 个测试）
+- [x] 前端单元测试（vitest，47 个测试）
+- [ ] 功能测试（手动）
 - [ ] 兼容性测试
 - [ ] 性能测试
 - [ ] 安装测试
@@ -473,7 +438,7 @@
 #### 5.4 文档
 
 - [ ] 用户使用手册
-- [ ] README 完善
+- [x] README 完善
 - [ ] 更新日志
 
 #### 5.5 发布
@@ -481,7 +446,7 @@
 - [ ] GitHub Release
 - [ ] 自动构建 CI/CD
 
-### 里程碑
+### Phase 5 里程碑
 
 - [ ] 应用可正常安装
 - [ ] 所有功能正常
@@ -502,13 +467,7 @@ nvm use 20
 # https://nodejs.org/
 ```
 
-### 2. 安装 pnpm
-
-```bash
-npm install -g pnpm
-```
-
-### 3. 安装 Rust
+### 2. 安装 Rust
 
 ```bash
 # Windows: 下载并运行 rustup-init.exe
@@ -519,7 +478,7 @@ rustc --version
 cargo --version
 ```
 
-### 4. 安装 VS Code 扩展
+### 3. 安装 VS Code 扩展
 
 创建 `.vscode/extensions.json`:
 
@@ -537,39 +496,16 @@ cargo --version
 }
 ```
 
-### 5. 创建项目
+### 4. 安装依赖
 
 ```bash
-# 创建 Tauri 项目
-pnpm create tauri-app m3u8-downloader-pro
-
-# 选择配置:
-# - Package manager: pnpm
-# - UI template: Vue
-# - UI flavor: TypeScript
-```
-
-### 6. 安装依赖
-
-```bash
-cd m3u8-downloader-pro
+cd StreamGrab
 
 # 前端依赖
-pnpm add vue-router pinia @vueuse/core
-pnpm add lucide-vue-next clsx tailwind-merge class-variance-authority
+npm install
 
-# 开发依赖
-pnpm add -D tailwindcss postcss autoprefixer
-pnpm add -D @types/node
-
-# Tauri 插件
-pnpm add @tauri-apps/plugin-shell
-pnpm add @tauri-apps/plugin-fs
-pnpm add @tauri-apps/plugin-dialog
-pnpm add @tauri-apps/plugin-notification
-
-# 初始化 TailwindCSS
-pnpm dlx tailwindcss init -p
+# 验证 Tauri
+npm run tauri dev
 ```
 
 ---
@@ -578,22 +514,22 @@ pnpm dlx tailwindcss init -p
 
 ```bash
 # 开发模式
-pnpm tauri dev
+npm run tauri dev
 
 # 构建
-pnpm tauri build
-
-# 仅构建前端
-pnpm build
+npm run tauri build
 
 # 类型检查
-pnpm type-check
+npm run type-check
 
 # 代码检查
-pnpm lint
+npm run lint
 
-# 格式化
-pnpm format
+# 前端单元测试
+npm test
+
+# 后端测试 + clippy
+cd src-tauri && cargo test && cargo clippy -- -D warnings
 ```
 
 ---
@@ -605,12 +541,12 @@ pnpm format
 - 使用 Composition API + `<script setup>`
 - 使用 TypeScript 严格模式
 - 组件命名使用 PascalCase
-- 文件命名使用 kebab-case
+- 文件命名使用 camelCase（组件 PascalCase）
 - 常量使用 UPPER_SNAKE_CASE
 
 ### Git 提交规范
 
-```
+```text
 feat: 新功能
 fix: 修复 bug
 docs: 文档更新
@@ -623,7 +559,7 @@ chore: 构建/工具
 
 ### 分支策略
 
-```
+```text
 main        # 主分支，稳定版本
 develop     # 开发分支
 feature/*   # 功能分支
@@ -659,4 +595,3 @@ release/*   # 发布分支
 - [Rust by Example](https://doc.rust-lang.org/rust-by-example/)
 - [Vue 3 Composition API](https://vuejs.org/guide/extras/composition-api-faq.html)
 - [Tauri + Vue 示例](https://github.com/tauri-apps/tauri/tree/dev/examples)
-

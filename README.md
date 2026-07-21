@@ -19,25 +19,28 @@
 
 ## 📖 简介
 
-StreamGrab 是 [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) 和 [FFmpeg](https://ffmpeg.org/) 的图形化界面封装，支持 HLS(m3u8)、DASH(mpd)、MSS 流媒体协议以及普通 HTTP 视频链接下载。适用于下载网络视频课程、直播回放、直链视频等场景，提供任务管理、模板配置、代理设置等便捷功能。
+StreamGrab 是 [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) 和 [FFmpeg](https://ffmpeg.org/) 的图形化界面封装，支持 HLS(m3u8)、DASH(mpd)、MSS 流媒体协议以及普通 HTTP 视频链接下载。双引擎按 URL 类型自动分派（策略模式），用户无需选择工具。适用于下载网络视频课程、直播回放、直链视频等场景，提供任务管理、任务预设、历史记录、定时开始等便捷功能。
 
 ## ✨ 功能特性
 
 ### 核心功能
 
-- 🚀 **高性能下载** - 基于 N_m3u8DL-RE / FFmpeg 引擎，多线程并发下载
-- 📋 **多任务管理** - 支持多个下载任务并行处理
-- 📊 **实时进度** - 下载速度、进度条、剩余时间实时显示
-- 🎬 **流选择器** - 自动解析并选择不同清晰度/码率
+- 🚀 **双引擎自动分派** - N_m3u8DL-RE 处理流媒体（HLS/DASH/MSS），FFmpeg 处理 HTTP 直链，按 URL 类型自动选择
+- 📋 **多任务管理** - 支持多个下载任务并行处理，队列并发控制
+- 📊 **实时进度** - 下载速度、进度条、剩余时间、速率曲线图表
+- 🎬 **流选择器** - 自动解析并选择不同清晰度/码率/音轨/字幕
 - 🔗 **HTTP 直链** - 支持 FFmpeg 下载普通 HTTP 视频链接
 
 ### 进阶功能
 
-- 📁 **模板管理** - 保存常用配置，一键复用
-- 🔧 **高级设置** - 自定义下载参数、代理、Headers 等
-- 🌙 **深色主题** - 现代化暗色 UI，护眼舒适
+- 📜 **历史记录** - 任务终态自动快照（含参数覆盖），支持查看/删除/重新下载
+- ⏰ **定时开始** - 设置计划时间，到点自动启动下载
+- 📁 **任务预设** - 保存常用配置组合（DB 持久化），一键复用
+- 🔧 **任务级覆盖** - 每个任务可独立覆盖全局默认参数（TaskOverrides）
+- 🌙 **深色/浅色主题** - 现代化 UI，主题切换
 - 🖥️ **系统托盘** - 最小化到托盘，后台运行
-- 🌐 **多语言** - 支持中文/英文界面
+- 🌐 **多语言** - 支持简体中文/繁体中文/英文三语界面
+- 🔄 **自动更新** - GitHub API 版本检查，一键下载安装
 
 ## 📸 截图
 
@@ -51,11 +54,11 @@ StreamGrab 是 [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) 和 [FFmpeg
 
 前往 [Releases](../../releases) 页面下载对应平台的安装包：
 
-| 平台     | 格式                      |
-| -------- | ------------------------- |
-| Windows  | `.msi` / `.exe`           |
-| macOS    | `.dmg`                    |
-| Linux    | `.AppImage` / `.deb`      |
+| 平台    | 格式                 |
+| ------- | -------------------- |
+| Windows | `.msi` / `.exe`      |
+| macOS   | `.dmg`               |
+| Linux   | `.AppImage` / `.deb` |
 
 ### 系统要求
 
@@ -74,22 +77,22 @@ StreamGrab 是 [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) 和 [FFmpeg
 
 ### 支持的链接格式
 
-| 格式  | 引擎        | 说明                               |
-| ----- | ----------- | ---------------------------------- |
-| HLS   | N_m3u8DL-RE | `.m3u8` 流媒体链接                 |
-| DASH  | N_m3u8DL-RE | `.mpd` 流媒体链接                  |
-| MSS   | N_m3u8DL-RE | Smooth Streaming 链接              |
-| HTTP  | FFmpeg      | 普通视频直链（.mp4/.mkv/.avi 等）  |
+| 格式 | 引擎        | 说明                              |
+| ---- | ----------- | --------------------------------- |
+| HLS  | N_m3u8DL-RE | `.m3u8` 流媒体链接                |
+| DASH | N_m3u8DL-RE | `.mpd` 流媒体链接                 |
+| MSS  | N_m3u8DL-RE | Smooth Streaming 链接             |
+| HTTP | FFmpeg      | 普通视频直链（.mp4/.mkv/.avi 等） |
 
 ## 🛠️ 开发
 
 ### 环境要求
 
-| 工具    | 版本     |
-| ------- | -------- |
-| Node.js | >= 18    |
-| Rust    | >= 1.70  |
-| npm     | >= 9     |
+| 工具    | 版本    |
+| ------- | ------- |
+| Node.js | >= 18   |
+| Rust    | >= 1.70 |
+| npm     | >= 9    |
 
 ### 本地开发
 
@@ -109,6 +112,12 @@ npm run type-check
 
 # 代码检查
 npm run lint
+
+# 前端单元测试（vitest）
+npm test
+
+# 后端测试 + clippy
+cd src-tauri && cargo test && cargo clippy -- -D warnings
 ```
 
 ### 构建
@@ -122,30 +131,31 @@ npm run tauri build
 
 ## 🏗️ 项目结构
 
-```
+```text
 StreamGrab/
 ├── src/                        # Vue 前端源码
+│   ├── domain/                 # 领域类型唯一来源（task/config/stream/url）
 │   ├── components/             # UI 组件
+│   │   ├── task/               # 任务组件（TaskCard/AddTaskDialog/ProgressChart...）
+│   │   ├── settings/           # 设置组件（tabs/ 4 标签页 + ToolManagerCard）
+│   │   ├── stream/             # 流选择器
 │   │   ├── common/             # 通用组件
-│   │   ├── task/               # 任务相关组件
-│   │   └── settings/           # 设置组件
-│   ├── composables/            # 组合式函数
-│   ├── stores/                 # Pinia 状态管理
-│   ├── services/               # 服务层 (Tauri 命令封装)
-│   ├── types/                  # TypeScript 类型定义
-│   ├── utils/                  # 工具函数
-│   └── views/                  # 页面视图
+│   │   └── ui/                 # shadcn-vue 基础组件
+│   ├── composables/            # 组合式函数（useDownloader 含队列+调度器）
+│   ├── stores/                 # Pinia 状态管理（task/settings/preset/history）
+│   ├── services/               # 服务层（与后端命令组对应的 invoke 封装）
+│   ├── utils/                  # 工具函数（format/validate/id）
+│   ├── locales/                # i18n 三语（zh-CN/en-US/zh-TW）
+│   └── views/                  # 页面视图（Home/Settings/History）
 │
-├── src-tauri/                  # Tauri 后端源码
-│   └── src/
-│       ├── app/                # 应用层
-│       ├── domain/             # 领域层
-│       ├── infrastructure/     # 基础设施层
-│       └── shared/             # 共享模块
+├── src-tauri/src/              # Rust 后端（四层架构）
+│   ├── app/                    # 应用层：commands/（按域分组）+ tray.rs
+│   ├── domain/                 # 领域层：config/task/download(策略契约)/media
+│   ├── infrastructure/         # 基础设施：engines/db/process/tools/media/platform/fs
+│   └── shared/                 # 共享错误类型（AppError）
 │
 └── docs/                       # 文档
-    ├── design/                 # 设计文档
-    └── releases/               # 发行说明
+    └── design/                 # 设计文档（00-07）
 ```
 
 ## 🤝 贡献
@@ -166,14 +176,14 @@ StreamGrab/
 
 本项目依赖以下优秀的开源项目：
 
-| 项目                                                   | 说明                                                                   |
-| ------------------------------------------------------ | ---------------------------------------------------------------------- |
-| [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE)  | 流媒体下载引擎，感谢 [nilaoda](https://github.com/nilaoda) 的杰出贡献  |
-| [FFmpeg](https://ffmpeg.org/)                          | 强大的多媒体处理框架，用于 HTTP 直链下载                               |
-| [Tauri](https://tauri.app/)                            | 构建更小、更快、更安全的桌面应用                                       |
-| [Vue.js](https://vuejs.org/)                           | 渐进式 JavaScript 框架                                                 |
-| [TailwindCSS](https://tailwindcss.com/)                | 实用优先的 CSS 框架                                                    |
-| [shadcn-vue](https://www.shadcn-vue.com/)              | 精美的 UI 组件库                                                       |
+| 项目                                                  | 说明                                                                  |
+| ----------------------------------------------------- | --------------------------------------------------------------------- |
+| [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) | 流媒体下载引擎，感谢 [nilaoda](https://github.com/nilaoda) 的杰出贡献 |
+| [FFmpeg](https://ffmpeg.org/)                         | 强大的多媒体处理框架，用于 HTTP 直链下载                              |
+| [Tauri](https://tauri.app/)                           | 构建更小、更快、更安全的桌面应用                                      |
+| [Vue.js](https://vuejs.org/)                          | 渐进式 JavaScript 框架                                                |
+| [TailwindCSS](https://tailwindcss.com/)               | 实用优先的 CSS 框架                                                   |
+| [shadcn-vue](https://www.shadcn-vue.com/)             | 精美的 UI 组件库                                                      |
 
 ---
 

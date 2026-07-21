@@ -1,10 +1,10 @@
-# M3U8 Downloader Pro
+# StreamGrab
 
 > 基于 Tauri 2.0 + Vue 3 的现代视频流下载器 GUI 应用
 
 ## 项目简介
 
-将 N_m3u8DL-RE 命令行工具封装为一个功能完善、界面优美的桌面应用，支持 HLS/DASH/MSS 流媒体下载。
+将 N_m3u8DL-RE 与 FFmpeg 封装为一个功能完善、界面优美的桌面应用：N_m3u8DL-RE 引擎处理 HLS/DASH/MSS 流媒体，FFmpeg 引擎处理 HTTP 直链视频。用户无需选择工具——按 URL 类型自动分派（策略模式，详见 `docs/design/07-tool-config-architecture.md`）。
 
 ## 技术栈
 
@@ -18,21 +18,25 @@
 
 ```
 src/
+├── domain/              # 领域类型唯一来源（与后端 JSON 契约一一对应）
 ├── components/          # UI 组件
-│   ├── common/         # 通用组件 (Button, Input, Modal...)
-│   ├── task/           # 任务相关组件
-│   └── settings/       # 设置相关组件
-├── composables/        # 组合式函数
-├── stores/             # Pinia 状态管理
-├── services/           # 服务层 (API 调用封装)
-├── types/              # TypeScript 类型定义
-├── utils/              # 工具函数
-└── views/              # 页面视图
+│   ├── common/         # 通用组件 (AppIcon, UrlDuplicateDialog...)
+│   ├── task/           # 任务相关组件（TaskCard, AddTaskDialog...）
+│   ├── settings/       # 设置组件（tabs/ 4 标签页 + ToolManagerCard + sections/）
+│   ├── stream/         # 流选择器
+│   └── ui/             # shadcn-vue 基础组件
+├── composables/        # 组合式函数（useDownloader 含队列+定时调度器）
+├── stores/             # Pinia 状态管理（缓存层：task/settings/preset/history）
+├── services/           # 服务层（与后端命令组一一对应的 invoke 封装）
+├── utils/              # 工具函数（format/validate/url/id）
+├── locales/            # i18n 三语（zh-CN/en-US/zh-TW）
+└── views/              # 页面视图（Home/Settings/History）
 
-src-tauri/              # Tauri 后端
-├── src/
-│   ├── commands/       # Tauri 命令
-│   └── process/        # 进程管理
+src-tauri/src/           # Rust 后端（四层架构）
+├── app/                 # 应用层：commands/（按域分组的瘦命令）+ tray.rs
+├── domain/              # 领域层：config / task（状态机）/ download（DownloadEngine 策略契约）/ media
+├── infrastructure/      # 基础设施：engines/（nm3u8dl + ffmpeg 策略实现）/ db（schema v4 + repository）/ process / tools / media / platform / fs
+└── shared/              # 共享错误类型（AppError，thiserror）
 ```
 
 ## 开发命令
@@ -52,6 +56,12 @@ npm run type-check
 
 # 代码检查
 npm run lint
+
+# 前端单元测试（vitest）
+npm test
+
+# 后端测试 / clippy
+cd src-tauri && cargo test && cargo clippy -- -D warnings
 ```
 
 ## 核心设计原则
@@ -135,16 +145,19 @@ export const useTaskStore = defineStore('task', () => {
 
 ### 服务层
 
-- 组件不直接调用 Tauri API
-- 通过 Service 层封装
-- 使用事件订阅机制处理实时数据
+- 组件/Store 不直接调用 Tauri API，统一经 `src/services/`（`invokeTauri`/`subscribeToEvent` 封装）
+- 每个 service 与后端一个命令域对应：task / download / settings / preset / history / tools / system
 
-### 命令行参数构建
+### 三层配置模型
 
-```typescript
-// utils/commandBuilder.ts
-export function buildCommandArgs(task: Task, settings: Settings): string[];
-```
+- 全局默认（设置中心 → `app_settings` + `tool_settings` 表，按工具分离管理）
+- 任务级覆盖（`TaskOverrides`，随任务持久化，非空覆盖优先于全局默认）
+- **命令行参数由后端引擎构建**（`infrastructure/engines/<tool>/args.rs`）——前端不持有任何工具的 CLI 知识；新增下载工具见 `07-tool-config-architecture.md` 的五步扩展契约
+
+### 错误处理（后端）
+
+- 基础设施与领域层统一 `AppResult<T>`（`AppError`，thiserror）
+- 仅命令层边界转换为 `Result<T, String>`（Tauri 前端契约）
 
 ## UI 规范
 
@@ -208,6 +221,7 @@ chore: 构建/工具
 - `04-architecture.md` - 项目架构
 - `05-development-plan.md` - 开发计划
 - `06-feature-status.md` - **功能实现状态追踪**
+- `07-tool-config-architecture.md` - **工具架构与配置体系**（2026-07 重构设计：引擎策略、三层配置、schema v4）
 
 ## 任务追踪规则
 
@@ -223,7 +237,7 @@ chore: 构建/工具
 状态更新示例：
 
 ```markdown
-| 单链接输入 | P0 | `[x]` | `src/components/input/UrlInput.vue` | 带验证的输入框 |
+| 单链接输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | 带类型徽章的闭环输入 |
 ```
 
 ## 参考文档

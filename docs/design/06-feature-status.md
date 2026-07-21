@@ -2,6 +2,9 @@
 
 本文档追踪 StreamGrab 各功能模块的实现进度。
 
+> **2026-07 完全重构**：架构细节与配置体系设计详见 `07-tool-config-architecture.md`。
+> 本次重构 schema v4 全量重建，不保留旧数据；前端 `commandBuilder.ts` 已删除（参数构建移入后端引擎）。
+
 ## 状态说明
 
 | 状态 | 符号 | 说明 |
@@ -17,17 +20,20 @@
 
 | 功能 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- |
-| 项目结构 | `[x]` | `src/`, `src-tauri/` | Tauri 2.0 + Vue 3 + Vite |
-| TypeScript 类型 | `[x]` | `src/types/index.ts` | 完整类型定义 |
+| 项目结构 | `[x]` | `src/`, `src-tauri/` | Tauri 2.0 + Vue 3 + Vite；后端四层架构（app/domain/infrastructure/shared） |
+| 领域类型定义 | `[x]` | `src/domain/` (task.ts, config.ts, stream.ts, url.ts) | 前端类型唯一来源，与后端 JSON 契约一一对应 |
 | 路由配置 | `[x]` | `src/router/index.ts` | Vue Router |
-| Pinia Store | `[x]` | `src/stores/` | taskStore, settingsStore |
+| Pinia Store | `[x]` | `src/stores/` | taskStore, settingsStore, presetStore, historyStore |
 | TailwindCSS | `[x]` | `tailwind.config.js` | 样式系统 |
-| Tauri 命令框架 | `[x]` | `src-tauri/src/commands/` | config, download, task, keys |
-| 进程管理器 | `[x]` | `src-tauri/src/process/manager.rs` | 完整实现，支持启停/进度推送 |
-| 服务层封装 | `[x]` | `src/services/` | tauri.ts, downloadService.ts, taskService.ts |
-| 命令行参数构建器 | `[x]` | `src/utils/commandBuilder.ts` | 完整支持所有 N_m3u8DL-RE 参数 |
-| **SQLite 统一数据库** | `[x]` | `src-tauri/src/db/` | settings, keys, tasks, history 表 |
-| **Store 缓存层架构** | `[x]` | `src/stores/taskStore.ts` | 数据来源于后端，Store 为内存缓存 |
+| Tauri 命令框架 | `[x]` | `src-tauri/src/app/commands/` | tasks, download, settings, presets, history, tools, system |
+| 进程管理器 | `[x]` | `src-tauri/src/infrastructure/process/manager.rs` | State 注入 + Drop/Exit 双保险清理 |
+| 服务层封装 | `[x]` | `src/services/` | task, download, settings, preset, history, tools, system, clipboard, update |
+| SQLite 数据库 | `[x]` | `src-tauri/src/infrastructure/db/` | schema v4 单表聚合 + tool_settings 通用表 + repository 模式 |
+| Store 缓存层架构 | `[x]` | `src/stores/taskStore.ts` | 数据来源于后端，Store 为内存缓存 |
+| 引擎策略架构 | `[x]` | `src-tauri/src/infrastructure/engines/` | DownloadEngine trait + EngineRegistry 自动分派，详见 07 |
+| 错误处理体系 | `[x]` | `src-tauri/src/shared/error.rs` | AppError (thiserror) + AppResult\<T\>，命令层边界转 String |
+| 前端测试设施 | `[x]` | vitest (src/domain/url.test.ts, src/utils/*.test.ts) | 47 个测试：url 检测、format、validate、id |
+| 后端测试设施 | `[x]` | cargo test (src-tauri/src/) | 96 个测试：引擎参数/解析器、状态机、仓储 CRUD |
 
 ---
 
@@ -35,12 +41,13 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 单链接输入 | P0 | `[x]` | `src/views/HomeView.vue` | 统一的多行输入框 |
-| URL 格式验证 | P0 | `[x]` | `src/utils/validate.ts` | M3U8/MPD/MSS |
-| 多链接批量输入 | P0 | `[x]` | `src/views/HomeView.vue` | 换行分隔，统一输入框 |
-| 从文件导入 | P1 | `[x]` | `src/views/HomeView.vue` | TXT 文件导入 |
+| 单链接输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | URL 输入 + 类型徽章 |
+| URL 格式验证 | P0 | `[x]` | `src/utils/validate.ts` + 后端 `domain/url.rs` | M3U8/MPD/MSS/HTTP，前端本地检测与后端对照 |
+| 多链接批量输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | 多行输入框，换行分隔 |
+| 从文件导入 | P1 | `[x]` | `src/components/task/AddTaskDialog.vue` | TXT 文件导入 |
 | 剪贴板自动检测 | P2 | `[x]` | `src/composables/useClipboardWatcher.ts` | 监控剪贴板，自动检测 M3U8/MPD/MSS 链接 |
 | 拖拽输入 | P2 | `[x]` | `src/views/HomeView.vue` | 支持拖放文本链接或 TXT 文件 |
+| URL 重复检测 | P1 | `[x]` | `src/components/common/UrlDuplicateDialog.vue` | 添加已存在 URL 时弹窗确认 |
 
 ---
 
@@ -48,15 +55,16 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 解析命令框架 | P0 | `[x]` | `src-tauri/src/commands/download.rs:parse_url` | 调用 N_m3u8DL-RE |
-| M3U8 解析 | P0 | `[x]` | `src-tauri/src/commands/download.rs` | 通过 N_m3u8DL-RE |
-| MPD 解析 | P0 | `[x]` | `src-tauri/src/commands/download.rs` | 通过 N_m3u8DL-RE |
-| MSS 解析 | P1 | `[x]` | `src-tauri/src/commands/download.rs` | 通过 N_m3u8DL-RE |
-| 视频流信息提取 | P0 | `[x]` | `src-tauri/src/commands/download.rs:parse_meta_json` | 分辨率/编码/帧率 |
-| 音频流信息提取 | P0 | `[x]` | `src-tauri/src/commands/download.rs:parse_meta_json` | 语言/声道 |
-| 字幕流信息提取 | P1 | `[x]` | `src-tauri/src/commands/download.rs:parse_meta_json` | 语言/格式 |
-| 加密检测 | P1 | `[x]` | `src-tauri/src/commands/download.rs` | is_encrypted 字段 |
-| 直播检测 | P1 | `[x]` | `src-tauri/src/commands/download.rs` | is_live 字段 |
+| 解析命令框架 | P0 | `[x]` | `src-tauri/src/app/commands/download.rs` | 引擎策略分派解析 |
+| M3U8 解析 | P0 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` | 通过 N_m3u8DL-RE |
+| MPD 解析 | P0 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` | 通过 N_m3u8DL-RE |
+| MSS 解析 | P1 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` | 通过 N_m3u8DL-RE |
+| HTTP 直链探测 | P1 | `[x]` | `infrastructure/media/ffprobe.rs` | ffprobe 元数据提取 |
+| 视频流信息提取 | P0 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` + `infrastructure/media/ffprobe.rs` | 分辨率/编码/帧率 |
+| 音频流信息提取 | P0 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` + `infrastructure/media/ffprobe.rs` | 语言/声道 |
+| 字幕流信息提取 | P1 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` | 语言/格式 |
+| 加密检测 | P1 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` | is_encrypted 字段 |
+| 直播检测 | P1 | `[x]` | `infrastructure/engines/nm3u8dl/parser.rs` | is_live 字段 |
 
 ---
 
@@ -64,12 +72,12 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 自动选择最佳 | P0 | `[x]` | `src/stores/settingsStore.ts` | 默认行为 |
+| 自动选择最佳 | P0 | `[x]` | `src/composables/useStreamSelector.ts` | 默认行为 |
 | 手动选择 | P1 | `[x]` | `src/components/stream/StreamSelector.vue` | 流选择器 UI |
-| 正则匹配选择 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选择器输入框 |
-| 预设模板 | P1 | `[x]` | `src/stores/templateStore.ts` | 预设模板系统 |
-| 流排除 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 流排除卡片 |
-| 广告过滤 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 广告过滤卡片 |
+| 正则匹配选择 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 选择器输入框 |
+| 预设模板 | P1 | `[x]` | `src/stores/presetStore.ts` + `src/components/settings/tabs/PresetsTab.vue` | DB 持久化预设（取代旧 localStorage 模板） |
+| 流排除 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 流排除配置 |
+| 广告过滤 | P1 | `[-]` | — | 旧实现未接入参数构建（空壳），重构中移除；可用 `--urlprocessor-args` 实现 |
 
 ---
 
@@ -78,20 +86,22 @@
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
 | 下载任务管理 | P0 | `[x]` | `src/stores/taskStore.ts` | CRUD 完整 |
-| 任务添加 | P0 | `[x]` | `src/composables/useTasks.ts:addTask` | |
+| 任务添加 | P0 | `[x]` | `src/composables/useTasks.ts:addTask` | AddTaskDialog 闭环 |
 | 任务删除 | P0 | `[x]` | `src/composables/useTasks.ts:removeTask` | |
 | 进度显示 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 组件完成，数据已连接 |
-| 速度显示 | P0 | `[x]` | `src/types/index.ts:TaskProgressData` | 后端解析输出并推送 |
-| 剩余时间估算 | P0 | `[x]` | `src/types/index.ts:TaskProgressData.eta` | 后端解析输出并推送 |
-| 暂停/继续 | P0 | `[x]` | `src/composables/useDownloader.ts` | 后端实现，通过终止/重启进程 |
+| 速度显示 | P0 | `[x]` | `src/domain/task.ts` (TaskProgressData) | 后端引擎 parser 解析输出并推送 |
+| 剩余时间估算 | P0 | `[x]` | `src/domain/task.ts` (TaskProgressData) | 后端引擎 parser 解析输出并推送 |
+| 暂停/继续 | P0 | `[x]` | `src/composables/useDownloader.ts` | 暂停=终止进程、恢复=重启（N_m3u8DL-RE 不支持断点续传） |
 | 取消下载 | P0 | `[x]` | `src/composables/useDownloader.ts:stopDownload` | 后端实现 |
 | 重试机制 | P0 | `[x]` | `src/stores/taskStore.ts:retryTask` | |
-| 并发控制 | P0 | `[x]` | `src/composables/useDownloader.ts:processQueue` | 队列管理+自动启动下一任务 |
-| 实际执行下载 | P0 | `[x]` | `src-tauri/src/commands/download.rs:start_download` | **核心已实现** |
-| 范围下载 | P1 | `[x]` | `src/types/index.ts:TaskConfig.customRange` | 参数构建已实现 |
-| 限速下载 | P1 | `[x]` | `src/types/index.ts:DownloadSettings.maxSpeed` | 参数构建已实现 |
-| 命名模板 | P1 | `[x]` | `src/types/index.ts:SavePatternSettings` | 参数构建已实现 |
-| N_m3u8DL-RE 路径配置 | P1 | `[x]` | `src/types/index.ts:AdvancedSettings.n_m3u8dlPath` | 支持自定义程序路径 |
+| 并发控制 | P0 | `[x]` | `src/composables/useDownloader.ts` | 队列管理+自动启动下一任务 |
+| 实际执行下载 | P0 | `[x]` | `src-tauri/src/app/commands/download.rs` | 引擎策略构建参数 → 子进程 |
+| 范围下载 | P1 | `[x]` | TaskOverrides → `infrastructure/engines/nm3u8dl/args.rs` | 参数构建在后端引擎 |
+| 限速下载 | P1 | `[x]` | TaskOverrides → `infrastructure/engines/nm3u8dl/args.rs` | 参数构建在后端引擎 |
+| N_m3u8DL-RE 路径配置 | P1 | `[x]` | `src/components/settings/ToolManagerCard.vue` | 参数化共用，支持自定义路径/下载更新 |
+| 双引擎自动分派 | P0 | `[x]` | `infrastructure/engines/` (EngineRegistry) | 按 URL 类型分派，Unknown 回退 N_m3u8DL-RE |
+| TaskOverrides 任务级覆盖 | P0 | `[x]` | `src/domain/task.ts` (TaskOverrides) + `tasks.overrides_json` | 全字段可选，null=沿用全局默认 |
+| 命名模板 | P1 | `[-]` | — | 旧实现未接入参数构建（空壳），重构中移除 |
 
 ---
 
@@ -111,9 +121,9 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 自动合并 | P0 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 任务完成后自动混流 |
-| 二进制合并 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
-| 删除临时文件 | P0 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
+| 自动合并 | P0 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 任务完成后自动混流 |
+| 二进制合并 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 选项开关 |
+| 删除临时文件 | P0 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 选项开关 |
 
 ### 5.3 混流
 
@@ -121,17 +131,17 @@
 | --- | --- | --- | --- | --- |
 | 格式选择 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | MP4/MKV |
 | 混流器选择 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | FFmpeg/MKVMerge |
-| 自定义程序路径 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | 混流器路径 |
+| 自定义程序路径 | P1 | `[x]` | `src/components/settings/ToolManagerCard.vue` | FFmpeg 路径管理 |
 | 保留原文件 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | 选项开关 |
-| 外部媒体导入 | P1 | `[x]` | `src/components/settings/sections/MuxSettings.vue` | 外部音频/字幕导入 UI |
+| 外部媒体导入 | P1 | `[-]` | — | 旧实现未接入参数构建（空壳），重构中移除 |
 
 ### 5.4 字幕
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 格式选择 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | SRT/WebVTT |
-| 自动修正时间轴 | P1 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
-| 仅下载字幕 | P2 | `[x]` | `src/components/settings/sections/DownloadSettings.vue` | 选项开关 |
+| 格式选择 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | SRT/WebVTT |
+| 自动修正时间轴 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 选项开关 |
+| 仅下载字幕 | P2 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 选项开关 |
 
 ---
 
@@ -173,27 +183,27 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 类型定义 | P1 | `[x]` | `src/types/index.ts:HistoryRecord` | |
-| SQLite 数据库 | P1 | `[x]` | `src-tauri/src/db/history.rs` | rusqlite 持久化 |
-| 后端命令 | P1 | `[x]` | `src-tauri/src/commands/config.rs` | load/save/add/clear/delete |
-| 记录保存 | P1 | `[x]` | `src/stores/historyStore.ts` | 任务完成时自动保存 |
-| 历史列表 | P1 | `[x]` | `src/views/HistoryView.vue` | 历史记录页面 |
+| 类型定义 | P1 | `[x]` | `src/domain/task.ts` (HistoryRecord) | |
+| SQLite 数据库 | P1 | `[x]` | `src-tauri/src/infrastructure/db/repository/history_repo.rs` | rusqlite 持久化 |
+| 后端命令 | P1 | `[x]` | `src-tauri/src/app/commands/history.rs` | load_history / delete_history_record / clear_history |
+| 记录保存 | P1 | `[x]` | `src/stores/historyStore.ts` + `src/services/historyService.ts` | 任务终态自动快照，含 overrides，清除任务不删历史 |
+| 历史列表 | P1 | `[x]` | `src/views/HistoryView.vue` | 历史记录页面，支持查看/删除/重新下载 |
 
-### 8.3 配置模板
+### 8.3 任务预设
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 类型定义 | P1 | `[x]` | `src/types/index.ts:ConfigTemplate` | |
-| 模板 Store | P1 | `[x]` | `src/stores/templateStore.ts` | 增删改查 + 应用 |
-| 模板管理 UI | P1 | `[x]` | `src/components/template/TemplateManager.vue` | 预设模板 + 自定义模板 |
-| 预设模板 | P1 | `[x]` | `src/stores/templateStore.ts` | 最佳质量/1080P/720P |
+| 类型定义 | P1 | `[x]` | `src/domain/config.ts` (TaskPreset) | |
+| 预设 Store | P1 | `[x]` | `src/stores/presetStore.ts` | DB 持久化（取代旧 templateStore localStorage） |
+| 预设管理 UI | P1 | `[x]` | `src/components/settings/tabs/PresetsTab.vue` | 命名预设管理 |
+| 预设模板 | P1 | `[x]` | `src/stores/presetStore.ts` | 最佳质量/1080P/720P 预设 |
 
 ### 8.4 定时任务
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 类型定义 | P2 | `[x]` | `src/types/index.ts:ScheduledTask` | |
-| 定时开始 | P2 | `[x]` | `src/components/input/UrlInputPanel.vue` | 高级选项中的日期时间选择器 |
+| 类型定义 | P2 | `[x]` | `src/domain/task.ts` (TaskOverrides.scheduledStartAt) | |
+| 定时开始 | P2 | `[x]` | `src/components/task/AddTaskDialog.vue` + `src/composables/useDownloader.ts` | datetime-local + 30s 轮询调度，应用需运行 |
 
 ---
 
@@ -201,10 +211,10 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 系统托盘 | P2 | `[x]` | `src-tauri/src/tray.rs` | 最小化到托盘，托盘菜单 |
-| 下载完成通知 | P2 | `[x]` | `src/components/settings/sections/UISettings.vue` | 选项开关 |
-| 剪贴板监控 | P2 | `[x]` | `src/components/settings/sections/UISettings.vue` | 选项开关 |
-| 自动更新 | P3 | `[x]` | `src/composables/useUpdateChecker.ts` | GitHub API 版本检查，自动下载安装 |
+| 系统托盘 | P2 | `[x]` | `src-tauri/src/app/tray.rs` | 最小化到托盘，托盘菜单 |
+| 下载完成通知 | P2 | `[x]` | `src/composables/useNotification.ts` | 系统通知 |
+| 剪贴板监控 | P2 | `[x]` | `src/composables/useClipboardWatcher.ts` | 选项开关 |
+| 自动更新 | P3 | `[x]` | `src/composables/useUpdateChecker.ts` + `src/services/updateService.ts` | GitHub API 版本检查，自动下载安装 |
 
 ---
 
@@ -214,14 +224,16 @@
 | --- | --- | --- | --- | --- |
 | 深色主题 | P0 | `[x]` | `src/style.css` | CSS 变量已定义 |
 | 浅色主题 | P3 | `[x]` | `src/style.css` | CSS 变量已定义，主题切换已实现 |
-| 主题切换 | P3 | `[x]` | `src/components/settings/sections/UISettings.vue` | 主题选择器 UI |
-| 多语言支持 | P3 | `[x]` | `src/locales/` | vue-i18n 实现，支持中/英/繁三语 |
+| 主题切换 | P3 | `[x]` | `src/components/settings/tabs/GeneralTab.vue` | 主题选择器 UI |
+| 多语言支持 | P3 | `[x]` | `src/locales/` | vue-i18n，简体中文/繁体中文/英文三语 |
 | 主页布局 | P0 | `[x]` | `src/views/HomeView.vue` | 基本布局完成 |
-| 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 组件完成 |
+| 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情） |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
-| 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 9 个设置标签页完成 |
+| 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 4 标签页（常规·界面 / N_m3u8DL-RE / FFmpeg / 任务预设）+ ToolManagerCard 共用 |
 | Toast 提示 | P0 | `[x]` | `src/composables/useToast.ts` | |
 | 日志查看器 | P2 | `[x]` | `src/components/task/LogViewer.vue` | 实时日志显示 |
+| 进度图表 | P2 | `[x]` | `src/components/task/ProgressChart.vue` | Chart.js 下载速率曲线，实时更新 |
+| 任务筛选 | P2 | `[x]` | `src/components/task/TaskFilterBar.vue` + `src/composables/useTaskFilter.ts` | 状态/搜索筛选 |
 
 ---
 
@@ -229,11 +241,11 @@
 
 | 组件 | 状态 | 文件 | 备注 |
 | --- | --- | --- | --- |
-| AppButton | `[x]` | `src/components/common/AppButton.vue` | |
-| AppInput | `[x]` | `src/components/common/AppInput.vue` | |
+| AppIcon | `[x]` | `src/components/common/AppIcon.vue` | |
 | AppProgress | `[x]` | `src/components/common/AppProgress.vue` | |
-| AppCard | `[x]` | `src/components/common/AppCard.vue` | |
-| Textarea | `[x]` | `src/components/ui/textarea/Textarea.vue` | Shadcn-Vue 多行输入 |
+| UrlDuplicateDialog | `[x]` | `src/components/common/UrlDuplicateDialog.vue` | URL 重复检测弹窗 |
+| RestoreTasksDialog | `[x]` | `src/components/common/RestoreTasksDialog.vue` | 启动时恢复中断任务 |
+| shadcn-vue 组件库 | `[x]` | `src/components/ui/` | Textarea, Button, Dialog, Select, Switch 等 |
 
 ---
 
@@ -243,23 +255,15 @@
 
 | 状态 | 数量 | 说明 |
 | --- | --- | --- |
-| `[x]` 已完成 | 107 | 基础设施 + 核心下载功能 + UI 组件 + 并发控制 + 流解析 + 文件导入 + 历史记录 + SQLite + 历史列表 UI + 流选择器 + 配置模板 + 流排除 + 广告过滤 + 混流设置 + 网络代理 + 字幕设置 + 解密设置 + 直播设置 + 外部媒体导入 + UI 设置 + 自动更新 + 多语言 + 定时开始 + 日志查看器 + 拖拽输入 + 浅色主题 + 系统托盘 + 剪贴板检测 + i18n 翻译 |
+| `[x]` 已完成 | 112 | 基础设施（含引擎策略/测试体系/错误处理）+ 输入（含 URL 重复检测）+ 解析（含 ffprobe）+ 流选择 + 下载（含双引擎分派/TaskOverrides）+ 处理 + 直播 + 网络 + 管理（含历史记录/预设 DB/定时调度）+ 系统集成 + UI/UX（4 标签页/进度图表/任务筛选）+ 通用组件 |
+| `[-]` 暂不实现 | 3 | 广告过滤、外部媒体导入、命名模板（均为旧空壳 UI，未接入参数构建） |
 | `[/]` 进行中 | 0 | - |
 | `[ ]` 计划中 | 0 | - |
-| **总计** | **107** | |
+| **总计** | **115** | |
 
 ### 核心待实现 (P0 优先)
 
-| 功能 | 文件 | 状态 |
-| --- | --- | --- |
-| ~~实际下载执行~~ | ~~`src-tauri/src/commands/download.rs:start_download`~~ | `[x]` |
-| ~~进度事件推送~~ | ~~`src-tauri/src/process/manager.rs`~~ | `[x]` |
-| ~~设置页面 UI~~ | ~~`src/views/SettingsView.vue`~~ | `[x]` |
-| ~~多链接批量输入~~ | ~~`src/views/HomeView.vue`~~ | `[x]` |
-| ~~并发控制逻辑~~ | ~~`src/composables/useDownloader.ts`~~ | `[x]` |
-| ~~流解析 (调用 N_m3u8DL-RE)~~ | ~~`src-tauri/src/commands/download.rs:parse_url`~~ | `[x]` |
-
-**所有 P0 优先级功能已完成！**
+所有 P0 优先级功能已完成，无待实现项。
 
 ---
 
@@ -276,61 +280,12 @@
 | 2025-02-13 | **核心功能实现**: 完善进程管理器，实现实际下载执行、进度事件推送、暂停/取消功能 |
 | 2025-02-14 | **并发控制**: 实现任务队列管理、并发限制、任务完成后自动启动下一任务 |
 | 2025-02-14 | **批量输入**: 实现多链接批量输入，支持可展开的多行文本框 |
-| 2025-02-14 | 新增 Textarea 组件 (Shadcn-Vue) |
-| 2025-02-14 | **流解析功能**: 实现调用 N_m3u8DL-RE 解析 URL，提取视频/音频/字幕流信息，检测加密和直播状态 |
+| 2025-02-14 | **流解析功能**: 实现调用 N_m3u8DL-RE 解析 URL，提取视频/音频/字幕流信息 |
 | 2025-02-14 | **所有 P0 优先级功能已完成！** |
-| 2025-02-14 | **文件导入**: 实现从 TXT 文件导入 URL 列表 |
-| 2025-02-14 | **UI 简化**: 统一单链接和多链接输入为一个多行输入框 |
-| 2025-02-14 | **历史记录持久化**: 实现后端历史记录命令、historyStore、任务完成时自动保存 |
-| 2025-02-14 | **SQLite 数据库**: 将历史记录持久化从 JSON 文件改为 SQLite 数据库 |
-| 2025-02-14 | **历史记录列表 UI**: 实现历史记录页面，支持查看、删除、重新下载 |
-| 2025-02-14 | **UI 重构**: 重构 SettingsView (999→189行) 和 HomeView (372→140行)，创建通用组件体系 |
-| 2025-02-14 | **数据持久化架构重构**: 统一使用 SQLite 存储，重构 Store 为缓存层，支持任务恢复 |
-| 2025-02-14 | **流选择器 UI**: 实现 StreamSelector 组件，支持视频/音频/字幕流选择，集成到下载流程 |
-| 2025-02-14 | **配置模板管理**: 实现 templateStore 和 TemplateManager 组件，支持预设模板和自定义模板 |
-| 2025-02-14 | 设置页面新增"模板"标签页，共 9 个标签页 |
-| 2025-02-14 | **组件重构**: 将 StreamSelector 和 TemplateManager 拆分为 UI 组件 + Composable，遵循单一职责原则 |
-| 2025-02-14 | **流排除 UI**: 在下载设置页面添加流排除卡片，支持正则表达式排除视频/音频/字幕流 |
-| 2025-02-14 | **广告过滤 UI**: 在下载设置页面添加广告过滤卡片，支持动态添加/删除正则关键字 |
-| 2025-02-14 | **混流设置 UI**: 完善混流设置组件，支持格式选择、混流器选择、程序路径、保留原文件等选项 |
-| 2025-02-14 | **网络代理 UI**: 完善网络设置组件，支持系统代理、自定义代理、BaseURL 设置 |
-| 2025-02-14 | **字幕设置 UI**: 在下载设置页面添加字幕设置卡片，支持格式选择、自动修正时间轴、仅下载字幕 |
-| 2025-02-14 | **P1 优先级功能基本完成**：85/107 功能已实现 |
-| 2026-02-14 | **请求头管理 UI**: 在网络设置页面添加请求头管理卡片，支持添加/删除/启用/禁用自定义 HTTP 请求头 |
-| 2026-02-14 | **解密设置 UI**: 完善解密设置组件，支持密钥配置(KID:KEY)、解密引擎选择、实时解密、HLS 自定义解密 |
-| 2026-02-14 | **直播设置 UI**: 完善直播设置组件，支持 VOD 模式、实时合并、保留分片、录制限制、等待时间等选项 |
-| 2026-02-14 | **P2 优先级功能基本完成**：92/107 功能已实现 |
-| 2026-02-14 | **外部媒体导入 UI**: 在混流设置页面添加外部媒体导入卡片，支持导入外部音频/字幕文件进行混流 |
-| 2026-02-14 | **UI 设置完善**: 界面设置组件已包含通知开关、剪贴板监视、主题切换功能 |
-| 2026-02-14 | **功能状态完善**: 更新自动更新、多语言支持状态，UI 已实现 |
-| 2026-02-14 | **P1-P2 优先级功能基本完成**：97/107 功能已实现 |
-| 2026-02-14 | **前后端联动修复**: 修复 commandBuilder 缺失参数(binaryMerge, writeMetaJson, concurrentDownload, ffmpegPath, keys 数组)，完善 useDownloader 任务配置合并逻辑 |
-| 2026-02-14 | **定时开始 UI**: 在 URL 输入面板添加高级选项，支持选择定时开始日期时间 |
-| 2026-02-14 | **日志查看器**: 创建 LogViewer 组件，支持实时查看任务日志、自动滚动、清除日志 |
-| 2026-02-14 | **P2 优先级功能完成**：99/107 功能已实现 |
-| 2026-02-14 | **拖拽输入**: 在 HomeView 添加拖放支持，可拖放文本链接或 TXT 文件到页面添加任务 |
-| 2026-02-14 | **浅色主题**: 确认浅色主题 CSS 变量和主题切换功能已完整实现 |
-| 2026-02-14 | **P3 优先级功能开始**: 101/107 功能已实现 |
-| 2026-02-14 | **系统托盘**: 实现系统托盘功能，支持最小化到托盘、托盘菜单（显示窗口/退出）、单击托盘图标显示窗口 |
-| 2026-02-14 | **剪贴板检测**: 实现剪贴板自动检测功能，监控剪贴板变化，自动检测 M3U8/MPD/MSS 链接并添加到输入框 |
-| 2026-02-14 | **所有 P2 优先级功能完成**: 103/107 功能已实现 |
-| 2026-02-14 | **自动更新检查**: 实现 GitHub API 版本检查功能，支持手动检查和启动时自动检查，显示当前版本和最新版本 |
-| 2026-02-14 | **多语言支持**: 使用 vue-i18n 实现国际化，支持简体中文、繁体中文、英文三种语言，完成所有界面翻译 |
-| 2026-02-14 | **所有功能实现完成**: 107/107 功能已实现 🎉 |
-| 2026-02-19 | **设置项功能修复**: 修复 showNotification 设置未被使用的问题，创建 useNotification composable 实现系统通知功能，下载完成/失败时根据设置发送通知 |
-| 2026-02-19 | **minimizeToTray 设置修复**: 修复后端总是最小化到托盘的问题，现在根据用户设置决定关闭窗口时的行为（最小化到托盘或退出应用） |
-| 2026-02-19 | **文件存在检测修复**: 修复完成后文件总是显示"已删除"的问题，后端现在会扫描实际生成的文件路径，支持多种扩展名(.mp4/.mkv/.ts等)和文件名匹配 |
-| 2026-02-19 | **文件信息增强**: 添加 get_file_info 后端命令，任务详情面板现在显示实际文件大小、文件名、格式、修改时间等信息 |
-| 2026-02-19 | **解析器改进**: 改进 N_m3u8DL-RE 输出解析器，支持更多输出格式，包括 [DOWN]/[MERGE]/[MUX] 标签格式 |
-| 2026-02-19 | **媒体信息存储**: 扩展数据库结构，添加 media_info_json 字段存储视频元数据（分辨率、编码、时长、帧率、HDR等），新增 update_task_media_info 后端命令 |
-| 2026-02-19 | **任务详情面板优化**: 重新设计头部布局，将文件名和状态整合到标题栏，改进视觉层次，增加媒体信息显示（分辨率、时长、编码、帧率、色域、分片数、是否加密等） |
-| 2026-02-19 | **媒体信息自动保存**: 下载开始时自动从解析的流信息中提取媒体元数据（分辨率、编码、帧率、时长等）并保存到任务 |
-| 2026-02-19 | **媒体信息任务隔离修复**: 修复并发下载时媒体信息混乱的问题，改为每个任务启动时单独解析 URL 获取流信息，确保任务间数据完全隔离 |
-| 2026-02-19 | **解析参数重构**: 新增 buildParseArgs 函数复用应用设置（网络、解密等），重构 parse_url 命令接收完整参数数组，修复解析时缺少 --auto-select 导致交互式提示失败的问题 |
-| 2026-02-19 | **代码清理**: 删除旧的 parse_url 硬编码参数版本、删除 tauri.ts 中不存在的命令包装函数（loadConfig/saveConfig/getDefaultDownloadDir/checkFfmpegAvailable）、删除未使用的 HeaderItem 类型 |
-| 2026-02-19 | **commandBuilder 架构重构**: 提取公共配置构建函数（addNetworkArgs/addDecryptionArgs/addLogArgs/addAdvancedArgs），确保 buildCommandArgs 和 buildParseArgs 使用相同的配置逻辑，提升代码一致性和可维护性 |
-| 2026-02-19 | **进度图表功能**: 添加进度历史数据库表(progress_history)，实现 ProgressChart 组件使用 Chart.js 绘制下载速率曲线图（X轴=进度%, Y轴=速率），显示峰值/平均/当前速率统计 |
-| 2026-02-19 | **ProgressChart 实时更新**: 重构 ProgressChart 组件支持实时数据更新，下载中从 taskStore 获取实时进度，下载完成后从数据库加载历史数据，合并显示完整曲线 |
-| 2026-02-19 | **文件大小显示修复**: 修复文件大小在任务卡片和详情面板中不显示的问题，下载中显示"已下载/总大小"，已完成显示总大小 |
-| 2026-02-19 | **进度条显示优化**: TaskCard 进度条在所有有进度时显示（不仅仅是下载中），新增暂停状态显示已下载大小和进度百分比 |
-| 2026-02-20 | **自动更新下载安装功能**: 完善软件更新功能，支持检测到新版本后直接下载到临时目录、自动运行安装程序，UI 显示下载文件路径、打开文件位置、重新运行安装程序 |
+| 2025-02-14 | **文件导入 / UI 简化 / 历史记录持久化 / SQLite / 历史记录列表 UI** |
+| 2025-02-14 | **流选择器 UI / 配置模板管理 / 流排除 / 广告过滤 / 混流 / 网络 / 字幕** |
+| 2026-02-14 | **请求头管理 / 解密设置 / 直播设置 / 外部媒体导入 / 定时开始 / 日志查看器** |
+| 2026-02-14 | **拖拽输入 / 浅色主题 / 系统托盘 / 剪贴板检测 / 自动更新 / 多语言支持** |
+| 2026-02-19 | **设置修复 / 文件信息增强 / 解析器改进 / 媒体信息存储 / 进度图表 / commandBuilder 架构重构** |
+| 2026-02-20 | **自动更新下载安装功能** |
+| 2026-07-21 | **完全重构**——引擎策略架构（DownloadEngine + EngineRegistry 自动分派）、三层配置模型（全局默认 + TaskOverrides + 引擎 args）、schema v4 单表聚合（tasks JSON 列 + tool_settings 通用表 + history 快照）、设置中心 9→4 标签页（常规·界面 / N_m3u8DL-RE / FFmpeg / 任务预设）+ ToolManagerCard 参数化共用、添加任务闭环（URL 类型徽章 / 流选择 / 预设选择器 / 定时开始 / 高级折叠）、历史记录与定时开始真实实现、移除 3 个空壳功能（广告过滤 / 外部媒体导入 / 命名模板）、前端 commandBuilder 删除（参数构建移入后端引擎 `infrastructure/engines/*/args.rs`）、测试体系建立（Rust 96 + vitest 47）；schema v4 全量重建不保留旧数据。详见 `07-tool-config-architecture.md` |
