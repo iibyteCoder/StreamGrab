@@ -1,106 +1,117 @@
 <script setup lang="ts">
 /**
  * LiveSettings - 直播设置组件
+ *
+ * 数据源：Nm3u8dlConfig 的 live_* 字段
+ * 更新：emit DeepPartial<Nm3u8dlConfig>
  */
 
+import { useI18n } from "vue-i18n";
 import { Separator } from "@/components/ui/separator";
 import { SettingSwitch, SettingInput, SettingsGroup } from "..";
+import type { Nm3u8dlConfig } from "@/domain";
+import type { DeepPartial } from "@/services";
 
-interface Settings {
-  live: {
-    performAsVod: boolean;
-    realTimeMerge: boolean;
-    keepSegments: boolean;
-    pipeMux: boolean;
-    fixVttByAudio: boolean;
-    recordLimit: string;
-    waitTime: number;
-    takeCount: number;
-  };
+/** 直播相关字段提取 */
+export interface LiveFields {
+  live_perform_as_vod: boolean;
+  live_real_time_merge: boolean;
+  live_keep_segments: boolean;
+  live_pipe_mux: boolean;
+  live_fix_vtt_by_audio: boolean;
+  live_record_limit: string | null;
+  live_wait_time: number;
+  live_take_count: number;
 }
 
 interface Props {
-  settings: Settings;
+  live: LiveFields;
 }
 
 defineProps<Props>();
 
+const { t } = useI18n();
+
 const emit = defineEmits<{
-  (e: "update:settings", value: any): void;
+  (e: "update", value: DeepPartial<Nm3u8dlConfig>): void;
 }>();
 
-// 更新设置
-const updateLive = (value: any) => {
-  emit("update:settings", value);
-};
+function patchLive(patch: Partial<LiveFields>) {
+  emit("update", patch as DeepPartial<Nm3u8dlConfig>);
+}
 </script>
 
 <template>
-  <div class="space-y-2">
-    <SettingsGroup title="直播录制" description="配置直播流录制选项">
-      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
-        <SettingSwitch
-          :model-value="settings.live.performAsVod"
-          label="作为 VOD 处理"
-          description="将直播流当作点播处理"
-          @update:model-value="updateLive({ performAsVod: $event })"
-        />
+  <SettingsGroup
+    :title="t('settings.live.mode')"
+    :description="t('settings.live.modeDesc', '配置直播流录制选项')"
+  >
+    <div class="grid grid-cols-2 gap-x-8 gap-y-4">
+      <SettingSwitch
+        :model-value="live.live_perform_as_vod"
+        :label="t('settings.live.performAsVod', '作为 VOD 处理')"
+        :description="
+          t('settings.live.performAsVodDesc', '将直播流当作点播处理')
+        "
+        @update:model-value="patchLive({ live_perform_as_vod: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.live.realTimeMerge"
-          label="实时合并"
-          @update:model-value="updateLive({ realTimeMerge: $event })"
-        />
+      <SettingSwitch
+        :model-value="live.live_real_time_merge"
+        :label="t('settings.live.realtimeMerge')"
+        @update:model-value="patchLive({ live_real_time_merge: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.live.keepSegments"
-          label="保留分片"
-          @update:model-value="updateLive({ keepSegments: $event })"
-        />
+      <SettingSwitch
+        :model-value="live.live_keep_segments"
+        :label="t('settings.live.keepSegments')"
+        @update:model-value="patchLive({ live_keep_segments: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.live.pipeMux"
-          label="管道混流"
-          @update:model-value="updateLive({ pipeMux: $event })"
-        />
+      <SettingSwitch
+        :model-value="live.live_pipe_mux"
+        :label="t('settings.live.pipeMux', '管道混流')"
+        @update:model-value="patchLive({ live_pipe_mux: $event })"
+      />
 
-        <SettingSwitch
-          :model-value="settings.live.fixVttByAudio"
-          label="通过音频修复 VTT"
-          @update:model-value="updateLive({ fixVttByAudio: $event })"
-        />
-      </div>
+      <SettingSwitch
+        :model-value="live.live_fix_vtt_by_audio"
+        :label="t('settings.live.fixVttByAudio', '通过音频修复 VTT')"
+        @update:model-value="patchLive({ live_fix_vtt_by_audio: $event })"
+      />
+    </div>
 
-      <Separator class="my-4" />
+    <Separator class="my-4" />
 
-      <div class="grid grid-cols-3 gap-4">
-        <SettingInput
-          :model-value="settings.live.recordLimit"
-          label="录制限制"
-          placeholder="1:30:00"
-          @update:model-value="updateLive({ recordLimit: $event })"
-        />
+    <div class="grid grid-cols-3 gap-4">
+      <SettingInput
+        :model-value="live.live_record_limit || ''"
+        :label="t('settings.live.durationLimit')"
+        placeholder="1:30:00"
+        @update:model-value="
+          patchLive({ live_record_limit: String($event) || null })
+        "
+      />
 
-        <SettingInput
-          :model-value="settings.live.waitTime"
-          label="等待 (秒)"
-          type="number"
-          :min="0"
-          @update:model-value="
-            updateLive({ waitTime: parseInt(String($event)) || 0 })
-          "
-        />
+      <SettingInput
+        :model-value="live.live_wait_time"
+        :label="t('settings.live.waitTime')"
+        type="number"
+        :min="0"
+        @update:model-value="
+          patchLive({ live_wait_time: parseInt(String($event)) || 0 })
+        "
+      />
 
-        <SettingInput
-          :model-value="settings.live.takeCount"
-          label="分片数"
-          type="number"
-          :min="0"
-          @update:model-value="
-            updateLive({ takeCount: parseInt(String($event)) || 0 })
-          "
-        />
-      </div>
-    </SettingsGroup>
-  </div>
+      <SettingInput
+        :model-value="live.live_take_count"
+        :label="t('settings.live.segmentCount')"
+        type="number"
+        :min="0"
+        @update:model-value="
+          patchLive({ live_take_count: parseInt(String($event)) || 0 })
+        "
+      />
+    </div>
+  </SettingsGroup>
 </template>

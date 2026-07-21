@@ -1,361 +1,153 @@
 /**
- * 任务持久化服务
- * 处理所有任务相关的后端 API 调用
+ * 任务服务
+ *
+ * 与后端 tasks 命令组一一对应；进度落盘的防抖调度也在此（Store 不直接管定时器）
  */
 
 import { invokeTauri } from "./tauri";
-import type { DownloadTask, TaskStatus, TaskCreateParams } from "@/types/task";
+import type {
+  MediaInfo,
+  ProgressData,
+  ProgressSample,
+  TaskOverrides,
+  TaskRecord,
+  TaskStatus,
+} from "@/domain";
 
-/**
- * 后端任务记录格式（与 Rust FullTaskRecord 匹配）
- */
-interface FullTaskRecord {
-  id: string;
-  url: string;
-  file_name: string;
-  save_dir: string;
-  output_path: string | null;
-  status: string;
-  error: string | null;
-  was_interrupted: boolean;
-  created_at: string;
-  updated_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-  // 进度
-  progress_percent: number;
-  progress_speed: number;
-  progress_downloaded_size: number;
-  progress_total_size: number;
-  progress_downloaded_segments: number;
-  progress_total_segments: number;
-  progress_eta: number;
-  progress_current_action: string;
-  // 媒体信息
-  media_resolution: string | null;
-  media_width: number | null;
-  media_height: number | null;
-  media_frame_rate: number | null;
-  media_video_codec: string | null;
-  media_video_range: string | null;
-  media_audio_codec: string | null;
-  media_audio_channels: string | null;
-  media_audio_language: string | null;
-  media_duration: number | null;
-  media_segment_count: number | null;
-  media_is_live: boolean;
-  media_is_encrypted: boolean;
-  media_file_format: string | null;
-}
+/** 进度落盘防抖间隔 */
+const PROGRESS_FLUSH_DELAY_MS = 1000;
 
-/**
- * 后端 TaskRecord 格式（用于创建任务）
- */
-interface TaskRecord {
-  id: string;
-  url: string;
-  file_name: string;
-  save_dir: string;
-  output_path: string | null;
-  status: string;
-  error: string | null;
-  was_interrupted: boolean;
-  created_at: string;
-  updated_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-}
-
-/**
- * 后端 TaskMediaInfo 格式
- */
-interface TaskMediaInfo {
-  task_id: string;
-  resolution?: string;
-  width?: number;
-  height?: number;
-  frame_rate?: number;
-  video_codec?: string;
-  video_range?: string;
-  audio_codec?: string;
-  audio_channels?: string;
-  audio_language?: string;
-  duration?: number;
-  segment_count?: number;
-  is_live: boolean;
-  is_encrypted: boolean;
-  file_format?: string;
-}
-
-/**
- * 进度历史记录（与 Rust ProgressHistoryRecord 匹配）
- */
-export interface ProgressHistoryRecord {
-  id: number;
-  task_id: string;
-  timestamp: string;
-  percent: number;
-  speed: number;
-  downloaded_size: number;
-}
-
-/**
- * 任务服务类
- */
 class TaskService {
-  /**
-   * 加载所有任务
-   */
-  async loadAllTasks(): Promise<DownloadTask[]> {
-    const records = await invokeTauri<FullTaskRecord[]>("load_all_tasks");
-    return records.map((r) => this.toDownloadTask(r));
+  /** 每任务的进度落盘防抖定时器 */
+  private flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** 防抖窗口内最新的进度数据 */
+  private pendingProgress = new Map<string, ProgressData>();
+
+  // ===== CRUD =====
+
+  loadAllTasks(): Promise<TaskRecord[]> {
+    return invokeTauri<TaskRecord[]>("load_all_tasks");
   }
 
-  /**
-   * 加载可恢复的任务（被中断的下载）
-   */
-  async loadRecoverableTasks(): Promise<DownloadTask[]> {
-    const records = await invokeTauri<FullTaskRecord[]>(
-      "load_recoverable_tasks",
-    );
-    return records.map((r) => this.toDownloadTask(r));
+  loadRecoverableTasks(): Promise<TaskRecord[]> {
+    return invokeTauri<TaskRecord[]>("load_recoverable_tasks");
   }
 
-  /**
-   * 创建任务
-   */
-  async createTask(params: TaskCreateParams): Promise<void> {
-    const record: TaskRecord = {
-      id: params.id,
-      url: params.url,
-      file_name: params.fileName,
-      save_dir: params.saveDir,
-      output_path: params.outputPath || null,
-      status: params.status,
-      error: params.error || null,
-      was_interrupted: params.wasInterrupted || false,
-      created_at: params.createdAt || new Date().toISOString(),
-      updated_at: params.updatedAt || new Date().toISOString(),
-      started_at: params.startedAt || null,
-      completed_at: params.completedAt || null,
-    };
-    await invokeTauri("create_task", { task: record });
+  getTask(taskId: string): Promise<TaskRecord | null> {
+    return invokeTauri<TaskRecord | null>("get_task", { taskId });
   }
 
-  /**
-   * 更新任务状态
-   */
-  async updateTaskStatus(
+  createTask(task: TaskRecord): Promise<void> {
+    return invokeTauri("create_task", { task });
+  }
+
+  updateTaskStatus(
     taskId: string,
     status: TaskStatus,
-    error?: string,
+    error?: string | null,
   ): Promise<void> {
-    await invokeTauri("update_task_status", {
+    return invokeTauri("update_task_status", {
       taskId,
       status,
-      error: error || null,
+      error: error ?? null,
     });
   }
 
-  /**
-   * 更新任务输出路径
-   */
-  async updateTaskOutputPath(
-    taskId: string,
-    outputPath: string,
-  ): Promise<void> {
-    await invokeTauri("update_task_output_path", {
-      taskId,
-      outputPath,
-    });
+  updateTaskOutputPath(taskId: string, outputPath: string): Promise<void> {
+    return invokeTauri("update_task_output_path", { taskId, outputPath });
   }
 
-  /**
-   * 更新任务进度
-   */
-  async updateTaskProgress(
-    taskId: string,
-    progress: {
-      percent: number;
-      speed: number;
-      downloadedSize: number;
-      totalSize: number;
-      downloadedSegments: number;
-      totalSegments: number;
-      eta: number;
-      currentAction: string;
-    },
-  ): Promise<void> {
-    await invokeTauri("update_task_progress", {
-      taskId,
-      percent: progress.percent,
-      speed: progress.speed,
-      downloadedSize: progress.downloadedSize,
-      totalSize: progress.totalSize,
-      downloadedSegments: progress.downloadedSegments,
-      totalSegments: progress.totalSegments,
-      eta: progress.eta,
-      currentAction: progress.currentAction,
-    });
+  updateTaskMediaInfo(taskId: string, mediaInfo: MediaInfo): Promise<void> {
+    return invokeTauri("update_task_media_info", { taskId, mediaInfo });
   }
 
-  /**
-   * 更新任务媒体信息
-   */
-  async updateTaskMediaInfo(
-    taskId: string,
-    mediaInfo: {
-      resolution?: string;
-      width?: number;
-      height?: number;
-      frameRate?: number;
-      videoCodec?: string;
-      videoRange?: string;
-      audioCodec?: string;
-      audioChannels?: string;
-      audioLanguage?: string;
-      duration?: number;
-      segmentCount?: number;
-      isLive?: boolean;
-      isEncrypted?: boolean;
-      fileFormat?: string;
-    },
-  ): Promise<void> {
-    const info: TaskMediaInfo = {
-      task_id: taskId,
-      resolution: mediaInfo.resolution,
-      width: mediaInfo.width,
-      height: mediaInfo.height,
-      frame_rate: mediaInfo.frameRate,
-      video_codec: mediaInfo.videoCodec,
-      video_range: mediaInfo.videoRange,
-      audio_codec: mediaInfo.audioCodec,
-      audio_channels: mediaInfo.audioChannels,
-      audio_language: mediaInfo.audioLanguage,
-      duration: mediaInfo.duration,
-      segment_count: mediaInfo.segmentCount,
-      is_live: mediaInfo.isLive || false,
-      is_encrypted: mediaInfo.isEncrypted || false,
-      file_format: mediaInfo.fileFormat,
-    };
-    await invokeTauri("update_task_media_info", { taskId, mediaInfo: info });
+  saveTaskOverrides(taskId: string, overrides: TaskOverrides): Promise<void> {
+    return invokeTauri("save_task_overrides", { taskId, overrides });
   }
 
-  /**
-   * 删除任务
-   */
-  async deleteTask(taskId: string): Promise<void> {
-    await invokeTauri("delete_task", { taskId });
+  deleteTask(taskId: string): Promise<void> {
+    return invokeTauri("delete_task", { taskId });
   }
 
-  /**
-   * 清除已完成的任务
-   */
-  async clearFinishedTasks(): Promise<number> {
+  /** 清除已结束任务，返回删除数量（历史记录保留） */
+  clearFinishedTasks(): Promise<number> {
     return invokeTauri<number>("clear_finished_tasks");
   }
 
-  /**
-   * 标记活跃任务为已中断
-   */
-  async markActiveTasksInterrupted(): Promise<number> {
+  clearAllTasks(): Promise<void> {
+    return invokeTauri("clear_all_tasks");
+  }
+
+  /** 将活跃任务标记为已中断（应用启动时调用） */
+  markActiveTasksInterrupted(): Promise<number> {
     return invokeTauri<number>("mark_active_tasks_interrupted");
   }
 
-  /**
-   * 清除所有任务
-   */
-  async clearAllTasks(): Promise<void> {
-    await invokeTauri("clear_all_tasks");
+  // ===== 进度 =====
+
+  /** 立即写入进度（不经过防抖） */
+  updateTaskProgress(taskId: string, progress: ProgressData): Promise<void> {
+    return invokeTauri("update_task_progress", { taskId, progress });
   }
 
-  // ========================================
-  // 进度历史
-  // ========================================
-
   /**
-   * 获取进度历史
+   * 调度进度落盘（按任务防抖）
+   *
+   * 高频进度事件先更新内存状态（Store 负责），经此方法防抖写库；
+   * 任务结束时调用 flushProgress 立即落盘。
    */
-  async getProgressHistory(
+  scheduleProgressFlush(taskId: string, progress: ProgressData): void {
+    this.pendingProgress.set(taskId, progress);
+
+    const existing = this.flushTimers.get(taskId);
+    if (existing) {
+      clearTimeout(existing);
+    }
+
+    const timer = setTimeout(() => {
+      this.flushTimers.delete(taskId);
+      const data = this.pendingProgress.get(taskId);
+      this.pendingProgress.delete(taskId);
+      if (data) {
+        this.updateTaskProgress(taskId, data).catch((e) =>
+          console.error("进度落盘失败:", e),
+        );
+      }
+    }, PROGRESS_FLUSH_DELAY_MS);
+
+    this.flushTimers.set(taskId, timer);
+  }
+
+  /** 立即落盘并清除防抖窗口（任务结束时调用） */
+  flushProgress(taskId: string): void {
+    const timer = this.flushTimers.get(taskId);
+    if (timer) {
+      clearTimeout(timer);
+      this.flushTimers.delete(taskId);
+    }
+    const data = this.pendingProgress.get(taskId);
+    this.pendingProgress.delete(taskId);
+    if (data) {
+      this.updateTaskProgress(taskId, data).catch((e) =>
+        console.error("进度落盘失败:", e),
+      );
+    }
+  }
+
+  // ===== 速率曲线 =====
+
+  getProgressHistory(
     taskId: string,
     limit?: number,
-  ): Promise<ProgressHistoryRecord[]> {
-    return invokeTauri<ProgressHistoryRecord[]>("get_progress_history", {
+  ): Promise<ProgressSample[]> {
+    return invokeTauri<ProgressSample[]>("get_progress_history", {
       taskId,
-      limit,
+      limit: limit ?? null,
     });
   }
 
-  /**
-   * 保存进度历史
-   */
-  async saveProgressHistory(
-    taskId: string,
-    percent: number,
-    speed: number,
-    downloadedSize: number,
-  ): Promise<void> {
-    await invokeTauri("save_progress_history", {
-      taskId,
-      percent,
-      speed,
-      downloadedSize,
-    });
-  }
-
-  /**
-   * 清除进度历史
-   */
-  async clearProgressHistory(taskId: string): Promise<void> {
-    await invokeTauri("clear_progress_history", { taskId });
-  }
-
-  /**
-   * 将 FullTaskRecord 转换为 DownloadTask（直接字段映射）
-   */
-  toDownloadTask(record: FullTaskRecord): DownloadTask {
-    return {
-      // 基本信息
-      id: record.id,
-      url: record.url,
-      fileName: record.file_name,
-      saveDir: record.save_dir,
-      outputPath: record.output_path || undefined,
-      status: record.status as TaskStatus,
-      error: record.error || undefined,
-      wasInterrupted: record.was_interrupted,
-      // 时间戳
-      createdAt: new Date(record.created_at),
-      updatedAt: new Date(record.updated_at),
-      startedAt: record.started_at ? new Date(record.started_at) : undefined,
-      completedAt: record.completed_at
-        ? new Date(record.completed_at)
-        : undefined,
-      // 进度（扁平化）
-      progressPercent: record.progress_percent,
-      progressSpeed: record.progress_speed,
-      progressDownloadedSize: record.progress_downloaded_size,
-      progressTotalSize: record.progress_total_size,
-      progressDownloadedSegments: record.progress_downloaded_segments,
-      progressTotalSegments: record.progress_total_segments,
-      progressEta: record.progress_eta,
-      progressCurrentAction: record.progress_current_action,
-      // 媒体信息（扁平化）
-      mediaResolution: record.media_resolution || undefined,
-      mediaWidth: record.media_width || undefined,
-      mediaHeight: record.media_height || undefined,
-      mediaFrameRate: record.media_frame_rate || undefined,
-      mediaVideoCodec: record.media_video_codec || undefined,
-      mediaVideoRange: record.media_video_range || undefined,
-      mediaAudioCodec: record.media_audio_codec || undefined,
-      mediaAudioChannels: record.media_audio_channels || undefined,
-      mediaAudioLanguage: record.media_audio_language || undefined,
-      mediaDuration: record.media_duration || undefined,
-      mediaSegmentCount: record.media_segment_count || undefined,
-      mediaIsLive: record.media_is_live,
-      mediaIsEncrypted: record.media_is_encrypted,
-      mediaFileFormat: record.media_file_format || undefined,
-    };
+  clearProgressHistory(taskId: string): Promise<void> {
+    return invokeTauri("clear_progress_history", { taskId });
   }
 }
 

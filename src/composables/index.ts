@@ -4,10 +4,10 @@
 
 export { useToast, type ToastOptions } from "./useToast";
 export { useSettings } from "./useSettings";
-export { useTasks } from "./useTasks";
+export { useTasks, type AddTaskResult } from "./useTasks";
 export { useDownloader } from "./useDownloader";
 export { useStreamSelector } from "./useStreamSelector";
-export { useTemplateManager } from "./useTemplateManager";
+export { usePresetManager } from "./usePresetManager";
 export { useClipboardWatcher } from "./useClipboardWatcher";
 export { useUpdateChecker } from "./useUpdateChecker";
 export { useNotification } from "./useNotification";

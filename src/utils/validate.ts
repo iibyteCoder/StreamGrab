@@ -113,8 +113,8 @@ export function validateFilePath(path: string): {
     if (!/^[a-zA-Z]:[\\/]/.test(trimmedPath)) {
       return { valid: false, error: "无效的 Windows 路径格式" };
     }
-    // 检查非法字符
-    if (/[<>:"|?*]/.test(trimmedPath)) {
+    // 检查盘符之后部分的非法字符（盘符冒号本身合法）
+    if (/[<>:"|?*]/.test(trimmedPath.slice(2))) {
       return { valid: false, error: "路径包含非法字符" };
     }
   }

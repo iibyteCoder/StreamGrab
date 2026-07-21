@@ -4,6 +4,7 @@
  */
 
 import { useSettingsStore } from "@/stores";
+import { i18n } from "@/locales";
 
 /**
  * 通知组合式函数
@@ -82,7 +83,10 @@ export function useNotification() {
   const sendDownloadCompleteNotification = (
     fileName: string,
   ): Promise<boolean> => {
-    return sendNotification("下载完成", `${fileName} 已成功下载`);
+    return sendNotification(
+      i18n.global.t("messages.downloadCompleted"),
+      i18n.global.t("messages.notificationDownloaded", { fileName }),
+    );
   };
 
   /**
@@ -95,8 +99,13 @@ export function useNotification() {
     error?: string,
   ): Promise<boolean> => {
     return sendNotification(
-      "下载失败",
-      `${fileName} 下载失败${error ? `: ${error}` : ""}`,
+      i18n.global.t("messages.downloadFailed"),
+      error
+        ? i18n.global.t("messages.notificationDownloadFailedWithError", {
+            fileName,
+            error,
+          })
+        : i18n.global.t("messages.notificationDownloadFailed", { fileName }),
     );
   };
 

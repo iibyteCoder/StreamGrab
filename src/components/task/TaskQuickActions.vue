@@ -6,7 +6,7 @@
 
 import { computed } from "vue";
 import { AppIcon } from "@/components/common";
-import type { DownloadTask } from "@/types";
+import type { DownloadTask } from "@/domain";
 
 interface Props {
   task: DownloadTask;

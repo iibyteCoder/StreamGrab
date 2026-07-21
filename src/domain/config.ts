@@ -1,20 +1,24 @@
 /**
- * 配置领域类型
+ * 配置领域类型（前端唯一权威来源）
  *
- * 与后端配置结构保持一致的类型定义
+ * 与后端 `src-tauri/src/domain/config.rs` 一一对应：
+ * - 配置组（AppSettings / Nm3u8dlConfig / FfmpegConfig）为 snake_case JSON
+ * - 任务相关类型（TaskOverrides / TaskPreset）为 camelCase JSON
+ *
+ * 三层配置模型：全局默认（本文件的 DEFAULT_*）→ 任务级覆盖（TaskOverrides）→ 引擎合并构建命令行
  */
 
 // ========================================
 // 值对象（枚举类型）
 // ========================================
 
-/** 下载器类型 */
-export type DownloaderType = "m3u8dl" | "ffmpeg";
+/** 工具标识（对应后端 tool_settings 行键） */
+export type ToolId = "nm3u8dl" | "ffmpeg";
 
 /** 解密引擎类型 */
 export type DecryptionEngine = "FFMPEG" | "MP4DECRYPT" | "SHAKA_PACKAGER";
 
-/** 混流格式 */
+/** 混流容器格式 */
 export type MuxFormat = "mp4" | "mkv";
 
 /** 混流器类型 */
@@ -47,10 +51,10 @@ export type Language = "zh-CN" | "zh-TW" | "en-US";
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR" | "OFF";
 
 // ========================================
-// 应用配置
+// 应用配置（app_settings 表）
 // ========================================
 
-/** 应用配置 */
+/** 应用级配置（通用·界面） */
 export interface AppSettings {
   language: Language;
   auto_start_download: boolean;
@@ -66,7 +70,6 @@ export interface AppSettings {
   no_log: boolean;
 }
 
-/** 默认应用配置 */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   language: "zh-CN",
   auto_start_download: true,
@@ -83,15 +86,93 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 // ========================================
-// M3U8DL 配置
+// N_m3u8DL-RE 工具配置（tool_settings["nm3u8dl"]）
 // ========================================
 
-/** M3U8DL 配置 */
-export interface M3U8DLSettings {
-  n_m3u8dl_path: string;
+/** 自定义 HTTP 请求头 */
+export interface NetworkHeader {
+  id: number;
+  name: string;
+  value: string;
+  enabled: boolean;
+  sort_order: number;
+}
+
+/** 网络配置（N_m3u8DL-RE 子配置） */
+export interface NetworkConfig {
+  use_system_proxy: boolean;
+  custom_proxy: string | null;
+  base_url: string | null;
+  append_url_params: boolean;
+  headers: NetworkHeader[];
+}
+
+export const DEFAULT_NETWORK_CONFIG: NetworkConfig = {
+  use_system_proxy: true,
+  custom_proxy: null,
+  base_url: null,
+  append_url_params: false,
+  headers: [],
+};
+
+/** 解密密钥 */
+export interface DecryptionKey {
+  id: number;
+  /** KID（可空，空则为纯 KEY） */
+  kid: string | null;
+  key: string;
+  sort_order: number;
+}
+
+/** 自定义 HLS 解密配置 */
+export interface CustomHlsConfig {
+  enabled: boolean;
+  method: HlsEncryptionMethod;
+  key_type: KeyValueType;
+  key_value: string | null;
+  iv_type: KeyValueType;
+  iv_value: string | null;
+}
+
+/** 解密配置（N_m3u8DL-RE 子配置） */
+export interface DecryptionConfig {
+  key_text_file: string | null;
+  engine: DecryptionEngine;
+  bin_path: string | null;
+  real_time_decryption: boolean;
+  custom_hls: CustomHlsConfig;
+  keys: DecryptionKey[];
+}
+
+export const DEFAULT_DECRYPTION_CONFIG: DecryptionConfig = {
+  key_text_file: null,
+  engine: "MP4DECRYPT",
+  bin_path: null,
+  real_time_decryption: false,
+  custom_hls: {
+    enabled: false,
+    method: "UNKNOWN",
+    key_type: "hex",
+    key_value: null,
+    iv_type: "hex",
+    iv_value: null,
+  },
+  keys: [],
+};
+
+/**
+ * N_m3u8DL-RE 工具配置
+ *
+ * 流媒体下载引擎（HLS/DASH/MSS）的全部默认行为，含网络与解密子配置
+ */
+export interface Nm3u8dlConfig {
+  /** 工具二进制路径（空 = 自动检测） */
+  path: string;
   thread_count: number;
   retry_count: number;
+  /** HTTP 请求超时（秒） */
   timeout: number;
+  /** 限速（如 "10M"，空 = 不限速） */
   max_speed: string;
   auto_select: boolean;
   select_video: string | null;
@@ -106,11 +187,6 @@ export interface M3U8DLSettings {
   write_meta_json: boolean;
   binary_merge: boolean;
   concurrent_download: boolean;
-  mux_format: MuxFormat;
-  muxer: Muxer;
-  mux_bin_path: string | null;
-  mux_skip_subtitles: boolean;
-  mux_keep_original: boolean;
   sub_only: boolean;
   sub_format: SubtitleFormat;
   auto_subtitle_fix: boolean;
@@ -126,11 +202,12 @@ export interface M3U8DLSettings {
   url_processor_args: string | null;
   no_date_info: boolean;
   use_ffmpeg_concat_demuxer: boolean;
+  network: NetworkConfig;
+  decryption: DecryptionConfig;
 }
 
-/** 默认 M3U8DL 配置 */
-export const DEFAULT_M3U8DL_SETTINGS: M3U8DLSettings = {
-  n_m3u8dl_path: "",
+export const DEFAULT_NM3U8DL_CONFIG: Nm3u8dlConfig = {
+  path: "",
   thread_count: 8,
   retry_count: 3,
   timeout: 100,
@@ -148,11 +225,6 @@ export const DEFAULT_M3U8DL_SETTINGS: M3U8DLSettings = {
   write_meta_json: false,
   binary_merge: false,
   concurrent_download: false,
-  mux_format: "mp4",
-  muxer: "ffmpeg",
-  mux_bin_path: null,
-  mux_skip_subtitles: false,
-  mux_keep_original: false,
   sub_only: false,
   sub_format: "SRT",
   auto_subtitle_fix: true,
@@ -168,16 +240,30 @@ export const DEFAULT_M3U8DL_SETTINGS: M3U8DLSettings = {
   url_processor_args: null,
   no_date_info: false,
   use_ffmpeg_concat_demuxer: false,
+  network: DEFAULT_NETWORK_CONFIG,
+  decryption: DEFAULT_DECRYPTION_CONFIG,
 };
 
 // ========================================
-// FFmpeg 配置
+// FFmpeg 工具配置（tool_settings["ffmpeg"]）
 // ========================================
 
-/** FFmpeg 配置 */
-export interface FFmpegSettings {
+/**
+ * FFmpeg 工具配置
+ *
+ * 覆盖三个职责：混流默认值（被 N_m3u8DL-RE 的 -M 参数消费）、
+ * 直链视频下载默认值、ffprobe 媒体分析的二进制管理
+ */
+export interface FfmpegConfig {
   ffmpeg_path: string;
   ffprobe_path: string;
+  // —— 混流默认值 ——
+  mux_format: MuxFormat;
+  muxer: Muxer;
+  mux_bin_path: string | null;
+  mux_skip_subtitles: boolean;
+  mux_keep_original: boolean;
+  // —— 直链下载默认值 ——
   retry_count: number;
   timeout: number;
   max_speed: string;
@@ -190,10 +276,14 @@ export interface FFmpegSettings {
   referer: string | null;
 }
 
-/** 默认 FFmpeg 配置 */
-export const DEFAULT_FFMPEG_SETTINGS: FFmpegSettings = {
+export const DEFAULT_FFMPEG_CONFIG: FfmpegConfig = {
   ffmpeg_path: "",
   ffprobe_path: "",
+  mux_format: "mp4",
+  muxer: "ffmpeg",
+  mux_bin_path: null,
+  mux_skip_subtitles: false,
+  mux_keep_original: false,
   retry_count: 3,
   timeout: 60,
   max_speed: "",
@@ -206,233 +296,54 @@ export const DEFAULT_FFMPEG_SETTINGS: FFmpegSettings = {
   referer: null,
 };
 
-// ========================================
-// 网络配置
-// ========================================
-
-/** 网络配置 */
-export interface NetworkSettings {
-  use_system_proxy: boolean;
-  custom_proxy: string | null;
-  base_url: string | null;
-  append_url_params: boolean;
-}
-
-/** 默认网络配置 */
-export const DEFAULT_NETWORK_SETTINGS: NetworkSettings = {
-  use_system_proxy: true,
-  custom_proxy: null,
-  base_url: null,
-  append_url_params: false,
-};
-
-/** 网络请求头 */
-export interface NetworkHeader {
-  id: number;
-  name: string;
-  value: string;
-  enabled: boolean;
-  sort_order: number;
+/** 全部工具配置 */
+export interface ToolConfigs {
+  nm3u8dl: Nm3u8dlConfig;
+  ffmpeg: FfmpegConfig;
 }
 
 // ========================================
-// 解密配置
+// 任务级覆盖（「默认值 + 覆盖」模型的第二层）
 // ========================================
 
-/** 解密配置 */
-export interface DecryptionSettings {
-  key_text_file: string | null;
-  decryption_engine: DecryptionEngine;
-  decryption_bin_path: string | null;
-  real_time_decryption: boolean;
-  custom_hls_enabled: boolean;
-  custom_hls_method: HlsEncryptionMethod;
-  custom_hls_key_type: KeyValueType;
-  custom_hls_key_value: string | null;
-  custom_hls_iv_type: KeyValueType;
-  custom_hls_iv_value: string | null;
+/** 流选择（手动选择的具体流，覆盖全局 select_* 默认） */
+export interface StreamSelection {
+  video?: string | null;
+  audio?: string | null;
+  subtitle?: string | null;
 }
 
-/** 默认解密配置 */
-export const DEFAULT_DECRYPTION_SETTINGS: DecryptionSettings = {
-  key_text_file: null,
-  decryption_engine: "MP4DECRYPT",
-  decryption_bin_path: null,
-  real_time_decryption: false,
-  custom_hls_enabled: false,
-  custom_hls_method: "UNKNOWN",
-  custom_hls_key_type: "hex",
-  custom_hls_key_value: null,
-  custom_hls_iv_type: "hex",
-  custom_hls_iv_value: null,
-};
-
-/** 解密密钥 */
-export interface DecryptionKey {
-  id: number;
-  kid: string | null;
-  key: string;
-  sort_order: number;
+/**
+ * 任务级覆盖配置
+ *
+ * 全部字段可选：undefined/null = 沿用全局默认。
+ * 添加任务对话框收集 → 随任务持久化 → 下载时后端引擎合并。
+ */
+export interface TaskOverrides {
+  saveDir?: string | null;
+  saveName?: string | null;
+  muxFormat?: MuxFormat | null;
+  maxSpeed?: string | null;
+  customRange?: string | null;
+  subtitleFormat?: SubtitleFormat | null;
+  subtitlesOnly?: boolean | null;
+  /** 定时开始（ISO 8601 本地时间字符串，前端调度器消费） */
+  scheduledStartAt?: string | null;
+  selection?: StreamSelection | null;
+  /** 来源预设 ID（溯源用） */
+  presetId?: string | null;
+  /** 任务级解密密钥（全局密钥库为空时生效） */
+  key?: string | null;
 }
 
-// ========================================
-// 配置模板
-// ========================================
-
-/** 配置模板 */
-export interface ConfigTemplate {
+/** 任务预设：命名的 TaskOverrides 组合 */
+export interface TaskPreset {
   id: string;
   name: string;
-  description: string | null;
-  is_preset: boolean;
-  downloader_type: DownloaderType;
-  created_at: string;
-  updated_at: string;
-}
-
-/** 模板覆盖配置 */
-export interface TemplateOverrides {
-  m3u8dl?: PartialM3U8DLSettings;
-  ffmpeg?: PartialFFmpegSettings;
-  network?: PartialNetworkSettings;
-  decryption?: PartialDecryptionSettings;
-  headers?: NetworkHeader[];
-  keys?: DecryptionKey[];
-  ad_filter_keywords?: string[];
-  mux_imports?: MuxImport[];
-}
-
-/** 部分 M3U8DL 配置（用于模板覆盖） */
-export interface PartialM3U8DLSettings {
-  thread_count?: number;
-  retry_count?: number;
-  timeout?: number;
-  max_speed?: string;
-  auto_select?: boolean;
-  select_video?: string;
-  select_audio?: string;
-  select_subtitle?: string;
-  drop_video?: string;
-  drop_audio?: string;
-  drop_subtitle?: string;
-  check_segments_count?: boolean;
-  del_after_done?: boolean;
-  skip_merge?: boolean;
-  write_meta_json?: boolean;
-  binary_merge?: boolean;
-  concurrent_download?: boolean;
-  mux_format?: MuxFormat;
-  muxer?: Muxer;
-  mux_bin_path?: string;
-  mux_skip_subtitles?: boolean;
-  mux_keep_original?: boolean;
-  sub_only?: boolean;
-  sub_format?: SubtitleFormat;
-  auto_subtitle_fix?: boolean;
-  live_perform_as_vod?: boolean;
-  live_real_time_merge?: boolean;
-  live_keep_segments?: boolean;
-  live_pipe_mux?: boolean;
-  live_fix_vtt_by_audio?: boolean;
-  live_record_limit?: string;
-  live_wait_time?: number;
-  live_take_count?: number;
-  allow_hls_multi_ext_map?: boolean;
-  url_processor_args?: string;
-  no_date_info?: boolean;
-  use_ffmpeg_concat_demuxer?: boolean;
-}
-
-/** 部分 FFmpeg 配置（用于模板覆盖） */
-export interface PartialFFmpegSettings {
-  ffmpeg_path?: string;
-  ffprobe_path?: string;
-  retry_count?: number;
-  timeout?: number;
-  max_speed?: string;
-  connection_timeout?: number;
-  reconnect_attempts?: number;
-  reconnect_delay?: number;
-  overwrite_existing?: boolean;
-  preserve_timestamps?: boolean;
-  user_agent?: string;
-  referer?: string;
-}
-
-/** 部分网络配置（用于模板覆盖） */
-export interface PartialNetworkSettings {
-  use_system_proxy?: boolean;
-  custom_proxy?: string;
-  base_url?: string;
-  append_url_params?: boolean;
-}
-
-/** 部分解密配置（用于模板覆盖） */
-export interface PartialDecryptionSettings {
-  key_text_file?: string;
-  decryption_engine?: DecryptionEngine;
-  decryption_bin_path?: string;
-  real_time_decryption?: boolean;
-  custom_hls?: CustomHlsDecryption;
-}
-
-/** 自定义 HLS 解密配置 */
-export interface CustomHlsDecryption {
-  enabled: boolean;
-  method: HlsEncryptionMethod;
-  key: KeyValue;
-  iv: KeyValue;
-}
-
-/** 密钥/IV 值 */
-export interface KeyValue {
-  value_type: KeyValueType;
-  value: string;
-}
-
-/** 外部媒体导入 */
-export interface MuxImport {
-  path: string;
-  lang?: string;
-  name?: string;
-}
-
-// ========================================
-// 已解析配置
-// ========================================
-
-/** 已解析的完整配置 */
-export interface ResolvedConfig {
-  downloader_type: DownloaderType;
-  template_id: string | null;
-  app: AppSettings;
-  m3u8dl: M3U8DLSettings;
-  ffmpeg: FFmpegSettings;
-  network: NetworkSettings;
-  decryption: DecryptionSettings;
-  task: TaskSpecificConfig;
-}
-
-/** 任务特定配置 */
-export interface TaskSpecificConfig {
-  save_dir: string;
-  save_name: string;
-  save_pattern: string | null;
-  custom_range: string | null;
-  start_at: string | null;
-}
-
-// ========================================
-// 完整配置（用于加载所有配置）
-// ========================================
-
-/** 完整配置 */
-export interface AllConfig {
-  app: AppSettings;
-  m3u8dl: M3U8DLSettings;
-  ffmpeg: FFmpegSettings;
-  network: NetworkSettings;
-  decryption: DecryptionSettings;
-  headers: NetworkHeader[];
-  keys: DecryptionKey[];
+  /** Lucide 图标名 */
+  icon?: string | null;
+  description?: string | null;
+  overrides: TaskOverrides;
+  createdAt: string;
+  updatedAt: string;
 }

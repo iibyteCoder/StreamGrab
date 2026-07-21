@@ -1,81 +1,65 @@
 /**
  * 设置管理组合式函数
- * 封装设置的加载和更新
+ *
+ * settingsStore 的薄封装，保持旧 API 名称以降低迁移成本。
  */
 
 import { computed, onMounted } from "vue";
 import { useSettingsStore } from "@/stores";
-import { configService } from "@/services";
-import type {
-  AppSettings,
-  M3U8DLSettings,
-  FFmpegSettings,
-  NetworkSettings,
-  DecryptionSettings,
-  Theme,
-  Language,
-} from "@/domain/config";
+import { type DeepPartial } from "@/services";
+import { systemService } from "@/services";
+import type { AppSettings, Nm3u8dlConfig, FfmpegConfig } from "@/domain";
 
-/**
- * 设置组合式函数
- */
 export function useSettings() {
   const store = useSettingsStore();
 
+  // ==========================================
   // Computed
+  // ==========================================
+
   const appSettings = computed(() => store.appSettings);
-  const m3u8dlSettings = computed(() => store.m3u8dlSettings);
-  const ffmpegSettings = computed(() => store.ffmpegSettings);
-  const networkSettings = computed(() => store.networkSettings);
-  const decryptionSettings = computed(() => store.decryptionSettings);
-  const networkHeaders = computed(() => store.networkHeaders);
-  const decryptionKeys = computed(() => store.decryptionKeys);
-
+  const nm3u8dlConfig = computed(() => store.nm3u8dlConfig);
+  const ffmpegConfig = computed(() => store.ffmpegConfig);
   const theme = computed(() => store.theme);
-  const isLoaded = computed(() => store.isLoaded);
+  const isLoaded = computed(() => store.loaded);
 
+  // ==========================================
   // Actions
+  // ==========================================
+
   const loadSettings = (): Promise<void> => store.loadSettings();
   const resetSettings = (): Promise<void> => store.resetSettings();
-  const setTheme = (newTheme: Theme) => store.setTheme(newTheme);
-  const setLanguage = (lang: Language) => store.setLanguage(lang);
 
-  // 字段更新方法
-  const updateAppField = <K extends keyof AppSettings>(
-    field: K,
-    value: AppSettings[K],
-  ) => store.updateAppField(field, value);
+  const updateAppSettings = (partial: DeepPartial<AppSettings>) =>
+    store.updateAppSettings(partial);
 
-  const updateM3U8DLField = <K extends keyof M3U8DLSettings>(
-    field: K,
-    value: M3U8DLSettings[K],
-  ) => store.updateM3U8DLField(field, value);
+  const updateNm3u8dlConfig = (partial: DeepPartial<Nm3u8dlConfig>) =>
+    store.updateNm3u8dlConfig(partial);
 
-  const updateFFmpegField = <K extends keyof FFmpegSettings>(
-    field: K,
-    value: FFmpegSettings[K],
-  ) => store.updateFFmpegField(field, value);
+  const updateFfmpegConfig = (partial: DeepPartial<FfmpegConfig>) =>
+    store.updateFfmpegConfig(partial);
 
-  const updateNetworkField = <K extends keyof NetworkSettings>(
-    field: K,
-    value: NetworkSettings[K],
-  ) => store.updateNetworkField(field, value);
-
-  const updateDecryptionField = <K extends keyof DecryptionSettings>(
-    field: K,
-    value: DecryptionSettings[K],
-  ) => store.updateDecryptionField(field, value);
-
+  // ==========================================
   // 导入导出
-  const exportConfig = (filePath: string): Promise<void> =>
-    configService.exportConfig(filePath);
+  // ==========================================
 
-  const importConfig = async (filePath: string): Promise<void> => {
+  const exportConfig = async (): Promise<void> => {
+    await store.exportConfig();
+  };
+
+  const importConfig = async (): Promise<void> => {
+    const filePath = await systemService.selectFile([
+      { name: "JSON", extensions: ["json"] },
+    ]);
+    if (!filePath) return;
     await store.importConfig(filePath);
     store.initTheme();
   };
 
-  // 组件挂载时加载设置
+  // ==========================================
+  // 自动加载
+  // ==========================================
+
   onMounted(async () => {
     if (!isLoaded.value) {
       try {
@@ -90,12 +74,8 @@ export function useSettings() {
   return {
     // State
     appSettings,
-    m3u8dlSettings,
-    ffmpegSettings,
-    networkSettings,
-    decryptionSettings,
-    networkHeaders,
-    decryptionKeys,
+    nm3u8dlConfig,
+    ffmpegConfig,
 
     // Computed
     theme,
@@ -104,15 +84,9 @@ export function useSettings() {
     // Actions
     loadSettings,
     resetSettings,
-    setTheme,
-    setLanguage,
-
-    // 字段更新
-    updateAppField,
-    updateM3U8DLField,
-    updateFFmpegField,
-    updateNetworkField,
-    updateDecryptionField,
+    updateAppSettings,
+    updateNm3u8dlConfig,
+    updateFfmpegConfig,
 
     // 导入导出
     exportConfig,

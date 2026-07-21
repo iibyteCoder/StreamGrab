@@ -13,7 +13,7 @@ import {
   getAudioDescription,
   getSubtitleDescription,
 } from "@/composables/useStreamSelector";
-import type { VideoStream, AudioStream, SubtitleStream } from "@/types";
+import type { VideoStream, AudioStream, SubtitleStream } from "@/domain";
 
 type StreamType = VideoStream | AudioStream | SubtitleStream;
 

@@ -1,35 +1,28 @@
 /**
  * 剪贴板监控组合式函数
- * 监控剪贴板变化，自动检测 M3U8/MPD/MSS 链接
+ *
+ * 监控剪贴板变化，自动检测 URL 并分发 CustomEvent。
+ * URL 识别统一使用 @/domain/url（消灭 composable 内私有正则）。
  */
 
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { listen } from "@tauri-apps/api/event";
-import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettingsStore } from "@/stores";
 import { useToast } from "./useToast";
+import { clipboardService } from "@/services";
+import { detectUrlType, isHttpUrl } from "@/domain";
+import { i18n } from "@/locales";
 
-// URL 匹配正则
-const URL_PATTERNS = [
-  /https?:\/\/[^\s]+\.(?:m3u8|mpd|mss)/i,
-  /https?:\/\/[^\s]*\?(?:.*&)?(?:m3u8|mpd|manifest)/i,
-];
-
+/** 已检测 URL 去重集合（模块级，跨组件实例共享） */
 const detectedUrls = new Set<string>();
 let lastClipboardContent = "";
 
-function extractStreamUrls(text: string): string[] {
+/** 从文本中提取 URL（以空格/换行分隔） */
+function extractUrls(text: string): string[] {
   if (!text) return [];
-
-  const urls: string[] = [];
-  for (const pattern of URL_PATTERNS) {
-    const matches = text.match(new RegExp(pattern.source, "gi"));
-    if (matches) {
-      urls.push(...matches.map((url) => url.trim()));
-    }
-  }
-
-  return [...new Set(urls)];
+  return text
+    .split(/[\s\n\r]+/)
+    .map((s) => s.trim())
+    .filter((url) => isHttpUrl(url) && detectUrlType(url) !== "unknown");
 }
 
 export function useClipboardWatcher() {
@@ -37,18 +30,18 @@ export function useClipboardWatcher() {
   const toast = useToast();
 
   const isWatching = ref(false);
-  let unlisten: (() => void) | null = null;
+  let unlistenFocus: (() => void) | null = null;
   let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-  async function handleClipboardChange() {
+  async function handleClipboardChange(): Promise<void> {
     if (!settingsStore.appSettings.clipboard_watch) return;
 
     try {
-      const content = await readText();
+      const content = await clipboardService.readText();
       if (!content || content === lastClipboardContent) return;
 
       lastClipboardContent = content;
-      const urls = extractStreamUrls(content);
+      const urls = extractUrls(content);
       const newUrls = urls.filter((url) => !detectedUrls.has(url));
 
       if (newUrls.length > 0) {
@@ -62,8 +55,10 @@ export function useClipboardWatcher() {
 
         const message =
           newUrls.length === 1
-            ? `已添加下载链接`
-            : `已添加 ${newUrls.length} 个下载链接`;
+            ? i18n.global.t("messages.clipboardUrlDetected")
+            : i18n.global.t("messages.clipboardUrlsDetected", {
+                count: newUrls.length,
+              });
 
         toast.success(message);
       }
@@ -72,12 +67,12 @@ export function useClipboardWatcher() {
     }
   }
 
-  async function startWatching() {
+  async function startWatching(): Promise<void> {
     if (isWatching.value) return;
 
     isWatching.value = true;
 
-    unlisten = await listen("tauri://focus", () => {
+    unlistenFocus = await clipboardService.onFocus(() => {
       handleClipboardChange();
     });
 
@@ -86,10 +81,10 @@ export function useClipboardWatcher() {
     console.log("Clipboard watcher started");
   }
 
-  function stopWatching() {
-    if (unlisten) {
-      unlisten();
-      unlisten = null;
+  function stopWatching(): void {
+    if (unlistenFocus) {
+      unlistenFocus();
+      unlistenFocus = null;
     }
 
     if (pollInterval) {
@@ -101,7 +96,7 @@ export function useClipboardWatcher() {
     console.log("Clipboard watcher stopped");
   }
 
-  function clearDetectedUrls() {
+  function clearDetectedUrls(): void {
     detectedUrls.clear();
   }
 

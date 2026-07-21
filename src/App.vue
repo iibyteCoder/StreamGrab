@@ -3,14 +3,15 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { RouterView } from "vue-router";
 import { Toaster } from "@/components/ui/toast";
 import { RestoreTasksDialog } from "@/components/common";
-import { useSettingsStore, useTaskStore } from "@/stores";
+import { useSettingsStore, useTaskStore, usePresetStore } from "@/stores";
 import { taskService } from "@/services";
 import { useDownloader } from "@/composables";
-import type { DownloadTask, TaskStatus } from "@/types";
+import type { DownloadTask, TaskStatus } from "@/domain";
 
 // 初始化 Stores
 const settingsStore = useSettingsStore();
 const taskStore = useTaskStore();
+const presetStore = usePresetStore();
 const { resumeDownload } = useDownloader();
 
 // 恢复任务弹窗状态
@@ -28,7 +29,11 @@ const RECOVERABLE_STATUSES: TaskStatus[] = [
 
 onMounted(async () => {
   // 1. 并行初始化所有 Store（从后端加载数据）
-  await Promise.all([settingsStore.loadSettings(), taskStore.initialize()]);
+  await Promise.all([
+    settingsStore.loadSettings(),
+    taskStore.initialize(),
+    presetStore.loadPresets(),
+  ]);
 
   // 2. 应用主题
   settingsStore.initTheme();
@@ -51,7 +56,7 @@ onMounted(async () => {
 // 恢复所有中断的任务
 const handleRestore = async () => {
   for (const task of recoverableTasks.value) {
-    await resumeDownload(task);
+    await resumeDownload(task.id);
   }
 };
 

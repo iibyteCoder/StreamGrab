@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AppIcon } from "@/components/common";
 import { StreamList } from "@/components/stream";
 import { useStreamSelector } from "@/composables/useStreamSelector";
-import type { StreamInfo, StreamSelection } from "@/types";
+import type { StreamInfo, StreamSelection } from "@/domain";
 
 // Props
 const props = defineProps<{

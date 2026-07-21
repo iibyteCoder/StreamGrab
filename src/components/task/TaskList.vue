@@ -6,7 +6,7 @@
 
 import TaskCard from "./TaskCard.vue";
 import TaskEmptyState from "./TaskEmptyState.vue";
-import type { DownloadTask } from "@/types";
+import type { DownloadTask } from "@/domain";
 
 interface Props {
   /** 任务列表 */

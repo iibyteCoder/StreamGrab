@@ -8,7 +8,8 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppIcon } from "@/components/common";
-import { useDownloader, useSettings } from "@/composables";
+import { useSettingsStore } from "@/stores";
+import { toolsService } from "@/services";
 
 // 应用版本号（由 Vite 从 package.json 注入）
 declare const __APP_VERSION__: string;
@@ -32,19 +33,23 @@ const router = useRouter();
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
 
-// 下载器版本
+// 下载器版本（真实检测，替代旧版硬编码桩）
 const downloaderVersion = ref("");
-const { checkDownloaderAvailable, getDownloaderVersion } = useDownloader();
-const { theme, setTheme } = useSettings();
+const settingsStore = useSettingsStore();
+const theme = computed(() => settingsStore.theme);
 
 // 当前是否为首页
 const isHome = computed(() => route.name === "home");
 
 // 初始化
 onMounted(async () => {
-  const available = await checkDownloaderAvailable();
-  if (available) {
-    downloaderVersion.value = await getDownloaderVersion();
+  try {
+    const info = await toolsService.getNm3u8dlInfo(null);
+    if (info.installed && info.version) {
+      downloaderVersion.value = info.version;
+    }
+  } catch {
+    // 检测失败不影响布局
   }
   // 检查窗口最大化状态
   try {
@@ -59,6 +64,9 @@ const goBack = () => router.push("/");
 
 // 跳转设置
 const goSettings = () => router.push("/settings");
+
+// 跳转历史
+const goHistory = () => router.push("/history");
 
 // 窗口控制
 const handleMinimize = async () => {
@@ -110,9 +118,11 @@ const startResize = (direction: string) => async (e: MouseEvent) => {
   }
 };
 
-// 主题切换
+// 主题切换（经 settingsStore 持久化）
 const toggleTheme = () => {
-  setTheme(theme.value === "dark" ? "light" : "dark");
+  settingsStore.updateAppSettings({
+    theme: theme.value === "dark" ? "light" : "dark",
+  });
 };
 </script>
 
@@ -184,6 +194,16 @@ const toggleTheme = () => {
               d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
             />
           </svg>
+        </button>
+
+        <!-- 历史记录按钮（仅首页） -->
+        <button
+          v-if="isHome"
+          class="window-btn h-7 w-7 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          @click="goHistory"
+          title="历史记录"
+        >
+          <AppIcon name="History" :size="16" />
         </button>
 
         <!-- 设置按钮（仅首页） -->

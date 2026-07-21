@@ -1,50 +1,57 @@
 /**
  * 任务状态管理
  *
- * Store 作为缓存层，数据来源于后端 SQLite
+ * Store 作为内存缓存层，数据权威来源为后端 SQLite。
+ * 进度防抖落盘由 taskService 负责，Store 只管内存状态。
  */
 
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type {
-  DownloadTask,
+  TaskRecord,
   TaskStatus,
-  TaskProgressData,
-  TaskLogEntry,
-  TaskCreateParams,
+  TaskOverrides,
+  ProgressData,
   MediaInfo,
-} from "@/types/task";
+} from "@/domain";
 import { extractFileName, generateTimestampedFilename } from "@/utils/format";
 import { MAX_CONCURRENT_TASKS } from "@/utils/constants";
-import { taskService, configService } from "@/services";
+import { generateId } from "@/utils/id";
+import { taskService } from "@/services";
 
 // 最大日志条目数（每个任务）
 const MAX_LOG_ENTRIES = 500;
 
-/**
- * 生成唯一 ID
- */
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+/** 任务日志条目 */
+export interface TaskLogEntry {
+  timestamp: Date;
+  level: string;
+  message: string;
 }
 
-/**
- * 从 URL 提取文件名
- */
-function extractNameFromUrl(url: string): string {
-  return extractFileName(url);
-}
+/** 空进度数据（新建任务时使用） */
+const EMPTY_PROGRESS: ProgressData = {
+  percent: 0,
+  overallPercent: 0,
+  speed: 0,
+  downloadedSize: 0,
+  totalSize: 0,
+  downloadedSegments: 0,
+  totalSegments: 0,
+  eta: 0,
+  currentAction: "",
+};
 
 export const useTaskStore = defineStore("task", () => {
   // ==========================================
-  // State - 缓存层
+  // State
   // ==========================================
 
-  const tasks = ref<DownloadTask[]>([]);
-  const taskLogs = ref<Map<string, TaskLogEntry[]>>(new Map());
-  const maxConcurrent = ref(MAX_CONCURRENT_TASKS);
+  const tasks = ref<TaskRecord[]>([]);
   const isLoading = ref(false);
   const isInitialized = ref(false);
+  /** 任务日志（仅内存，不持久化） */
+  const taskLogs = ref<Map<string, TaskLogEntry[]>>(new Map());
 
   // ==========================================
   // Getters
@@ -60,6 +67,10 @@ export const useTaskStore = defineStore("task", () => {
     tasks.value.filter((t) => t.status === "pending"),
   );
 
+  const downloadingTasks = computed(() =>
+    tasks.value.filter((t) => t.status === "downloading"),
+  );
+
   const completedTasks = computed(() =>
     tasks.value.filter((t) => t.status === "completed"),
   );
@@ -68,12 +79,8 @@ export const useTaskStore = defineStore("task", () => {
     tasks.value.filter((t) => t.status === "failed"),
   );
 
-  const downloadingTasks = computed(() =>
-    tasks.value.filter((t) => t.status === "downloading"),
-  );
-
   const canStartMore = computed(
-    () => activeTasks.value.length < maxConcurrent.value,
+    () => activeTasks.value.length < MAX_CONCURRENT_TASKS,
   );
 
   const hasTasks = computed(() => tasks.value.length > 0);
@@ -85,18 +92,27 @@ export const useTaskStore = defineStore("task", () => {
     return { completed, total, percent };
   });
 
+  /** 按 ID 查找任务 */
+  function getTaskById(taskId: string): TaskRecord | undefined {
+    return tasks.value.find((t) => t.id === taskId);
+  }
+
+  /** @deprecated 使用 getTaskById */
+  function getTask(taskId: string): TaskRecord | undefined {
+    return getTaskById(taskId);
+  }
+
   // ==========================================
-  // Actions - 初始化
+  // Actions — 初始化
   // ==========================================
 
-  /**
-   * 初始化 Store - 从后端加载任务
-   */
+  /** 初始化：先标记中断任务，再加载全部 */
   async function initialize(): Promise<void> {
     if (isInitialized.value) return;
 
     isLoading.value = true;
     try {
+      await taskService.markActiveTasksInterrupted();
       tasks.value = await taskService.loadAllTasks();
       isInitialized.value = true;
     } catch (error) {
@@ -107,441 +123,202 @@ export const useTaskStore = defineStore("task", () => {
   }
 
   // ==========================================
-  // Actions - 任务操作（同步到后端）
+  // Actions — 任务 CRUD
   // ==========================================
 
   /**
-   * 添加任务 - 持久化到后端
+   * 添加任务
+   * @returns 创建的任务和文件名是否被重命名（冲突时自动加时间戳）
    */
-  async function addTask(
-    url: string,
-    fileName?: string,
-    saveDir?: string,
-  ): Promise<DownloadTask> {
-    const now = new Date();
+  async function addTask(params: {
+    url: string;
+    fileName?: string;
+    saveDir?: string;
+    overrides?: TaskOverrides;
+    skipUrlCheck?: boolean;
+  }): Promise<{ task: TaskRecord; wasRenamed: boolean }> {
+    const now = new Date().toISOString();
     const id = generateId();
+    const url = params.url.trim();
+    const baseName = params.fileName || extractFileName(url);
 
-    const task: DownloadTask = {
-      id,
-      url: url.trim(),
-      fileName: fileName || extractNameFromUrl(url),
-      saveDir: saveDir || "",
-      status: "pending",
-      error: undefined,
-      outputPath: undefined,
-      wasInterrupted: false,
-      createdAt: now,
-      updatedAt: now,
-      // 进度（扁平化）
-      progressPercent: 0,
-      progressSpeed: 0,
-      progressDownloadedSize: 0,
-      progressTotalSize: 0,
-      progressDownloadedSegments: 0,
-      progressTotalSegments: 0,
-      progressEta: 0,
-      progressCurrentAction: "",
-      // 媒体信息（扁平化）
-      mediaIsLive: false,
-      mediaIsEncrypted: false,
-      // 运行时配置
-      config: {},
-    };
-
-    // 持久化到后端
-    const params: TaskCreateParams = {
-      id: task.id,
-      url: task.url,
-      fileName: task.fileName,
-      saveDir: task.saveDir,
-      status: task.status,
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-    };
-    await taskService.createTask(params);
-
-    // 更新缓存
-    tasks.value.push(task);
-    return task;
-  }
-
-  function getTask(taskId: string): DownloadTask | undefined {
-    return tasks.value.find((t) => t.id === taskId);
-  }
-
-  /**
-   * 检查文件名是否冲突（同目录下已有同名任务）
-   */
-  function checkFilenameConflict(saveDir: string, fileName: string): boolean {
-    return tasks.value.some(
-      (t) => t.saveDir === saveDir && t.fileName === fileName,
+    // 文件名冲突检测
+    const hasConflict = tasks.value.some(
+      (t) => t.saveDir === (params.saveDir || "") && t.fileName === baseName,
     );
-  }
-
-  /**
-   * 检查 URL 是否已存在
-   */
-  function checkUrlExists(url: string): DownloadTask | undefined {
-    const trimmedUrl = url.trim();
-    return tasks.value.find((t) => t.url === trimmedUrl);
-  }
-
-  /**
-   * 同步添加任务 - 立即返回，后台持久化
-   * @param url 下载链接
-   * @param fileName 文件名（可选）
-   * @param saveDir 保存目录（可选）
-   * @returns 任务对象和是否重命名了文件名
-   */
-  function addTaskSync(
-    url: string,
-    fileName?: string,
-    saveDir?: string,
-  ): { task: DownloadTask; wasRenamed: boolean } {
-    const now = new Date();
-    const id = generateId();
-    const targetDir = saveDir || "";
-    const baseName = fileName || extractNameFromUrl(url);
-
-    // 检查文件名冲突，如果冲突则生成唯一文件名
-    const hasConflict = checkFilenameConflict(targetDir, baseName);
     const finalFileName = hasConflict
       ? generateTimestampedFilename(baseName)
       : baseName;
 
-    const task: DownloadTask = {
+    const task: TaskRecord = {
       id,
-      url: url.trim(),
+      url,
       fileName: finalFileName,
-      saveDir: targetDir,
+      saveDir: params.saveDir || "",
       status: "pending",
-      error: undefined,
-      outputPath: undefined,
       wasInterrupted: false,
       createdAt: now,
       updatedAt: now,
-      // 进度（扁平化）
-      progressPercent: 0,
-      progressSpeed: 0,
-      progressDownloadedSize: 0,
-      progressTotalSize: 0,
-      progressDownloadedSegments: 0,
-      progressTotalSegments: 0,
-      progressEta: 0,
-      progressCurrentAction: "",
-      // 媒体信息（扁平化）
-      mediaIsLive: false,
-      mediaIsEncrypted: false,
-      // 运行时配置
-      config: {},
+      progress: { ...EMPTY_PROGRESS },
+      overrides: params.overrides ?? null,
     };
 
-    // 更新缓存
+    await taskService.createTask(task);
     tasks.value.push(task);
-
-    // 后台持久化
-    const params: TaskCreateParams = {
-      id: task.id,
-      url: task.url,
-      fileName: task.fileName,
-      saveDir: task.saveDir,
-      status: task.status,
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-    };
-    taskService.createTask(params).catch(console.error);
 
     return { task, wasRenamed: hasConflict };
   }
 
-  /**
-   * 更新任务配置 - 仅内存
-   */
-  function updateTaskConfig(
-    taskId: string,
-    config: Record<string, unknown>,
-  ): void {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
+  /** 同步添加任务（不等待后端响应） */
+  function addTaskSync(params: {
+    url: string;
+    fileName?: string;
+    saveDir?: string;
+    overrides?: TaskOverrides;
+  }): { task: TaskRecord; wasRenamed: boolean } {
+    const now = new Date().toISOString();
+    const id = generateId();
+    const url = params.url.trim();
+    const baseName = params.fileName || extractFileName(url);
 
-    // 更新配置（存储到 task.config 对象）
-    if (!task.config) {
-      task.config = {};
-    }
-    Object.assign(task.config, config);
-    task.updatedAt = new Date();
+    const hasConflict = tasks.value.some(
+      (t) => t.saveDir === (params.saveDir || "") && t.fileName === baseName,
+    );
+    const finalFileName = hasConflict
+      ? generateTimestampedFilename(baseName)
+      : baseName;
+
+    const task: TaskRecord = {
+      id,
+      url,
+      fileName: finalFileName,
+      saveDir: params.saveDir || "",
+      status: "pending",
+      wasInterrupted: false,
+      createdAt: now,
+      updatedAt: now,
+      progress: { ...EMPTY_PROGRESS },
+      overrides: params.overrides ?? null,
+    };
+
+    tasks.value.push(task);
+    taskService.createTask(task).catch(console.error);
+
+    return { task, wasRenamed: hasConflict };
   }
 
-  /**
-   * 更新任务状态 - 同步到后端
-   */
-  async function updateTaskStatus(
-    taskId: string,
-    status: TaskStatus,
-  ): Promise<void> {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
-
-    const now = new Date();
-    task.status = status;
-    task.updatedAt = now;
-
-    if (status === "downloading" && !task.startedAt) {
-      task.startedAt = now;
-    }
-    if (status === "completed") {
-      task.completedAt = now;
-    }
-
-    // 同步到后端
-    taskService.updateTaskStatus(taskId, status).catch(console.error);
-  }
-
-  /**
-   * 更新任务进度 - 批量同步到后端
-   */
-  let progressSyncTimer: ReturnType<typeof setTimeout> | null = null;
-  const pendingProgressUpdates = new Map<string, TaskProgressData>();
-
-  function updateTaskProgress(
-    taskId: string,
-    progress: Partial<TaskProgressData>,
-  ): void {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
-
-    // 更新扁平化字段
-    // 优先使用 overallPercent（视频+音频总体进度），避免进度跳动
-    if (progress.overallPercent !== undefined) {
-      task.progressPercent = progress.overallPercent;
-    } else if (progress.percent !== undefined) {
-      task.progressPercent = progress.percent;
-    }
-    if (progress.speed !== undefined) task.progressSpeed = progress.speed;
-    if (progress.downloadedSize !== undefined)
-      task.progressDownloadedSize = progress.downloadedSize;
-    if (progress.totalSize !== undefined)
-      task.progressTotalSize = progress.totalSize;
-    // 优先使用 totalDownloadedSegments（视频+音频总已下载分片）
-    if (progress.totalDownloadedSegments !== undefined) {
-      task.progressDownloadedSegments = progress.totalDownloadedSegments;
-    } else if (progress.downloadedSegments !== undefined) {
-      task.progressDownloadedSegments = progress.downloadedSegments;
-    }
-    if (progress.totalSegments !== undefined)
-      task.progressTotalSegments = progress.totalSegments;
-    if (progress.eta !== undefined) task.progressEta = progress.eta;
-    if (progress.currentAction !== undefined)
-      task.progressCurrentAction = progress.currentAction;
-    task.updatedAt = new Date();
-
-    // 收集进度更新，批量同步
-    pendingProgressUpdates.set(taskId, {
-      percent: task.progressPercent,
-      speed: task.progressSpeed,
-      downloadedSize: task.progressDownloadedSize,
-      totalSize: task.progressTotalSize,
-      downloadedSegments: task.progressDownloadedSegments,
-      totalSegments: task.progressTotalSegments,
-      eta: task.progressEta,
-      currentAction: task.progressCurrentAction,
-    });
-
-    // 防抖同步（每 2 秒同步一次）
-    if (!progressSyncTimer) {
-      progressSyncTimer = setTimeout(() => {
-        flushProgressUpdates();
-        progressSyncTimer = null;
-      }, 2000);
-    }
-  }
-
-  /**
-   * 刷新进度更新到后端
-   */
-  async function flushProgressUpdates(): Promise<void> {
-    if (pendingProgressUpdates.size === 0) return;
-
-    const updates = Array.from(pendingProgressUpdates.entries());
-    pendingProgressUpdates.clear();
-
-    for (const [taskId, progress] of updates) {
-      taskService.updateTaskProgress(taskId, progress).catch(console.error);
-    }
-  }
-
-  function updateTaskError(taskId: string, error: string): void {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
-
-    task.error = error;
-    task.status = "failed";
-    task.updatedAt = new Date();
-
-    // 同步到后端
-    taskService.updateTaskStatus(taskId, "failed", error).catch(console.error);
-  }
-
-  function updateTaskOutput(taskId: string, outputPath: string): void {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
-
-    task.outputPath = outputPath;
-    task.updatedAt = new Date();
-
-    // 同步到后端
-    taskService.updateTaskOutputPath(taskId, outputPath).catch(console.error);
-  }
-
-  /**
-   * 更新任务媒体信息 - 同步到后端
-   */
-  function updateTaskMediaInfo(
-    taskId: string,
-    mediaInfo: Partial<MediaInfo>,
-  ): void {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
-
-    // 更新扁平化字段
-    if (mediaInfo.resolution !== undefined)
-      task.mediaResolution = mediaInfo.resolution;
-    if (mediaInfo.width !== undefined) task.mediaWidth = mediaInfo.width;
-    if (mediaInfo.height !== undefined) task.mediaHeight = mediaInfo.height;
-    if (mediaInfo.frameRate !== undefined)
-      task.mediaFrameRate = mediaInfo.frameRate;
-    if (mediaInfo.videoCodec !== undefined)
-      task.mediaVideoCodec = mediaInfo.videoCodec;
-    if (mediaInfo.videoRange !== undefined)
-      task.mediaVideoRange = mediaInfo.videoRange;
-    if (mediaInfo.audioCodec !== undefined)
-      task.mediaAudioCodec = mediaInfo.audioCodec;
-    if (mediaInfo.audioChannels !== undefined)
-      task.mediaAudioChannels = mediaInfo.audioChannels;
-    if (mediaInfo.audioLanguage !== undefined)
-      task.mediaAudioLanguage = mediaInfo.audioLanguage;
-    if (mediaInfo.duration !== undefined)
-      task.mediaDuration = mediaInfo.duration;
-    if (mediaInfo.segmentCount !== undefined)
-      task.mediaSegmentCount = mediaInfo.segmentCount;
-    if (mediaInfo.isLive !== undefined) task.mediaIsLive = mediaInfo.isLive;
-    if (mediaInfo.isEncrypted !== undefined)
-      task.mediaIsEncrypted = mediaInfo.isEncrypted;
-    if (mediaInfo.fileFormat !== undefined)
-      task.mediaFileFormat = mediaInfo.fileFormat;
-    task.updatedAt = new Date();
-
-    // 同步到后端
-    taskService.updateTaskMediaInfo(taskId, mediaInfo).catch(console.error);
-  }
-
-  function retryTask(taskId: string): void {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task) return;
-
-    task.status = "pending";
-    task.error = undefined;
-    // 重置进度
-    task.progressPercent = 0;
-    task.progressSpeed = 0;
-    task.progressDownloadedSize = 0;
-    task.progressTotalSize = 0;
-    task.progressDownloadedSegments = 0;
-    task.progressTotalSegments = 0;
-    task.progressEta = 0;
-    task.progressCurrentAction = "";
-    task.updatedAt = new Date();
-
-    // 同步到后端
-    taskService.updateTaskStatus(taskId, "pending").catch(console.error);
-  }
-
-  /**
-   * 删除任务 - 同步到后端
-   */
+  /** 删除任务 */
   async function removeTask(taskId: string): Promise<void> {
     const index = tasks.value.findIndex((t) => t.id === taskId);
     if (index === -1) return;
 
-    // 先删除后端数据
     await taskService.deleteTask(taskId);
-
-    // 再更新缓存
     tasks.value.splice(index, 1);
+    taskLogs.value.delete(taskId);
   }
 
-  /**
-   * 清除已完成的任务
-   */
+  /** 重试任务 */
+  async function retryTask(taskId: string): Promise<void> {
+    const task = tasks.value.find((t) => t.id === taskId);
+    if (!task) return;
+
+    await taskService.updateTaskStatus(taskId, "pending");
+    task.status = "pending";
+    task.error = null;
+    task.progress = { ...EMPTY_PROGRESS };
+    task.updatedAt = new Date().toISOString();
+  }
+
+  /** 更新任务状态（后端 + 内存同步） */
+  async function setTaskStatus(
+    taskId: string,
+    status: TaskStatus,
+    error?: string,
+  ): Promise<void> {
+    const task = tasks.value.find((t) => t.id === taskId);
+    if (!task) return;
+
+    task.status = status;
+    task.updatedAt = new Date().toISOString();
+    if (error !== undefined) task.error = error;
+    if (status === "downloading" && !task.startedAt) {
+      task.startedAt = new Date().toISOString();
+    }
+    if (status === "completed") {
+      task.completedAt = new Date().toISOString();
+    }
+
+    await taskService.updateTaskStatus(taskId, status, error ?? null);
+  }
+
+  /** 更新任务进度（仅内存 + 调度防抖落盘） */
+  function setTaskProgress(taskId: string, progress: ProgressData): void {
+    const task = tasks.value.find((t) => t.id === taskId);
+    if (!task) return;
+
+    task.progress = progress;
+    task.updatedAt = new Date().toISOString();
+    taskService.scheduleProgressFlush(taskId, progress);
+  }
+
+  /** 设置任务输出路径 */
+  async function setTaskOutputPath(
+    taskId: string,
+    outputPath: string,
+  ): Promise<void> {
+    const task = tasks.value.find((t) => t.id === taskId);
+    if (!task) return;
+
+    task.outputPath = outputPath;
+    task.updatedAt = new Date().toISOString();
+    await taskService.updateTaskOutputPath(taskId, outputPath);
+  }
+
+  /** 设置任务媒体信息 */
+  async function setTaskMediaInfo(
+    taskId: string,
+    info: MediaInfo,
+  ): Promise<void> {
+    const task = tasks.value.find((t) => t.id === taskId);
+    if (!task) return;
+
+    task.mediaInfo = info;
+    task.updatedAt = new Date().toISOString();
+    await taskService.updateTaskMediaInfo(taskId, info);
+  }
+
+  /** 清除已完成任务 */
   async function clearCompleted(): Promise<void> {
     await taskService.clearFinishedTasks();
     tasks.value = tasks.value.filter((t) => t.status !== "completed");
   }
 
-  function clearFailed(): void {
-    const failedIds = tasks.value
-      .filter((t) => t.status === "failed")
-      .map((t) => t.id);
-    tasks.value = tasks.value.filter((t) => t.status !== "failed");
-
-    // 异步删除后端数据
-    for (const id of failedIds) {
-      taskService.deleteTask(id).catch(console.error);
-    }
-  }
-
+  /** 清除全部任务 */
   async function clearAll(): Promise<void> {
     await taskService.clearAllTasks();
     tasks.value = [];
+    taskLogs.value.clear();
   }
 
-  function reorderTasks(fromIndex: number, toIndex: number): void {
-    const removed = tasks.value.splice(fromIndex, 1)[0];
-    if (removed) {
-      tasks.value.splice(toIndex, 0, removed);
-    }
-  }
-
-  function setMaxConcurrent(value: number): void {
-    maxConcurrent.value = Math.max(1, Math.min(MAX_CONCURRENT_TASKS, value));
-  }
-
-  /**
-   * 检查文件是否存在（实时检查，不缓存）
-   */
-  async function checkFileExists(taskId: string): Promise<boolean> {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (!task?.outputPath) return false;
-
-    try {
-      return await configService.fileExists(task.outputPath);
-    } catch {
-      return false;
-    }
+  /** 检查 URL 是否已存在 */
+  function checkUrlExists(url: string): TaskRecord | undefined {
+    const trimmedUrl = url.trim();
+    return tasks.value.find((t) => t.url === trimmedUrl);
   }
 
   // ==========================================
-  // Actions - 日志管理（仅内存）
+  // Actions — 日志管理（仅内存）
   // ==========================================
 
-  function addTaskLog(
-    taskId: string,
-    level: TaskLogEntry["level"],
-    message: string,
-  ): void {
+  function addTaskLog(taskId: string, level: string, message: string): void {
     let logs = taskLogs.value.get(taskId);
     if (!logs) {
       logs = [];
       taskLogs.value.set(taskId, logs);
     }
 
-    logs.push({
-      timestamp: new Date(),
-      level,
-      message,
-    });
+    logs.push({ timestamp: new Date(), level, message });
 
-    // 限制日志条目数
     if (logs.length > MAX_LOG_ENTRIES) {
       logs.splice(0, logs.length - MAX_LOG_ENTRIES);
     }
@@ -559,42 +336,36 @@ export const useTaskStore = defineStore("task", () => {
     // State
     tasks,
     taskLogs,
-    maxConcurrent,
     isLoading,
     isInitialized,
 
     // Getters
     activeTasks,
     pendingTasks,
+    downloadingTasks,
     completedTasks,
     failedTasks,
-    downloadingTasks,
     canStartMore,
     hasTasks,
     totalProgress,
+    getTaskById,
+    getTask,
 
-    // Actions
+    // Actions — CRUD
     initialize,
     addTask,
     addTaskSync,
-    checkUrlExists,
-    getTask,
-    updateTaskConfig,
-    updateTaskStatus,
-    updateTaskProgress,
-    updateTaskError,
-    updateTaskOutput,
-    updateTaskMediaInfo,
-    retryTask,
     removeTask,
+    retryTask,
+    setTaskStatus,
+    setTaskProgress,
+    setTaskOutputPath,
+    setTaskMediaInfo,
     clearCompleted,
-    clearFailed,
     clearAll,
-    reorderTasks,
-    setMaxConcurrent,
-    checkFileExists,
+    checkUrlExists,
 
-    // Log Actions
+    // Actions — 日志
     addTaskLog,
     getTaskLogs,
     clearTaskLogs,

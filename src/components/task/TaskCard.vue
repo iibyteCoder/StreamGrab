@@ -10,7 +10,7 @@ import { computed, ref, onMounted, watch } from "vue";
 import { AppIcon } from "@/components/common";
 import { useTasks, useDownloader } from "@/composables";
 import { useTaskStore } from "@/stores";
-import { configService } from "@/services";
+import { systemService } from "@/services";
 import {
   formatSpeed,
   formatFileSize,
@@ -24,7 +24,7 @@ import {
   TaskDeleteDialog,
   LogViewer,
 } from "@/components/task";
-import type { DownloadTask } from "@/types";
+import type { DownloadTask } from "@/domain";
 
 interface Props {
   task: DownloadTask;
@@ -41,13 +41,8 @@ const emit = defineEmits<{
 }>();
 
 const { removeTask } = useTasks();
-const {
-  startDownload,
-  stopDownload,
-  pauseDownload,
-  resumeDownload,
-  retryDownload,
-} = useDownloader();
+const { startDownload, stopDownload, pauseDownload, resumeDownload } =
+  useDownloader();
 const taskStore = useTaskStore();
 
 // 文件存在状态（实时检查）
@@ -62,7 +57,7 @@ const checkFileExists = async () => {
 
   isCheckingFile.value = true;
   try {
-    fileExists.value = await taskStore.checkFileExists(props.task.id);
+    fileExists.value = await systemService.fileExists(props.task.outputPath);
   } catch {
     fileExists.value = false;
   } finally {
@@ -131,7 +126,10 @@ const progressColor = computed(() => {
 
 // 进度条样式（带动画效果）
 const progressStyle = computed(() => {
-  const percent = Math.min(100, Math.max(0, props.task.progressPercent));
+  const percent = Math.min(
+    100,
+    Math.max(0, props.task.progress.overallPercent),
+  );
   return {
     width: `${percent}%`,
     backgroundColor: progressColor.value,
@@ -146,14 +144,14 @@ const showProgressAnimation = computed(() => {
 // 下载速度
 const speedText = computed(() =>
   props.task.status === "downloading"
-    ? formatSpeed(props.task.progressSpeed)
+    ? formatSpeed(props.task.progress.speed)
     : "",
 );
 
 // 剩余时间
 const etaText = computed(() =>
-  props.task.status === "downloading" && props.task.progressEta
-    ? formatDuration(props.task.progressEta)
+  props.task.status === "downloading" && props.task.progress.eta
+    ? formatDuration(props.task.progress.eta)
     : "",
 );
 
@@ -176,14 +174,18 @@ const completedTimeText = computed(() => {
 // 操作处理
 const handleStart = async () => await startDownload(props.task);
 const handlePause = async () => await pauseDownload(props.task.id);
-const handleResume = async () => await resumeDownload(props.task);
+const handleResume = async () => await resumeDownload(props.task.id);
 const handleStop = async () => await stopDownload(props.task.id);
-const handleRetry = async () => await retryDownload(props.task);
+const handleRetry = async () => {
+  await taskStore.retryTask(props.task.id);
+  const updated = taskStore.getTaskById(props.task.id);
+  if (updated) await startDownload(updated);
+};
 
 const handleOpenFolder = async () => {
   if (props.task.saveDir) {
     try {
-      await configService.openInExplorer(props.task.saveDir);
+      await systemService.openInExplorer(props.task.saveDir);
     } catch (e) {
       console.error("Failed to open folder:", e);
     }
@@ -193,7 +195,7 @@ const handleOpenFolder = async () => {
 const handleOpenFile = async () => {
   if (props.task.outputPath && fileExists.value) {
     try {
-      await configService.openInExplorer(props.task.outputPath);
+      await systemService.openFileInExplorer(props.task.outputPath);
     } catch (e) {
       console.error("Failed to open file:", e);
     }
@@ -213,7 +215,7 @@ const performDelete = async (withFile: boolean) => {
   try {
     if (withFile && props.task.outputPath) {
       try {
-        await configService.deleteFileOrFolder(props.task.outputPath);
+        await systemService.deleteFileOrFolder(props.task.outputPath);
       } catch (e) {
         console.error("Failed to delete file:", e);
       }
@@ -285,7 +287,7 @@ const handleClick = () => emit("click", props.task);
                 textAlign: 'right',
               }"
             >
-              {{ task.progressPercent }}%
+              {{ task.progress.overallPercent }}%
             </span>
           </div>
 
@@ -299,29 +301,29 @@ const handleClick = () => emit("click", props.task);
                 speedText
               }}</span>
               <span
-                v-if="task.progressDownloadedSize && task.progressTotalSize"
+                v-if="task.progress.downloadedSize && task.progress.totalSize"
               >
-                {{ formatFileSize(task.progressDownloadedSize) }} /
-                {{ formatFileSize(task.progressTotalSize) }}
+                {{ formatFileSize(task.progress.downloadedSize) }} /
+                {{ formatFileSize(task.progress.totalSize) }}
               </span>
-              <span v-else-if="task.progressDownloadedSize">
-                {{ formatFileSize(task.progressDownloadedSize) }}
+              <span v-else-if="task.progress.downloadedSize">
+                {{ formatFileSize(task.progress.downloadedSize) }}
               </span>
               <span v-if="etaText">剩余 {{ etaText }}</span>
             </template>
 
             <!-- 暂停中 -->
             <template v-else-if="task.status === 'paused'">
-              <span v-if="task.progressDownloadedSize">{{
-                formatFileSize(task.progressDownloadedSize)
+              <span v-if="task.progress.downloadedSize">{{
+                formatFileSize(task.progress.downloadedSize)
               }}</span>
               <span class="text-amber-500">已暂停</span>
             </template>
 
             <!-- 失败 -->
             <template v-else-if="task.status === 'failed'">
-              <span v-if="task.progressDownloadedSize">{{
-                formatFileSize(task.progressDownloadedSize)
+              <span v-if="task.progress.downloadedSize">{{
+                formatFileSize(task.progress.downloadedSize)
               }}</span>
               <span class="text-destructive">下载失败</span>
             </template>
@@ -350,11 +352,11 @@ const handleClick = () => emit("click", props.task);
             <span>已取消</span>
           </template>
           <template v-else-if="task.status === 'completed'">
-            <span v-if="task.progressTotalSize">{{
-              formatFileSize(task.progressTotalSize)
+            <span v-if="task.progress.totalSize">{{
+              formatFileSize(task.progress.totalSize)
             }}</span>
-            <span v-else-if="task.progressDownloadedSize">{{
-              formatFileSize(task.progressDownloadedSize)
+            <span v-else-if="task.progress.downloadedSize">{{
+              formatFileSize(task.progress.downloadedSize)
             }}</span>
             <span>{{ completedTimeText }}</span>
             <span

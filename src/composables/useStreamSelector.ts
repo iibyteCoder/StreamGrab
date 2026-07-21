@@ -11,38 +11,26 @@ import type {
   VideoStream,
   AudioStream,
   SubtitleStream,
-  BaseStream,
-} from "@/types";
+} from "@/domain";
+import { formatDurationHMS, formatBitrate } from "@/utils/format";
+import { i18n } from "@/locales";
 
 /**
- * 格式化比特率
+ * 格式化比特率（委托 utils/format）
  */
-export function formatBandwidth(bandwidth: number): string {
-  if (bandwidth >= 1000000) {
-    return `${(bandwidth / 1000000).toFixed(1)} Mbps`;
-  } else if (bandwidth >= 1000) {
-    return `${(bandwidth / 1000).toFixed(0)} Kbps`;
-  }
-  return `${bandwidth} bps`;
-}
+export const formatBandwidth = formatBitrate;
 
 /**
- * 格式化时长
+ * 格式化时长（委托 utils/format）
  */
-export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) {
-    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  }
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+export const formatDuration = formatDurationHMS;
 
 /**
  * 获取流名称
  */
-export function getStreamName(stream: BaseStream): string {
+export function getStreamName(
+  stream: VideoStream | AudioStream | SubtitleStream,
+): string {
   return stream.name || stream.language || stream.id;
 }
 
@@ -77,8 +65,8 @@ export function getAudioDescription(stream: AudioStream): string {
 export function getSubtitleDescription(stream: SubtitleStream): string {
   const parts: string[] = [];
   if (stream.format) parts.push(stream.format.toUpperCase());
-  if (stream.isForced) parts.push("强制");
-  if (stream.isDefault) parts.push("默认");
+  if (stream.isForced) parts.push(i18n.global.t("streamSelector.forced"));
+  if (stream.isDefault) parts.push(i18n.global.t("streamSelector.default"));
   return parts.join(" · ");
 }
 
@@ -125,7 +113,10 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
       videoCount: info.videos.length,
       audioCount: info.audios.length,
       subtitleCount: info.subtitles.length,
-      duration: info.duration > 0 ? formatDuration(info.duration) : "未知",
+      duration:
+        info.duration > 0
+          ? formatDurationHMS(info.duration)
+          : i18n.global.t("streamSelector.unknownDuration"),
       isLive: info.isLive,
       isEncrypted: info.isEncrypted,
     };
@@ -185,12 +176,18 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
         : new Set(subtitles.map((s) => s.id));
   };
 
-  // 获取选择结果
-  const getSelection = (): StreamSelection => ({
-    videoIds: Array.from(selectedVideos.value),
-    audioIds: Array.from(selectedAudios.value),
-    subtitleIds: Array.from(selectedSubtitles.value),
-  });
+  // 获取选择结果（映射为 domain StreamSelection 格式）
+  const getSelection = (): StreamSelection => {
+    const videoIds = Array.from(selectedVideos.value);
+    const audioIds = Array.from(selectedAudios.value);
+    const subtitleIds = Array.from(selectedSubtitles.value);
+
+    return {
+      video: videoIds.length > 0 ? videoIds[0] : null,
+      audio: audioIds.length > 0 ? audioIds.join(",") : null,
+      subtitle: subtitleIds.length > 0 ? subtitleIds.join(",") : null,
+    };
+  };
 
   // 重置选择
   const reset = () => {

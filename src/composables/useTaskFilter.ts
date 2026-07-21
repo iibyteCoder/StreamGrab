@@ -5,7 +5,7 @@
 
 import { ref, computed, type MaybeRef } from "vue";
 import { toValue } from "vue";
-import type { DownloadTask, TaskStatus } from "@/types";
+import type { DownloadTask, TaskStatus } from "@/domain";
 
 /** 排序类型 */
 export type SortOrder = "newest" | "oldest" | "status";
@@ -98,10 +98,16 @@ export function useTaskFilter(
     const result = [...taskList];
     switch (order) {
       case "newest":
-        result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        result.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
         break;
       case "oldest":
-        result.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        result.sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        );
         break;
       case "status":
         result.sort(

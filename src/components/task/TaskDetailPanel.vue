@@ -8,7 +8,7 @@ import { computed, ref, watch, onMounted } from "vue";
 import { AppIcon } from "@/components/common";
 import { useTasks, useDownloader } from "@/composables";
 import { useTaskStore } from "@/stores";
-import { configService } from "@/services";
+import { systemService } from "@/services";
 import {
   TaskStatusHeader,
   TaskMediaInfo,
@@ -29,13 +29,8 @@ const emit = defineEmits<{
 }>();
 
 const { getTask } = useTasks();
-const {
-  startDownload,
-  stopDownload,
-  pauseDownload,
-  resumeDownload,
-  retryDownload,
-} = useDownloader();
+const { startDownload, stopDownload, pauseDownload, resumeDownload } =
+  useDownloader();
 const taskStore = useTaskStore();
 
 // 当前任务
@@ -56,7 +51,7 @@ const checkFileExists = async () => {
     return;
   }
   try {
-    fileExists.value = await taskStore.checkFileExists(task.value.id);
+    fileExists.value = await systemService.fileExists(task.value.outputPath);
   } catch {
     fileExists.value = false;
   }
@@ -69,7 +64,7 @@ watch(() => task.value?.status, checkFileExists);
 const handleOpenFolder = async () => {
   if (task.value?.saveDir) {
     try {
-      await configService.openInExplorer(task.value.saveDir);
+      await systemService.openInExplorer(task.value.saveDir);
     } catch (e) {
       console.error("Failed to open folder:", e);
     }
@@ -79,7 +74,7 @@ const handleOpenFolder = async () => {
 const handleOpenFile = async () => {
   if (task.value?.outputPath && fileExists.value) {
     try {
-      await configService.openInExplorer(task.value.outputPath);
+      await systemService.openFileInExplorer(task.value.outputPath);
     } catch (e) {
       console.error("Failed to open file:", e);
     }
@@ -95,7 +90,7 @@ const handlePause = async () => {
 };
 
 const handleResume = async () => {
-  if (task.value) await resumeDownload(task.value);
+  if (task.value) await resumeDownload(task.value.id);
 };
 
 const handleStop = async () => {
@@ -103,7 +98,11 @@ const handleStop = async () => {
 };
 
 const handleRetry = async () => {
-  if (task.value) await retryDownload(task.value);
+  if (task.value) {
+    await taskStore.retryTask(task.value.id);
+    const updated = taskStore.getTaskById(task.value.id);
+    if (updated) await startDownload(updated);
+  }
 };
 
 const handleClose = () => {

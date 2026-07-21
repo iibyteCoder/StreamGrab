@@ -23,10 +23,8 @@ import {
   type ChartOptions,
 } from "chart.js";
 import { Line } from "vue-chartjs";
-import {
-  taskService,
-  type ProgressHistoryRecord,
-} from "@/services/taskService";
+import { taskService } from "@/services/taskService";
+import type { ProgressSample } from "@/domain";
 import { formatSpeed } from "@/utils/format";
 import { useTaskStore } from "@/stores";
 
@@ -57,7 +55,7 @@ const props = withDefaults(defineProps<Props>(), {
 const taskStore = useTaskStore();
 
 // 数据库历史数据
-const dbHistoryData = ref<ProgressHistoryRecord[]>([]);
+const dbHistoryData = ref<ProgressSample[]>([]);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 
@@ -118,8 +116,8 @@ const allDataPoints = computed(() => {
 
   // 3. 如果还在下载中，添加当前进度点
   if (isDownloading.value && task.value) {
-    const currentPercent = task.value.progressPercent;
-    const currentSpeed = task.value.progressSpeed;
+    const currentPercent = task.value.progress.overallPercent;
+    const currentSpeed = task.value.progress.speed;
     if (currentSpeed > 0 && currentPercent > 0) {
       // 检查是否已有相近的点
       const existingIndex = points.findIndex(
@@ -157,7 +155,7 @@ const stats = computed(() => {
   // 当前速率：从实时任务获取或使用最后一个数据点
   const currentSpeed =
     isDownloading.value && task.value
-      ? task.value.progressSpeed
+      ? task.value.progress.speed
       : (speeds[speeds.length - 1] ?? 0);
 
   return {
@@ -299,11 +297,11 @@ let lastRecordedPercent = 0;
 const RECORD_INTERVAL = 2; // 每 2% 进度记录一次
 
 watch(
-  () => task.value?.progressPercent,
+  () => task.value?.progress.overallPercent,
   (newPercent) => {
     if (!isDownloading.value || !task.value) return;
 
-    const speed = task.value.progressSpeed;
+    const speed = task.value.progress.speed;
     if (speed <= 0 || newPercent === undefined) return;
 
     // 每隔一定进度记录一次，避免数据点过多

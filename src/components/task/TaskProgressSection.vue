@@ -7,7 +7,7 @@
 import { computed } from "vue";
 import { TASK_STATUS_CONFIG } from "@/utils/constants";
 import { formatSpeed, formatFileSize } from "@/utils/format";
-import type { DownloadTask } from "@/types";
+import type { DownloadTask } from "@/domain";
 
 interface Props {
   task: DownloadTask;
@@ -21,8 +21,8 @@ const statusConfig = computed(() => {
 });
 
 const sizeInfo = computed(() => {
-  const downloadedSize = props.task.progressDownloadedSize;
-  const totalSize = props.task.progressTotalSize;
+  const downloadedSize = props.task.progress.downloadedSize;
+  const totalSize = props.task.progress.totalSize;
   if (totalSize > 0)
     return `${formatFileSize(downloadedSize)} / ${formatFileSize(totalSize)}`;
   if (downloadedSize > 0) return formatFileSize(downloadedSize);
@@ -31,12 +31,12 @@ const sizeInfo = computed(() => {
 
 const speedInfo = computed(() =>
   props.task.status === "downloading"
-    ? formatSpeed(props.task.progressSpeed)
+    ? formatSpeed(props.task.progress.speed)
     : "",
 );
 
 const progressStyle = computed(() => ({
-  width: `${props.task.progressPercent}%`,
+  width: `${props.task.progress.percent}%`,
   backgroundColor: statusConfig.value.color,
 }));
 </script>
@@ -45,7 +45,7 @@ const progressStyle = computed(() => ({
   <div class="space-y-3">
     <div class="flex justify-between text-sm">
       <span class="text-muted-foreground">下载进度</span>
-      <span class="font-semibold">{{ task.progressPercent }}%</span>
+      <span class="font-semibold">{{ task.progress.percent }}%</span>
     </div>
     <div class="h-2 bg-muted rounded-full overflow-hidden">
       <div

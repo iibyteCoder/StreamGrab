@@ -7,6 +7,7 @@ import {
   toast as shadcnToast,
   useToast as useShadcnToast,
 } from "@/components/ui/toast";
+import { i18n } from "@/locales";
 
 /**
  * Toast 选项
@@ -29,7 +30,7 @@ export function useToast() {
    */
   const success = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || "成功",
+      title: options?.title || i18n.global.t("common.success"),
       description: message,
       variant: "default",
     });
@@ -41,7 +42,7 @@ export function useToast() {
    */
   const error = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || "错误",
+      title: options?.title || i18n.global.t("common.error"),
       description: message,
       variant: "destructive",
     });
@@ -53,7 +54,7 @@ export function useToast() {
    */
   const warning = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || "警告",
+      title: options?.title || i18n.global.t("common.warning"),
       description: message,
     });
     return result.id;
@@ -64,7 +65,7 @@ export function useToast() {
    */
   const info = (message: string, options?: ToastOptions): string => {
     const result = shadcnToast({
-      title: options?.title || "提示",
+      title: options?.title || i18n.global.t("common.info"),
       description: message,
     });
     return result.id;

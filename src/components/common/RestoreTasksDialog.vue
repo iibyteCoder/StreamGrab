@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AppIcon } from "@/components/common";
-import type { DownloadTask, TaskStatus } from "@/types";
+import type { DownloadTask, TaskStatus } from "@/domain";
 
 interface Props {
   open: boolean;
@@ -85,11 +85,11 @@ const handleCancel = () => {
             </span>
           </div>
           <div
-            v-if="task.progressPercent > 0"
+            v-if="task.progress.percent > 0"
             class="flex items-center justify-between text-muted-foreground text-xs"
           >
             <span class="truncate">{{ task.url }}</span>
-            <span class="shrink-0 ml-2">{{ task.progressPercent }}%</span>
+            <span class="shrink-0 ml-2">{{ task.progress.percent }}%</span>
           </div>
         </div>
       </div>

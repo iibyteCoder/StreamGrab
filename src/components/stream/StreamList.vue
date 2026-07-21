@@ -7,7 +7,7 @@
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import StreamItem from "./StreamItem.vue";
-import type { VideoStream, AudioStream, SubtitleStream } from "@/types";
+import type { VideoStream, AudioStream, SubtitleStream } from "@/domain";
 
 type StreamType = VideoStream | AudioStream | SubtitleStream;
 

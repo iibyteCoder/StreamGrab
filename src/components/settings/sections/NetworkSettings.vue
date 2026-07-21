@@ -1,179 +1,210 @@
 <script setup lang="ts">
 /**
  * NetworkSettings - 网络设置组件
+ *
+ * 数据源：Nm3u8dlConfig.network (NetworkConfig)
+ * 更新：emit DeepPartial<Nm3u8dlConfig>
  */
 
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { AppIcon } from "@/components/common";
 import { SettingSwitch, SettingInput, SettingsGroup } from "..";
-import type { HeaderConfig } from "@/types";
-
-interface Settings {
-  network: {
-    useSystemProxy: boolean;
-    customProxy: string;
-    baseUrl: string;
-    appendUrlParams: boolean;
-    headers: HeaderConfig[];
-  };
-}
+import type { NetworkConfig, NetworkHeader, Nm3u8dlConfig } from "@/domain";
+import type { DeepPartial } from "@/services";
 
 interface Props {
-  settings: Settings;
+  network: NetworkConfig;
 }
 
 const props = defineProps<Props>();
+const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: "update:settings", value: any): void;
+  (e: "update", value: DeepPartial<Nm3u8dlConfig>): void;
 }>();
 
 // 请求头列表
-const headers = computed(() => props.settings.network.headers);
+const headers = computed(() => props.network.headers);
 
-// 更新设置
-const updateNetwork = (value: any) => {
-  emit("update:settings", value);
-};
+// 下一个 header id
+const nextHeaderId = computed(() => {
+  const maxId = headers.value.reduce((max, h) => Math.max(max, h.id), 0);
+  return maxId + 1;
+});
+
+// 补丁网络配置
+function patchNetwork(patch: Partial<NetworkConfig>) {
+  emit("update", { network: patch });
+}
 
 // 添加请求头
-const addHeader = () => {
-  const newHeaders = [...headers.value, { key: "", value: "", enabled: true }];
-  updateNetwork({ headers: newHeaders });
-};
+function addHeader() {
+  const newHeader: NetworkHeader = {
+    id: nextHeaderId.value,
+    name: "",
+    value: "",
+    enabled: true,
+    sort_order: headers.value.length,
+  };
+  patchNetwork({ headers: [...headers.value, newHeader] });
+}
 
 // 删除请求头
-const removeHeader = (index: number) => {
+function removeHeader(index: number) {
   const newHeaders = headers.value.filter((_, i) => i !== index);
-  updateNetwork({ headers: newHeaders });
-};
+  patchNetwork({ headers: newHeaders });
+}
 
-// 更新请求头 Key
-const updateHeaderKey = (index: number, key: string) => {
+// 更新请求头 Name
+function updateHeaderName(index: number, name: string) {
   const newHeaders = [...headers.value];
   const header = newHeaders[index];
   if (header) {
-    newHeaders[index] = { key, value: header.value, enabled: header.enabled };
+    newHeaders[index] = { ...header, name };
   }
-  updateNetwork({ headers: newHeaders });
-};
+  patchNetwork({ headers: newHeaders });
+}
 
 // 更新请求头 Value
-const updateHeaderValue = (index: number, value: string) => {
+function updateHeaderValue(index: number, value: string) {
   const newHeaders = [...headers.value];
   const header = newHeaders[index];
   if (header) {
-    newHeaders[index] = { key: header.key, value, enabled: header.enabled };
+    newHeaders[index] = { ...header, value };
   }
-  updateNetwork({ headers: newHeaders });
-};
+  patchNetwork({ headers: newHeaders });
+}
 
 // 切换启用状态
-const toggleHeader = (index: number, enabled: boolean) => {
+function toggleHeader(index: number, enabled: boolean) {
   const newHeaders = [...headers.value];
   const header = newHeaders[index];
   if (header) {
-    newHeaders[index] = { key: header.key, value: header.value, enabled };
+    newHeaders[index] = { ...header, enabled };
   }
-  updateNetwork({ headers: newHeaders });
-};
+  patchNetwork({ headers: newHeaders });
+}
 </script>
 
 <template>
-  <div class="space-y-2">
-    <SettingsGroup title="代理设置" description="配置网络代理选项">
-      <SettingSwitch
-        :model-value="settings.network.useSystemProxy"
-        label="使用系统代理"
-        description="自动使用系统配置的代理"
-        @update:model-value="updateNetwork({ useSystemProxy: $event })"
-      />
+  <SettingsGroup
+    :title="t('settings.network.proxy')"
+    :description="t('settings.network.proxyDesc', '配置网络代理选项')"
+  >
+    <SettingSwitch
+      :model-value="network.use_system_proxy"
+      :label="t('settings.network.useSystemProxy')"
+      :description="
+        t('settings.network.useSystemProxyDesc', '自动使用系统配置的代理')
+      "
+      @update:model-value="patchNetwork({ use_system_proxy: $event })"
+    />
 
-      <SettingInput
-        :model-value="settings.network.customProxy"
-        label="自定义代理"
-        placeholder="http://127.0.0.1:7890"
-        @update:model-value="updateNetwork({ customProxy: $event })"
-      />
+    <SettingInput
+      :model-value="network.custom_proxy || ''"
+      :label="t('settings.network.customProxy')"
+      placeholder="http://127.0.0.1:7890"
+      @update:model-value="
+        patchNetwork({ custom_proxy: String($event) || null })
+      "
+    />
 
-      <SettingInput
-        :model-value="settings.network.baseUrl"
-        label="Base URL"
-        placeholder="替换 URL 的基础部分"
-        @update:model-value="updateNetwork({ baseUrl: $event })"
-      />
+    <SettingInput
+      :model-value="network.base_url || ''"
+      :label="t('settings.network.baseUrl')"
+      placeholder="替换 URL 的基础部分"
+      @update:model-value="patchNetwork({ base_url: String($event) || null })"
+    />
 
-      <SettingSwitch
-        :model-value="settings.network.appendUrlParams"
-        label="附加 URL 参数"
-        description="将原始 URL 的查询参数附加到所有请求"
-        @update:model-value="updateNetwork({ appendUrlParams: $event })"
-      />
-    </SettingsGroup>
+    <SettingSwitch
+      :model-value="network.append_url_params"
+      :label="t('settings.network.appendUrlParams', '附加 URL 参数')"
+      :description="
+        t(
+          'settings.network.appendUrlParamsDesc',
+          '将原始 URL 的查询参数附加到所有请求',
+        )
+      "
+      @update:model-value="patchNetwork({ append_url_params: $event })"
+    />
+  </SettingsGroup>
 
-    <SettingsGroup
-      title="请求头设置"
-      description="配置 HTTP 请求头（如 Referer、User-Agent、Cookie）"
+  <SettingsGroup
+    :title="t('settings.network.headers')"
+    :description="
+      t(
+        'settings.network.headersDesc',
+        '配置 HTTP 请求头（如 Referer、User-Agent、Cookie）',
+      )
+    "
+  >
+    <div
+      v-if="headers.length === 0"
+      class="text-sm py-2"
+      style="color: var(--text-secondary)"
     >
+      {{
+        t("settings.network.noHeaders", "暂无自定义请求头，点击下方按钮添加")
+      }}
+    </div>
+
+    <div v-else class="space-y-2">
       <div
-        v-if="headers.length === 0"
-        class="text-sm text-muted-foreground py-2"
+        v-for="(header, index) in headers"
+        :key="header.id"
+        class="flex items-center gap-2"
       >
-        暂无自定义请求头，点击下方按钮添加
-      </div>
-
-      <div v-else class="space-y-2">
-        <div
-          v-for="(header, index) in headers"
-          :key="index"
-          class="flex items-center gap-2"
+        <!-- Name 输入 -->
+        <input
+          :value="header.name"
+          type="text"
+          placeholder="Header Name"
+          class="w-36 h-9 px-3 text-sm rounded-md border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+          style="border-color: rgba(255, 255, 255, 0.08)"
+          @input="
+            updateHeaderName(index, ($event.target as HTMLInputElement).value)
+          "
+        />
+        <!-- Value 输入 -->
+        <input
+          :value="header.value"
+          type="text"
+          placeholder="Header Value"
+          class="flex-1 h-9 px-3 text-sm rounded-md border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+          style="border-color: rgba(255, 255, 255, 0.08)"
+          @input="
+            updateHeaderValue(index, ($event.target as HTMLInputElement).value)
+          "
+        />
+        <!-- 启用开关 -->
+        <Switch
+          :checked="header.enabled"
+          @update:checked="toggleHeader(index, $event)"
+        />
+        <!-- 删除按钮 -->
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-9 w-9 cursor-pointer"
+          style="color: var(--accent-error)"
+          @click="removeHeader(index)"
         >
-          <!-- Key 输入 -->
-          <input
-            :value="header.key"
-            type="text"
-            placeholder="Header Name"
-            class="w-36 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-            @input="
-              updateHeaderKey(index, ($event.target as HTMLInputElement).value)
-            "
-          />
-          <!-- Value 输入 -->
-          <input
-            :value="header.value"
-            type="text"
-            placeholder="Header Value"
-            class="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-            @input="
-              updateHeaderValue(
-                index,
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          />
-          <!-- 启用开关 -->
-          <Switch
-            :checked="header.enabled"
-            @update:checked="toggleHeader(index, $event)"
-          />
-          <!-- 删除按钮 -->
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-9 w-9 text-destructive hover:text-destructive"
-            @click="removeHeader(index)"
-          >
-            <AppIcon name="Trash2" :size="16" />
-          </Button>
-        </div>
+          <AppIcon name="Trash2" :size="16" />
+        </Button>
       </div>
+    </div>
 
-      <Button variant="outline" size="sm" class="mt-2" @click="addHeader">
-        <AppIcon name="Plus" :size="14" class="mr-1" />
-        添加请求头
-      </Button>
-    </SettingsGroup>
-  </div>
+    <Button
+      variant="outline"
+      size="sm"
+      class="mt-2 cursor-pointer"
+      @click="addHeader"
+    >
+      <AppIcon name="Plus" :size="14" class="mr-1" />
+      {{ t("settings.network.addHeader", "添加请求头") }}
+    </Button>
+  </SettingsGroup>
 </template>

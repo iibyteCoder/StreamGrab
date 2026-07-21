@@ -302,6 +302,26 @@ export function generateTimestampedFilename(baseName: string): string {
   return `${stem}_${timestamp}`;
 }
 
+/**
+ * 格式化持续时间为紧凑的 H:MM:SS / M:SS 格式
+ *（流信息时长展示用；与 formatDuration 的中文格式区分命名，避免同名不同义）
+ * @param seconds 秒数
+ */
+export function formatDurationHMS(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return "0:00";
+
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, "0")}:${s
+      .toString()
+      .padStart(2, "0")}`;
+  }
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 // 别名导出，保持 API 一致性
 export const formatBytes = formatFileSize;
 export const formatDate = (date: Date | string | number) =>

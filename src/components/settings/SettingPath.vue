@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AppIcon } from "@/components/common";
-import { configService } from "@/services";
+import { systemService } from "@/services";
 import { useToast } from "@/composables";
 
 interface Props {
@@ -47,9 +47,9 @@ const handleSelect = async () => {
     let path: string | null = null;
 
     if (props.type === "folder") {
-      path = await configService.selectDirectory();
+      path = await systemService.selectDirectory();
     } else {
-      path = await configService.selectFile();
+      path = await systemService.selectFile();
     }
 
     if (path) {

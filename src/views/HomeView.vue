@@ -20,11 +20,11 @@ import {
   useClipboardWatcher,
   useTaskFilter,
 } from "@/composables";
-import type { DownloadTask } from "@/types";
+import type { DownloadTask } from "@/domain";
 
 const taskStore = useTasks();
 const { tasks, clearCompleted } = taskStore;
-const { startPendingTasks, checkDownloaderAvailable } = useDownloader();
+const { startPendingTasks } = useDownloader();
 const { loadSettings } = useSettings();
 
 // 剪贴板监控
@@ -84,7 +84,6 @@ const {
 // 初始化
 onMounted(async () => {
   await loadSettings();
-  await checkDownloaderAvailable();
 });
 
 const handleStartAll = async () => await startPendingTasks();

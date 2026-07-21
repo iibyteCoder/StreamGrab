@@ -8,7 +8,7 @@ import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { AppIcon } from "@/components/common";
 import { TASK_STATUS_CONFIG } from "@/utils/constants";
-import type { DownloadTask } from "@/types";
+import type { DownloadTask } from "@/domain";
 
 interface Props {
   task: DownloadTask;
