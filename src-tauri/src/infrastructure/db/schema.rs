@@ -1,8 +1,10 @@
 //! 数据库 Schema（v4）
 //!
-//! v4 采用单表聚合模型（tasks 含三个 JSON 列）+ 通用工具配置表，
-//! 与旧版多表结构不兼容：版本低于 4 时直接重建全部表
-//!（用户已确认无需向后兼容，旧数据不保留）。
+//! v4 采用单表聚合模型（tasks 含三个 JSON 列）+ 通用工具配置表。
+//! **不做任何数据迁移**：现有文件版本与 v4 不符（或不可读/遗留结构）时，
+//! 直接删除整个数据库文件（含 -wal/-shm）并重建。
+
+use std::path::Path;
 
 use rusqlite::Connection;
 
@@ -85,58 +87,65 @@ CREATE TABLE IF NOT EXISTS task_presets (
 );
 "#;
 
-/// 需要清理的表（含历史版本遗留表名）
-const ALL_TABLES: [&str; 14] = [
-    "tasks",
-    "task_progress",
-    "task_media_info",
-    "task_config",
-    "progress_history",
-    "history",
-    "settings",
-    "app_settings",
-    "m3u8dl_settings",
-    "ffmpeg_settings",
-    "network_headers",
-    "decryption_keys",
-    "config_templates",
-    "task_presets",
-];
+/// 打开数据库
+///
+/// 现有文件版本与 v4 不符（或不可读）时删除整个文件并重建——不做数据迁移；
+/// 版本相符时原样使用（跨重启正常持久化）。
+pub fn open_or_recreate(db_path: &Path) -> AppResult<Connection> {
+    if db_path.exists() && !is_current_version(db_path) {
+        log::warn!(
+            "数据库文件版本不符或不可读，删除重建: {}",
+            db_path.display()
+        );
+        remove_db_files(db_path)?;
+    }
+    let conn = Connection::open(db_path)?;
+    initialize(&conn)?;
+    Ok(conn)
+}
 
-/// 初始化 schema：设置 PRAGMA，必要时迁移到当前版本
+/// 检查数据库文件是否已处于当前版本（任何失败都视为不符）
+fn is_current_version(db_path: &Path) -> bool {
+    Connection::open(db_path)
+        .ok()
+        .and_then(|conn| {
+            conn.query_row("SELECT version FROM schema_info LIMIT 1", [], |r| {
+                r.get::<_, i32>(0)
+            })
+            .ok()
+        })
+        .is_some_and(|v| v == SCHEMA_VERSION)
+}
+
+/// 删除数据库文件及其 WAL/SHM 附属文件
+fn remove_db_files(db_path: &Path) -> AppResult<()> {
+    let mut targets = vec![db_path.to_path_buf()];
+    for suffix in ["-wal", "-shm"] {
+        let mut name = db_path.as_os_str().to_os_string();
+        name.push(suffix);
+        targets.push(name.into());
+    }
+    for target in targets {
+        if target.exists() {
+            std::fs::remove_file(&target)?;
+        }
+    }
+    Ok(())
+}
+
+/// 应用 v4 表结构（幂等；缺失时补写版本行）
+///
+/// 供新文件与内存测试库使用
 pub fn initialize(conn: &Connection) -> AppResult<()> {
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
          PRAGMA foreign_keys = ON;
          PRAGMA busy_timeout = 5000;",
     )?;
-
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS schema_info (version INTEGER NOT NULL)",
-        [],
-    )?;
-
-    let version: i32 = conn
-        .query_row("SELECT version FROM schema_info LIMIT 1", [], |r| r.get(0))
-        .unwrap_or(0);
-
-    if version < SCHEMA_VERSION {
-        rebuild(conn)?;
-        log::info!("Database schema initialized at v{SCHEMA_VERSION}");
-    }
-
-    Ok(())
-}
-
-/// 全量重建：drop 所有表 → DDL → 写入版本号
-fn rebuild(conn: &Connection) -> AppResult<()> {
-    for table in ALL_TABLES {
-        conn.execute_batch(&format!("DROP TABLE IF EXISTS {table};"))?;
-    }
     conn.execute_batch(DDL)?;
-    conn.execute("DELETE FROM schema_info", [])?;
     conn.execute(
-        "INSERT INTO schema_info (version) VALUES (?1)",
+        "INSERT INTO schema_info (version)
+         SELECT ?1 WHERE NOT EXISTS (SELECT 1 FROM schema_info)",
         [SCHEMA_VERSION],
     )?;
     Ok(())
@@ -180,7 +189,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         initialize(&conn).unwrap();
         conn.execute("INSERT INTO tasks (id, url, file_name, save_dir, status, created_at, updated_at) VALUES ('t1','u','f','d','pending','now','now')", []).unwrap();
-        // 再次初始化不重建（版本相同），数据保留
+        // 再次初始化不丢数据（幂等）
         initialize(&conn).unwrap();
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
@@ -189,31 +198,78 @@ mod tests {
     }
 
     #[test]
-    fn migrates_from_old_version_by_rebuild() {
-        let conn = Connection::open_in_memory().unwrap();
-        // 模拟旧版 v3：只有 schema_info 与一张遗留表
-        conn.execute_batch(
-            "CREATE TABLE schema_info (version INTEGER NOT NULL);
-             INSERT INTO schema_info (version) VALUES (3);
-             CREATE TABLE settings (module TEXT PRIMARY KEY, data TEXT);
-             INSERT INTO settings (module, data) VALUES ('general', '{}');",
-        )
-        .unwrap();
+    fn recreates_file_when_legacy_schema_info_lacks_version_column() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("streamgrab.db");
 
-        initialize(&conn).unwrap();
+        // 历史开发版本遗留：schema_info 没有 version 列
+        let legacy = Connection::open(&db_path).unwrap();
+        legacy
+            .execute_batch(
+                "CREATE TABLE schema_info (id INTEGER PRIMARY KEY, schema_version INTEGER);
+                 INSERT INTO schema_info (schema_version) VALUES (3);
+                 CREATE TABLE tasks (id TEXT PRIMARY KEY, url TEXT);",
+            )
+            .unwrap();
+        drop(legacy);
 
+        let conn = open_or_recreate(&db_path).unwrap();
         let version: i32 = conn
             .query_row("SELECT version FROM schema_info LIMIT 1", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
-        // 旧表已删除
         let count: i32 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='settings'",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='task_presets'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn recreates_file_when_version_mismatch() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("streamgrab.db");
+
+        let old = Connection::open(&db_path).unwrap();
+        old.execute_batch(
+            "CREATE TABLE schema_info (version INTEGER NOT NULL);
+             INSERT INTO schema_info (version) VALUES (3);
+             CREATE TABLE tasks (id TEXT PRIMARY KEY, url TEXT);
+             INSERT INTO tasks (id, url) VALUES ('legacy', 'u');",
+        )
+        .unwrap();
+        drop(old);
+
+        let conn = open_or_recreate(&db_path).unwrap();
+        // 旧数据不保留
+        let count: i32 = conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(count, 0);
+        let version: i32 = conn
+            .query_row("SELECT version FROM schema_info LIMIT 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn preserves_data_when_version_current() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("streamgrab.db");
+
+        {
+            let conn = open_or_recreate(&db_path).unwrap();
+            conn.execute("INSERT INTO tasks (id, url, file_name, save_dir, status, created_at, updated_at) VALUES ('t1','u','f','d','pending','now','now')", []).unwrap();
+        }
+
+        // 重新打开：版本相符，数据保留
+        let conn = open_or_recreate(&db_path).unwrap();
+        let count: i32 = conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
     }
 }

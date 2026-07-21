@@ -44,8 +44,8 @@ impl Database {
             .map_err(|e| AppError::database(format!("创建配置目录失败: {e}")))?;
 
         let db_path = config_dir.join("streamgrab.db");
-        let conn = Connection::open(&db_path)?;
-        schema::initialize(&conn)?;
+        // 版本不符的旧文件直接删除重建（不做数据迁移）
+        let conn = schema::open_or_recreate(&db_path)?;
 
         let conn = Arc::new(Mutex::new(conn));
         Ok(Self {
