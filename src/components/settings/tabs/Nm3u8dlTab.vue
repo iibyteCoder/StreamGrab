@@ -9,7 +9,6 @@
 
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Separator } from "@/components/ui/separator";
 import { useSettingsStore } from "@/stores";
 import ToolManagerCard from "../ToolManagerCard.vue";
 import NetworkSettings from "../sections/NetworkSettings.vue";
@@ -74,7 +73,7 @@ const threadCountDisplay = computed(() => `${config.value.thread_count} 线程`)
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div class="space-y-6">
     <!-- 工具管理卡片 -->
     <ToolManagerCard
       tool-id="nm3u8dl"
@@ -97,35 +96,40 @@ const threadCountDisplay = computed(() => `${config.value.thread_count} 线程`)
         @update:model-value="patch({ thread_count: $event })"
       />
 
-      <div class="grid grid-cols-3 gap-4">
-        <SettingInput
-          :model-value="config.retry_count"
-          :label="t('settings.download.retryCount', '重试次数')"
-          type="number"
-          :min="0"
-          :max="10"
-          @update:model-value="
-            patch({ retry_count: parseInt(String($event)) || 3 })
-          "
-        />
+      <div class="px-5 py-1.5">
+        <div class="grid grid-cols-3 gap-x-4">
+          <SettingInput
+            :padded="false"
+            :model-value="config.retry_count"
+            :label="t('settings.download.retryCount', '重试次数')"
+            type="number"
+            :min="0"
+            :max="10"
+            @update:model-value="
+              patch({ retry_count: parseInt(String($event)) || 3 })
+            "
+          />
 
-        <SettingInput
-          :model-value="config.timeout"
-          :label="t('settings.download.timeout', '超时 (秒)')"
-          type="number"
-          :min="5"
-          :max="300"
-          @update:model-value="
-            patch({ timeout: parseInt(String($event)) || 100 })
-          "
-        />
+          <SettingInput
+            :padded="false"
+            :model-value="config.timeout"
+            :label="t('settings.download.timeout', '超时 (秒)')"
+            type="number"
+            :min="5"
+            :max="300"
+            @update:model-value="
+              patch({ timeout: parseInt(String($event)) || 100 })
+            "
+          />
 
-        <SettingInput
-          :model-value="config.max_speed"
-          :label="t('settings.download.maxSpeed', '限速 (0=不限)')"
-          :placeholder="t('settings.download.maxSpeedPlaceholder', '0')"
-          @update:model-value="patch({ max_speed: String($event) })"
-        />
+          <SettingInput
+            :padded="false"
+            :model-value="config.max_speed"
+            :label="t('settings.download.maxSpeed', '限速 (0=不限)')"
+            :placeholder="t('settings.download.maxSpeedPlaceholder', '0')"
+            @update:model-value="patch({ max_speed: String($event) })"
+          />
+        </div>
       </div>
     </SettingsGroup>
 
@@ -147,8 +151,6 @@ const threadCountDisplay = computed(() => `${config.value.thread_count} 线程`)
         "
         @update:model-value="patch({ auto_select: $event })"
       />
-
-      <Separator class="my-4" />
 
       <SettingInput
         :model-value="config.select_video || ''"
@@ -176,8 +178,6 @@ const threadCountDisplay = computed(() => `${config.value.thread_count} 线程`)
         "
         @update:model-value="patch({ select_subtitle: String($event) || null })"
       />
-
-      <Separator class="my-4" />
 
       <SettingInput
         :model-value="config.drop_video || ''"
@@ -209,71 +209,80 @@ const threadCountDisplay = computed(() => `${config.value.thread_count} 线程`)
 
     <!-- 下载选项 -->
     <SettingsGroup :title="t('settings.download.downloadOptions', '下载选项')">
-      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
-        <SettingSwitch
-          :model-value="config.check_segments_count"
-          :label="t('settings.download.checkSegmentsCount', '检查分片数量')"
-          @update:model-value="patch({ check_segments_count: $event })"
-        />
+      <div class="px-5 py-1.5">
+        <div class="grid grid-cols-2 gap-x-8">
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.check_segments_count"
+            :label="t('settings.download.checkSegmentsCount', '检查分片数量')"
+            @update:model-value="patch({ check_segments_count: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.del_after_done"
-          :label="t('settings.download.deleteTemp', '完成后删除临时文件')"
-          @update:model-value="patch({ del_after_done: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.del_after_done"
+            :label="t('settings.download.deleteTemp', '完成后删除临时文件')"
+            @update:model-value="patch({ del_after_done: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.skip_merge"
-          :label="t('settings.download.autoMerge', '跳过合并')"
-          @update:model-value="patch({ skip_merge: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.skip_merge"
+            :label="t('settings.download.autoMerge', '跳过合并')"
+            @update:model-value="patch({ skip_merge: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.write_meta_json"
-          :label="t('settings.download.writeMetaJson', '写入元数据 JSON')"
-          @update:model-value="patch({ write_meta_json: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.write_meta_json"
+            :label="t('settings.download.writeMetaJson', '写入元数据 JSON')"
+            @update:model-value="patch({ write_meta_json: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.binary_merge"
-          :label="t('settings.download.binaryMerge', '二进制合并')"
-          @update:model-value="patch({ binary_merge: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.binary_merge"
+            :label="t('settings.download.binaryMerge', '二进制合并')"
+            @update:model-value="patch({ binary_merge: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.concurrent_download"
-          :label="t('settings.download.concurrentDownload', '并发下载')"
-          @update:model-value="patch({ concurrent_download: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.concurrent_download"
+            :label="t('settings.download.concurrentDownload', '并发下载')"
+            @update:model-value="patch({ concurrent_download: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.allow_hls_multi_ext_map"
-          :label="t('settings.download.allowMultiExtMap', '允许多 EXT-X-MAP')"
-          :description="
-            t(
-              'settings.download.allowMultiExtMapDesc',
-              '允许 HLS 多个 EXT-X-MAP 标签',
-            )
-          "
-          @update:model-value="patch({ allow_hls_multi_ext_map: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.allow_hls_multi_ext_map"
+            :label="t('settings.download.allowMultiExtMap', '允许多 EXT-X-MAP')"
+            :description="
+              t(
+                'settings.download.allowMultiExtMapDesc',
+                '允许 HLS 多个 EXT-X-MAP 标签',
+              )
+            "
+            @update:model-value="patch({ allow_hls_multi_ext_map: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.use_ffmpeg_concat_demuxer"
-          :label="
-            t('settings.download.useConcatDemuxer', '使用 Concat 解复用器')
-          "
-          @update:model-value="patch({ use_ffmpeg_concat_demuxer: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.use_ffmpeg_concat_demuxer"
+            :label="
+              t('settings.download.useConcatDemuxer', '使用 Concat 解复用器')
+            "
+            @update:model-value="patch({ use_ffmpeg_concat_demuxer: $event })"
+          />
 
-        <SettingSwitch
-          :model-value="config.no_date_info"
-          :label="t('settings.download.noDateInfo', '不包含日期信息')"
-          @update:model-value="patch({ no_date_info: $event })"
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.no_date_info"
+            :label="t('settings.download.noDateInfo', '不包含日期信息')"
+            @update:model-value="patch({ no_date_info: $event })"
+          />
+        </div>
       </div>
-
-      <Separator class="my-4" />
 
       <SettingInput
         :model-value="config.url_processor_args || ''"

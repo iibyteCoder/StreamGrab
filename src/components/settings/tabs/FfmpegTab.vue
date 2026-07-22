@@ -9,7 +9,6 @@
 
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Separator } from "@/components/ui/separator";
 import { useSettingsStore } from "@/stores";
 import ToolManagerCard from "../ToolManagerCard.vue";
 import MuxSettings from "../sections/MuxSettings.vue";
@@ -52,7 +51,7 @@ const muxFields = computed<MuxFields>(() => ({
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div class="space-y-6">
     <!-- 工具管理卡片 -->
     <ToolManagerCard
       tool-id="ffmpeg"
@@ -70,95 +69,101 @@ const muxFields = computed<MuxFields>(() => ({
         t('settings.ffmpeg.directDownloadDesc', '配置直链视频下载的默认参数')
       "
     >
-      <div class="grid grid-cols-3 gap-4">
-        <SettingInput
-          :model-value="config.retry_count"
-          :label="t('settings.download.retryCount', '重试次数')"
-          type="number"
-          :min="0"
-          :max="10"
-          @update:model-value="
-            patch({ retry_count: parseInt(String($event)) || 3 })
-          "
-        />
+      <div class="px-5 py-1.5">
+        <div class="grid grid-cols-3 gap-x-4">
+          <SettingInput
+            :padded="false"
+            :model-value="config.retry_count"
+            :label="t('settings.download.retryCount', '重试次数')"
+            type="number"
+            :min="0"
+            :max="10"
+            @update:model-value="
+              patch({ retry_count: parseInt(String($event)) || 3 })
+            "
+          />
 
-        <SettingInput
-          :model-value="config.timeout"
-          :label="t('settings.download.timeout', '超时 (秒)')"
-          type="number"
-          :min="5"
-          :max="300"
-          @update:model-value="
-            patch({ timeout: parseInt(String($event)) || 60 })
-          "
-        />
+          <SettingInput
+            :padded="false"
+            :model-value="config.timeout"
+            :label="t('settings.download.timeout', '超时 (秒)')"
+            type="number"
+            :min="5"
+            :max="300"
+            @update:model-value="
+              patch({ timeout: parseInt(String($event)) || 60 })
+            "
+          />
 
-        <SettingInput
-          :model-value="config.max_speed"
-          :label="t('settings.download.maxSpeed', '限速 (0=不限)')"
-          placeholder="0"
-          @update:model-value="patch({ max_speed: String($event) })"
-        />
+          <SettingInput
+            :padded="false"
+            :model-value="config.max_speed"
+            :label="t('settings.download.maxSpeed', '限速 (0=不限)')"
+            placeholder="0"
+            @update:model-value="patch({ max_speed: String($event) })"
+          />
+
+          <SettingInput
+            :padded="false"
+            :model-value="config.connection_timeout"
+            :label="t('settings.ffmpeg.connectionTimeout', '连接超时 (秒)')"
+            type="number"
+            :min="5"
+            :max="120"
+            @update:model-value="
+              patch({
+                connection_timeout: parseInt(String($event)) || 30,
+              })
+            "
+          />
+
+          <SettingInput
+            :padded="false"
+            :model-value="config.reconnect_attempts"
+            :label="t('settings.ffmpeg.reconnectAttempts', '重连次数')"
+            type="number"
+            :min="0"
+            :max="10"
+            @update:model-value="
+              patch({
+                reconnect_attempts: parseInt(String($event)) || 3,
+              })
+            "
+          />
+
+          <SettingInput
+            :padded="false"
+            :model-value="config.reconnect_delay"
+            :label="t('settings.ffmpeg.reconnectDelay', '重连间隔 (秒)')"
+            type="number"
+            :min="1"
+            :max="60"
+            @update:model-value="
+              patch({
+                reconnect_delay: parseInt(String($event)) || 5,
+              })
+            "
+          />
+        </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-4">
-        <SettingInput
-          :model-value="config.connection_timeout"
-          :label="t('settings.ffmpeg.connectionTimeout', '连接超时 (秒)')"
-          type="number"
-          :min="5"
-          :max="120"
-          @update:model-value="
-            patch({
-              connection_timeout: parseInt(String($event)) || 30,
-            })
-          "
-        />
+      <div class="px-5 py-1.5">
+        <div class="grid grid-cols-2 gap-x-8">
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.overwrite_existing"
+            :label="t('settings.ffmpeg.overwriteExisting', '覆盖已有文件')"
+            @update:model-value="patch({ overwrite_existing: $event })"
+          />
 
-        <SettingInput
-          :model-value="config.reconnect_attempts"
-          :label="t('settings.ffmpeg.reconnectAttempts', '重连次数')"
-          type="number"
-          :min="0"
-          :max="10"
-          @update:model-value="
-            patch({
-              reconnect_attempts: parseInt(String($event)) || 3,
-            })
-          "
-        />
-
-        <SettingInput
-          :model-value="config.reconnect_delay"
-          :label="t('settings.ffmpeg.reconnectDelay', '重连间隔 (秒)')"
-          type="number"
-          :min="1"
-          :max="60"
-          @update:model-value="
-            patch({
-              reconnect_delay: parseInt(String($event)) || 5,
-            })
-          "
-        />
+          <SettingSwitch
+            :padded="false"
+            :model-value="config.preserve_timestamps"
+            :label="t('settings.ffmpeg.preserveTimestamps', '保留时间戳')"
+            @update:model-value="patch({ preserve_timestamps: $event })"
+          />
+        </div>
       </div>
-
-      <Separator class="my-4" />
-
-      <div class="grid grid-cols-2 gap-x-8 gap-y-4">
-        <SettingSwitch
-          :model-value="config.overwrite_existing"
-          :label="t('settings.ffmpeg.overwriteExisting', '覆盖已有文件')"
-          @update:model-value="patch({ overwrite_existing: $event })"
-        />
-
-        <SettingSwitch
-          :model-value="config.preserve_timestamps"
-          :label="t('settings.ffmpeg.preserveTimestamps', '保留时间戳')"
-          @update:model-value="patch({ preserve_timestamps: $event })"
-        />
-      </div>
-
-      <Separator class="my-4" />
 
       <SettingInput
         :model-value="config.user_agent || ''"

@@ -24,12 +24,10 @@ use infrastructure::process::manager::ProcessManager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // 开发模式下启用日志
@@ -45,9 +43,9 @@ pub fn run() {
             let config_dir = app
                 .path()
                 .app_config_dir()
-                .expect("Failed to get config directory");
+                .map_err(|e| format!("获取配置目录失败: {e}"))?;
             let database =
-                Database::initialize(&config_dir).expect("Failed to initialize database");
+                Database::initialize(&config_dir).map_err(|e| format!("初始化数据库失败: {e}"))?;
 
             // 进度跟踪器：领域层采样缓冲 → 数据库持久化（观察者模式的持久化端）
             let progress_repo = Arc::new(DbProgressRepository::new(database.connection()));

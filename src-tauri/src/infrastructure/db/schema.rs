@@ -1,14 +1,13 @@
 //! 数据库 Schema（v4）
 //!
 //! v4 采用单表聚合模型（tasks 含三个 JSON 列）+ 通用工具配置表。
-//! **不做任何数据迁移**：现有文件版本与 v4 不符（或不可读/遗留结构）时，
-//! 直接删除整个数据库文件（含 -wal/-shm）并重建。
+//! 版本不符时先备份旧文件（`.bak.<timestamp>`）再重建空库——用户数据不丢失。
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 
-use crate::shared::AppResult;
+use crate::shared::{AppError, AppResult};
 
 /// 当前 schema 版本
 pub const SCHEMA_VERSION: i32 = 4;
@@ -89,15 +88,17 @@ CREATE TABLE IF NOT EXISTS task_presets (
 
 /// 打开数据库
 ///
-/// 现有文件版本与 v4 不符（或不可读）时删除整个文件并重建——不做数据迁移；
+/// 现有文件版本与 v4 不符（或不可读）时，先将旧文件重命名为带时间戳的备份
+/// （`streamgrab.db.bak.<YYYYMMDD_HHMMSS>`），再重建空库。用户数据不会丢失。
 /// 版本相符时原样使用（跨重启正常持久化）。
 pub fn open_or_recreate(db_path: &Path) -> AppResult<Connection> {
     if db_path.exists() && !is_current_version(db_path) {
+        let backup_path = backup_db_files(db_path)?;
         log::warn!(
-            "数据库文件版本不符或不可读，删除重建: {}",
+            "数据库版本不符或不可读，已备份到 {} 并重建空库: {}",
+            backup_path.display(),
             db_path.display()
         );
-        remove_db_files(db_path)?;
     }
     let conn = Connection::open(db_path)?;
     initialize(&conn)?;
@@ -117,20 +118,45 @@ fn is_current_version(db_path: &Path) -> bool {
         .is_some_and(|v| v == SCHEMA_VERSION)
 }
 
-/// 删除数据库文件及其 WAL/SHM 附属文件
-fn remove_db_files(db_path: &Path) -> AppResult<()> {
-    let mut targets = vec![db_path.to_path_buf()];
-    for suffix in ["-wal", "-shm"] {
-        let mut name = db_path.as_os_str().to_os_string();
-        name.push(suffix);
-        targets.push(name.into());
+/// 将数据库文件及其 WAL/SHM 附属文件重命名为带时间戳的备份，返回主备份路径
+///
+/// 备份命名: `streamgrab.db.bak.20260723_001500`
+fn backup_db_files(db_path: &Path) -> AppResult<PathBuf> {
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let backup_name = format!(
+        "{}.bak.{timestamp}",
+        db_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("streamgrab.db")
+    );
+    let backup_path = db_path.with_file_name(&backup_name);
+
+    // 主文件必须存在才需要备份
+    if db_path.exists() {
+        std::fs::rename(db_path, &backup_path).map_err(|e| {
+            AppError::database(format!(
+                "备份数据库失败 ({} → {}): {e}",
+                db_path.display(),
+                backup_path.display()
+            ))
+        })?;
     }
-    for target in targets {
-        if target.exists() {
-            std::fs::remove_file(&target)?;
+
+    // WAL/SHM 附属文件一并重命名（可能不存在）
+    for suffix in ["-wal", "-shm"] {
+        let mut src_name = db_path.as_os_str().to_os_string();
+        src_name.push(suffix);
+        let src: PathBuf = src_name.into();
+        if src.exists() {
+            let mut dst_name = backup_path.as_os_str().to_os_string();
+            dst_name.push(suffix);
+            let dst: PathBuf = dst_name.into();
+            let _ = std::fs::rename(&src, &dst); // 附属文件失败不阻塞
         }
     }
-    Ok(())
+
+    Ok(backup_path)
 }
 
 /// 应用 v4 表结构（幂等；缺失时补写版本行）
@@ -198,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn recreates_file_when_legacy_schema_info_lacks_version_column() {
+    fn backs_up_when_legacy_schema_info_lacks_version_column() {
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("streamgrab.db");
 
@@ -229,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn recreates_file_when_version_mismatch() {
+    fn backs_up_and_recreates_on_version_mismatch() {
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("streamgrab.db");
 
@@ -244,7 +270,7 @@ mod tests {
         drop(old);
 
         let conn = open_or_recreate(&db_path).unwrap();
-        // 旧数据不保留
+        // 新库无旧数据
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
@@ -253,6 +279,20 @@ mod tests {
             .query_row("SELECT version FROM schema_info LIMIT 1", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
+
+        // 备份文件存在且包含旧数据
+        let backups: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".bak."))
+            .collect();
+        assert_eq!(backups.len(), 1, "应恰好有一个备份文件");
+
+        let backup_conn = Connection::open(backups[0].path()).unwrap();
+        let old_count: i32 = backup_conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(old_count, 1, "备份应保留旧数据");
     }
 
     #[test]

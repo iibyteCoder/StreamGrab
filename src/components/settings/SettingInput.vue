@@ -19,9 +19,13 @@ interface Props {
   inputClass?: string;
   /** 帮助提示文本，显示问号图标 hover 时展示 */
   help?: string;
+  /** 是否带独立行的内边距（网格内传 false） */
+  padded?: boolean;
 }
 
-defineProps<Props>();
+withDefaults(defineProps<Props>(), {
+  padded: true,
+});
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string | number): void;
@@ -30,7 +34,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="grid gap-2">
+  <div class="grid gap-2" :class="padded ? 'px-5 py-4' : 'py-2.5'">
     <div class="flex items-center gap-1.5">
       <Label :class="{ 'opacity-50': disabled }">{{ label }}</Label>
       <Tooltip v-if="help" :content="help" side="right">

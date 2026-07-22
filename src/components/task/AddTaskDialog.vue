@@ -2,7 +2,9 @@
 /**
  * AddTaskDialog - 添加任务弹窗（闭环重建）
  *
- * 渐进披露流程：URL → 解析反馈 → 常用选项 → 高级折叠
+ * 两层渐进披露：
+ * 一级（常驻）：URL 输入 + 类型反馈 + 提交
+ * 二级（"更多选项"折叠）：文件名 / 保存位置 / 预设 / 定时 / 高级参数
  */
 
 import { ref, computed, watch, nextTick } from "vue";
@@ -11,10 +13,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -566,7 +570,7 @@ const typeBadgeColor = computed(() => {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent
-      class="sm:max-w-[600px] max-h-[85vh] flex flex-col"
+      class="max-h-[85vh] max-w-[min(600px,calc(100vw-2rem))] flex flex-col"
       @close-auto-focus="reset"
     >
       <DialogHeader>
@@ -574,9 +578,12 @@ const typeBadgeColor = computed(() => {
           <AppIcon name="Plus" :size="20" />
           添加下载任务
         </DialogTitle>
+        <DialogDescription class="sr-only">
+          粘贴下载链接，配置保存位置、预设与高级参数后添加下载任务
+        </DialogDescription>
       </DialogHeader>
 
-      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+      <div class="-mx-2 flex-1 space-y-4 overflow-y-auto px-2">
         <!-- URL 输入区域 -->
         <div
           class="relative"
@@ -587,7 +594,7 @@ const typeBadgeColor = computed(() => {
           <!-- 拖拽遮罩 -->
           <div
             v-if="isDragging"
-            class="absolute inset-0 z-10 bg-primary/10 rounded-lg border-2 border-dashed border-primary flex items-center justify-center"
+            class="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/10"
           >
             <span class="text-sm font-medium text-primary">释放以添加链接</span>
           </div>
@@ -595,34 +602,33 @@ const typeBadgeColor = computed(() => {
           <textarea
             ref="textareaRef"
             v-model="urlInput"
-            placeholder="输入或粘贴下载链接（支持多个链接，每行一个）&#10;&#10;支持格式：&#10;• M3U8 / M3U&#10;• DASH / MPD&#10;• MSS / ISM&#10;• 直链视频（MP4/MKV 等）"
-            class="w-full h-36 px-3 py-2 text-sm bg-muted/50 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            placeholder="粘贴下载链接，每行一个（支持 M3U8 / DASH / MP4 等）"
+            class="h-24 w-full resize-none rounded-lg border bg-muted/50 px-3 py-2 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
         <!-- 类型徽章 + 快捷提示 -->
-        <div class="flex items-center justify-between text-xs">
-          <div class="flex items-center gap-2">
-            <!-- 类型徽章 -->
-            <Transition name="badge-fade">
-              <span
-                v-if="
-                  showTypeBadge &&
-                  detectedUrlType &&
-                  detectedUrlType !== 'unknown'
-                "
-                class="px-2 py-0.5 rounded-full text-xs font-medium"
-                :style="{
-                  backgroundColor: `${typeBadgeColor}20`,
-                  color: typeBadgeColor,
-                }"
-              >
-                {{ typeBadgeLabel }}
-              </span>
-            </Transition>
-            <span class="text-muted-foreground"> 支持拖放文本或 TXT 文件 </span>
-          </div>
-          <span class="text-muted-foreground"> Ctrl + V 粘贴剪贴板链接 </span>
+        <div class="flex items-center gap-2 text-xs">
+          <!-- 类型徽章 -->
+          <Transition name="badge-fade">
+            <span
+              v-if="
+                showTypeBadge &&
+                detectedUrlType &&
+                detectedUrlType !== 'unknown'
+              "
+              class="rounded-full px-2 py-0.5 text-xs font-medium"
+              :style="{
+                backgroundColor: `${typeBadgeColor}20`,
+                color: typeBadgeColor,
+              }"
+            >
+              {{ typeBadgeLabel }}
+            </span>
+          </Transition>
+          <span class="text-muted-foreground">
+            支持拖放文本或 TXT 文件 · Ctrl+V 粘贴
+          </span>
         </div>
 
         <!-- 解析中提示 -->
@@ -634,91 +640,10 @@ const typeBadgeColor = computed(() => {
           正在解析流信息...
         </div>
 
-        <!-- 任务级选项（始终可见） -->
-        <div class="space-y-3">
-          <!-- 文件名 -->
-          <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground">文件名</Label>
-            <Input
-              v-model="fileNameInput"
-              placeholder="自动从 URL 提取"
-              class="h-9 text-sm"
-            />
-          </div>
-
-          <!-- 保存位置 -->
-          <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground">保存位置</Label>
-            <div class="flex gap-2">
-              <Input
-                v-model="saveDirInput"
-                :placeholder="globalSaveDir || '使用全局默认'"
-                class="h-9 text-sm flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-9 px-3"
-                @click="handleBrowseSaveDir"
-              >
-                <AppIcon name="FolderOpen" :size="14" />
-              </Button>
-            </div>
-          </div>
-
-          <!-- 预设选择器 -->
-          <div class="space-y-1.5">
-            <Label class="text-xs text-muted-foreground">预设</Label>
-            <Select
-              :model-value="selectedPresetId"
-              @update:model-value="(value) => handlePresetChange(String(value))"
-            >
-              <SelectTrigger class="h-9 text-sm">
-                <SelectValue placeholder="不使用预设" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">不使用预设</SelectItem>
-                <SelectItem
-                  v-for="preset in presets"
-                  :key="preset.id"
-                  :value="preset.id"
-                >
-                  {{ preset.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <!-- 定时开始 -->
-          <div class="space-y-1.5">
-            <div class="flex items-center gap-2">
-              <input
-                type="checkbox"
-                :checked="scheduleEnabled"
-                class="w-4 h-4 rounded border accent-primary shrink-0"
-                @change="scheduleEnabled = !scheduleEnabled"
-              />
-              <Label class="text-xs text-muted-foreground cursor-pointer"
-                >定时开始</Label
-              >
-            </div>
-            <Input
-              v-if="scheduleEnabled"
-              v-model="scheduleTime"
-              type="datetime-local"
-              :min="minScheduleTime"
-              class="h-9 text-sm datetime-dark"
-            />
-            <p v-if="scheduleEnabled" class="text-xs text-muted-foreground/70">
-              到达时间且应用运行时自动开始
-            </p>
-          </div>
-        </div>
-
-        <!-- 高级选项折叠 -->
+        <!-- 更多选项（二级层面，默认收起） -->
         <div>
           <button
-            class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            class="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"
             @click="showAdvanced = !showAdvanced"
           >
             <AppIcon
@@ -727,77 +652,172 @@ const typeBadgeColor = computed(() => {
               class="transition-transform duration-150"
               :class="{ 'rotate-90': showAdvanced }"
             />
-            高级选项
+            更多选项
           </button>
 
-          <Transition name="fold">
-            <div v-if="showAdvanced" class="mt-3 space-y-3 pl-1">
-              <!-- 限速 -->
-              <div class="space-y-1.5">
-                <Label class="text-xs text-muted-foreground">限速</Label>
-                <Input
-                  v-model="maxSpeedInput"
-                  placeholder="如 10M，留空跟随全局"
-                  class="h-9 text-sm"
-                />
-              </div>
+          <div
+            class="grid transition-[grid-template-rows] duration-150 ease-out"
+            :class="showAdvanced ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
+          >
+            <div class="min-h-0 overflow-hidden">
+              <div class="space-y-3 pl-1 pt-3">
+                <!-- 文件名 -->
+                <div class="space-y-1.5">
+                  <Label class="text-xs text-muted-foreground">文件名</Label>
+                  <Input
+                    v-model="fileNameInput"
+                    placeholder="自动从 URL 提取"
+                    class="h-9 text-sm"
+                  />
+                </div>
 
-              <!-- 下载范围 -->
-              <div class="space-y-1.5">
-                <Label class="text-xs text-muted-foreground">下载范围</Label>
-                <Input
-                  v-model="customRangeInput"
-                  placeholder="如 00:00:00-00:10:00"
-                  class="h-9 text-sm"
-                />
-              </div>
+                <!-- 保存位置 -->
+                <div class="space-y-1.5">
+                  <Label class="text-xs text-muted-foreground">保存位置</Label>
+                  <div class="flex gap-2">
+                    <Input
+                      v-model="saveDirInput"
+                      :placeholder="globalSaveDir || '使用全局默认'"
+                      class="h-9 flex-1 text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="h-9 px-3"
+                      @click="handleBrowseSaveDir"
+                    >
+                      <AppIcon name="FolderOpen" :size="14" />
+                    </Button>
+                  </div>
+                </div>
 
-              <!-- 容器格式 -->
-              <div class="space-y-1.5">
-                <Label class="text-xs text-muted-foreground">容器格式</Label>
-                <Select v-model="muxFormatInput">
-                  <SelectTrigger class="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__global__">跟随全局</SelectItem>
-                    <SelectItem value="mp4">MP4</SelectItem>
-                    <SelectItem value="mkv">MKV</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <!-- 预设选择器 -->
+                <div class="space-y-1.5">
+                  <Label class="text-xs text-muted-foreground">预设</Label>
+                  <Select
+                    :model-value="selectedPresetId"
+                    @update:model-value="
+                      (value) => handlePresetChange(String(value))
+                    "
+                  >
+                    <SelectTrigger class="h-9 text-sm">
+                      <SelectValue placeholder="不使用预设" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">不使用预设</SelectItem>
+                      <SelectItem
+                        v-for="preset in presets"
+                        :key="preset.id"
+                        :value="preset.id"
+                      >
+                        {{ preset.name }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <!-- 字幕格式 -->
-              <div class="space-y-1.5">
-                <Label class="text-xs text-muted-foreground">字幕格式</Label>
-                <Select v-model="subtitleFormatInput">
-                  <SelectTrigger class="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__global__">跟随全局</SelectItem>
-                    <SelectItem value="SRT">SRT</SelectItem>
-                    <SelectItem value="VTT">VTT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <!-- 定时开始 -->
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <Label
+                      class="cursor-pointer text-xs text-muted-foreground"
+                      @click="scheduleEnabled = !scheduleEnabled"
+                      >定时开始</Label
+                    >
+                    <Switch
+                      :checked="scheduleEnabled"
+                      @update:checked="scheduleEnabled = $event"
+                    />
+                  </div>
+                  <Input
+                    v-if="scheduleEnabled"
+                    v-model="scheduleTime"
+                    type="datetime-local"
+                    :min="minScheduleTime"
+                    class="datetime-dark h-9 text-sm"
+                  />
+                  <p
+                    v-if="scheduleEnabled"
+                    class="text-xs text-muted-foreground/70"
+                  >
+                    到达时间且应用运行时自动开始
+                  </p>
+                </div>
 
-              <!-- 仅下载字幕 -->
-              <div class="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  :checked="subtitlesOnlyInput"
-                  class="w-4 h-4 rounded border accent-primary shrink-0"
-                  @change="subtitlesOnlyInput = !subtitlesOnlyInput"
-                />
-                <Label
-                  class="text-xs text-muted-foreground cursor-pointer"
-                  @click="subtitlesOnlyInput = !subtitlesOnlyInput"
-                  >仅下载字幕</Label
-                >
+                <!-- 高级选项 -->
+                <div class="space-y-3 border-t border-border/60 pt-3">
+                  <!-- 限速 -->
+                  <div class="space-y-1.5">
+                    <Label class="text-xs text-muted-foreground">限速</Label>
+                    <Input
+                      v-model="maxSpeedInput"
+                      placeholder="如 10M，留空跟随全局"
+                      class="h-9 text-sm"
+                    />
+                  </div>
+
+                  <!-- 下载范围 -->
+                  <div class="space-y-1.5">
+                    <Label class="text-xs text-muted-foreground"
+                      >下载范围</Label
+                    >
+                    <Input
+                      v-model="customRangeInput"
+                      placeholder="如 00:00:00-00:10:00"
+                      class="h-9 text-sm"
+                    />
+                  </div>
+
+                  <!-- 容器格式 -->
+                  <div class="space-y-1.5">
+                    <Label class="text-xs text-muted-foreground"
+                      >容器格式</Label
+                    >
+                    <Select v-model="muxFormatInput">
+                      <SelectTrigger class="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__global__">跟随全局</SelectItem>
+                        <SelectItem value="mp4">MP4</SelectItem>
+                        <SelectItem value="mkv">MKV</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <!-- 字幕格式 -->
+                  <div class="space-y-1.5">
+                    <Label class="text-xs text-muted-foreground"
+                      >字幕格式</Label
+                    >
+                    <Select v-model="subtitleFormatInput">
+                      <SelectTrigger class="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__global__">跟随全局</SelectItem>
+                        <SelectItem value="SRT">SRT</SelectItem>
+                        <SelectItem value="VTT">VTT</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <!-- 仅下载字幕 -->
+                  <div class="flex items-center justify-between">
+                    <Label
+                      class="cursor-pointer text-xs text-muted-foreground"
+                      @click="subtitlesOnlyInput = !subtitlesOnlyInput"
+                      >仅下载字幕</Label
+                    >
+                    <Switch
+                      :checked="subtitlesOnlyInput"
+                      @update:checked="subtitlesOnlyInput = $event"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </Transition>
+          </div>
         </div>
       </div>
 
@@ -846,23 +866,6 @@ const typeBadgeColor = computed(() => {
 }
 .badge-fade-enter-from {
   opacity: 0;
-}
-
-/* 高级折叠 */
-.fold-enter-active,
-.fold-leave-active {
-  transition: all 150ms ease-out;
-  overflow: hidden;
-}
-.fold-enter-from,
-.fold-leave-to {
-  opacity: 0;
-  max-height: 0;
-}
-.fold-enter-to,
-.fold-leave-from {
-  opacity: 1;
-  max-height: 400px;
 }
 
 /* datetime-local 暗色主题适配 */

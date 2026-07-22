@@ -22,12 +22,10 @@ log = "0.4"
 tauri = { version = "2.10.0", features = ["tray-icon"] }
 image = "0.25"
 tauri-plugin-log = "2"
-tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-opener = "2"
-tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
 # 异步运行时
@@ -66,6 +64,9 @@ encoding_rs = "0.8"
 
 # HTTP 客户端
 reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# SHA-256 完整性校验
+sha2 = "0.10"
 
 # ZIP 解压
 zip = "2"

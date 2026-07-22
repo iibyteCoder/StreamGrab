@@ -5,6 +5,7 @@
  */
 
 import { invokeTauri } from "./tauri";
+import { extractFileName } from "@/utils/format";
 import type {
   MediaInfo,
   ProgressData,
@@ -37,8 +38,18 @@ class TaskService {
     return invokeTauri<TaskRecord | null>("get_task", { taskId });
   }
 
+  /**
+   * 创建任务（服务边界规范化）
+   *
+   * 确保 fileName 非空（从 URL 提取兜底）、saveDir 无多余空白。
+   */
   createTask(task: TaskRecord): Promise<void> {
-    return invokeTauri("create_task", { task });
+    const normalized: TaskRecord = {
+      ...task,
+      fileName: task.fileName.trim() || extractFileName(task.url),
+      saveDir: task.saveDir.trim(),
+    };
+    return invokeTauri("create_task", { task: normalized });
   }
 
   updateTaskStatus(

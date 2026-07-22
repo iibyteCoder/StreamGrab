@@ -143,15 +143,14 @@ function toggleHeader(index: number, enabled: boolean) {
   >
     <div
       v-if="headers.length === 0"
-      class="text-sm py-2"
-      style="color: var(--text-secondary)"
+      class="px-5 py-4 text-sm text-muted-foreground"
     >
       {{
         t("settings.network.noHeaders", "暂无自定义请求头，点击下方按钮添加")
       }}
     </div>
 
-    <div v-else class="space-y-2">
+    <div v-else class="space-y-2 px-5 py-4">
       <div
         v-for="(header, index) in headers"
         :key="header.id"
@@ -162,8 +161,7 @@ function toggleHeader(index: number, enabled: boolean) {
           :value="header.name"
           type="text"
           placeholder="Header Name"
-          class="w-36 h-9 px-3 text-sm rounded-md border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-          style="border-color: rgba(255, 255, 255, 0.08)"
+          class="h-9 w-36 rounded-md border border-border/60 bg-transparent px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           @input="
             updateHeaderName(index, ($event.target as HTMLInputElement).value)
           "
@@ -173,8 +171,7 @@ function toggleHeader(index: number, enabled: boolean) {
           :value="header.value"
           type="text"
           placeholder="Header Value"
-          class="flex-1 h-9 px-3 text-sm rounded-md border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-          style="border-color: rgba(255, 255, 255, 0.08)"
+          class="h-9 flex-1 rounded-md border border-border/60 bg-transparent px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           @input="
             updateHeaderValue(index, ($event.target as HTMLInputElement).value)
           "
@@ -188,8 +185,7 @@ function toggleHeader(index: number, enabled: boolean) {
         <Button
           variant="ghost"
           size="icon"
-          class="h-9 w-9 cursor-pointer"
-          style="color: var(--accent-error)"
+          class="h-9 w-9 cursor-pointer text-destructive"
           @click="removeHeader(index)"
         >
           <AppIcon name="Trash2" :size="16" />
@@ -197,14 +193,16 @@ function toggleHeader(index: number, enabled: boolean) {
       </div>
     </div>
 
-    <Button
-      variant="outline"
-      size="sm"
-      class="mt-2 cursor-pointer"
-      @click="addHeader"
-    >
-      <AppIcon name="Plus" :size="14" class="mr-1" />
-      {{ t("settings.network.addHeader", "添加请求头") }}
-    </Button>
+    <div class="px-5 py-4">
+      <Button
+        variant="outline"
+        size="sm"
+        class="cursor-pointer"
+        @click="addHeader"
+      >
+        <AppIcon name="Plus" :size="14" class="mr-1" />
+        {{ t("settings.network.addHeader", "添加请求头") }}
+      </Button>
+    </div>
   </SettingsGroup>
 </template>

@@ -29,7 +29,6 @@ export default {
   nav: {
     home: "首頁",
     settings: "設定",
-    history: "歷史記錄",
   },
 
   // 首頁
@@ -426,19 +425,6 @@ export default {
       httpVideo: "直連視訊",
       unknown: "未知",
     },
-  },
-
-  history: {
-    title: "下載歷史",
-    empty: "暫無下載記錄",
-    reDownload: "重新下載",
-    openFolder: "開啟資料夾",
-    clearAll: "清空歷史",
-    clearConfirm: "確定要清空所有下載歷史嗎？此操作無法復原。",
-    deleteRecord: "刪除記錄",
-    fileName: "檔案名稱",
-    fileSize: "檔案大小",
-    completedAt: "完成時間",
   },
 
   streamSelector: {

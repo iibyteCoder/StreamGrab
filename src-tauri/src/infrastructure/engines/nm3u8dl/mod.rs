@@ -31,6 +31,25 @@ impl Nm3u8dlEngine {
     }
 }
 
+/// 解析 FFmpeg 可执行文件路径，并保证返回「存在 + 绝对」路径。
+///
+/// N_m3u8DL-RE 以**自身进程 CWD** 解析 `--ffmpeg-binary-path`，与 StreamGrab 的 CWD 不同，
+/// 解析 ffmpeg 二进制路径为 [`ResolvedPath`]（非空+绝对+存在）。
+///
+/// 相对路径（如历史脏数据 `ffmpeg-master-.../bin/ffmpeg.exe`）会被绝对化；
+/// 无法得到存在的绝对路径时返回 `None`，让 N_m3u8DL-RE 回退到 PATH 搜索。
+fn resolve_ffmpeg_bin(tools: &ToolConfigs) -> Option<String> {
+    let path = crate::infrastructure::tools::get_ffmpeg_exe_path(
+        (!tools.ffmpeg.ffmpeg_path.is_empty()).then_some(tools.ffmpeg.ffmpeg_path.as_str()),
+    )?;
+    let abs = if path.is_absolute() {
+        path
+    } else {
+        std::env::current_dir().ok()?.join(path)
+    };
+    crate::shared::ResolvedPath::try_from_path(abs).map(|rp| rp.to_string_lossy())
+}
+
 impl DownloadEngine for Nm3u8dlEngine {
     fn id(&self) -> ToolId {
         ToolId::Nm3u8dl
@@ -47,16 +66,15 @@ impl DownloadEngine for Nm3u8dlEngine {
         tools: &ToolConfigs,
         app: &AppSettings,
     ) -> Vec<String> {
-        // 混流需要 FFmpeg 二进制：解析路径后注入
-        let ffmpeg_bin = crate::infrastructure::tools::get_ffmpeg_exe_path(
-            (!tools.ffmpeg.ffmpeg_path.is_empty()).then_some(tools.ffmpeg.ffmpeg_path.as_str()),
-        )
-        .map(|p| p.to_string_lossy().to_string());
+        // 混流/二进制合并需要 FFmpeg 二进制：解析为绝对路径后注入
+        let ffmpeg_bin = resolve_ffmpeg_bin(tools);
         args::build_download_args(spec, tools, app, ffmpeg_bin.as_deref())
     }
 
     fn build_parse_args(&self, url: &str, tools: &ToolConfigs, app: &AppSettings) -> Vec<String> {
-        args::build_parse_args(url, tools, app)
+        // 解析阶段同样需要 FFmpeg（N_m3u8DL-RE 启动会校验/调用），与下载保持一致注入
+        let ffmpeg_bin = resolve_ffmpeg_bin(tools);
+        args::build_parse_args(url, tools, app, ffmpeg_bin.as_deref())
     }
 
     fn parse_streams(&self, stdout: &str) -> StreamInfo {

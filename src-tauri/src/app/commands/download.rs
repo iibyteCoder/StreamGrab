@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex as TokioMutex;
 
 use super::api;
@@ -23,7 +23,7 @@ use crate::infrastructure::tools::{
     get_downloader_exe_path, get_ffmpeg_exe_path, get_ffprobe_exe_path,
 };
 use crate::infrastructure::Database;
-use crate::shared::{AppError, AppResult};
+use crate::shared::{AppError, AppResult, ResolvedPath};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -42,6 +42,23 @@ fn resolve_ffprobe_bin(ffmpeg: &FfmpegConfig) -> Option<PathBuf> {
         .or_else(|| get_ffprobe_exe_path(none_if_empty(Some(ffmpeg.ffmpeg_path.as_str()))))
 }
 
+/// 解析默认保存目录（用户既无任务覆盖也无全局默认时使用），并确保目录存在。
+///
+/// 优先系统「下载」目录下的 `StreamGrab` 子目录，失败则回退应用数据目录。
+/// 返回绝对路径，避免 N_m3u8DL-RE 以自身 CWD 解释空/相对路径而把文件落到工程目录。
+fn default_save_dir(app: &AppHandle) -> AppResult<String> {
+    let dir = app
+        .path()
+        .download_dir()
+        .map(|d| d.join("StreamGrab"))
+        .or_else(|_| app.path().app_data_dir().map(|d| d.join("downloads")))
+        .map_err(|e| AppError::other(format!("获取默认保存目录失败: {e}")))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| AppError::other(format!("创建默认保存目录失败: {e}")))?;
+    log::info!("未配置保存目录，回退默认: {}", dir.display());
+    Ok(dir.to_string_lossy().into_owned())
+}
+
 /// 加载全部工具配置
 fn load_tool_configs(db: &Database) -> AppResult<ToolConfigs> {
     Ok(ToolConfigs {
@@ -51,8 +68,8 @@ fn load_tool_configs(db: &Database) -> AppResult<ToolConfigs> {
 }
 
 /// 同步执行命令并捕获输出（解析模式使用）
-fn run_command_capture(program: &str, args: &[String]) -> AppResult<std::process::Output> {
-    let mut cmd = std::process::Command::new(program);
+fn run_command_capture(program: &ResolvedPath, args: &[String]) -> AppResult<std::process::Output> {
+    let mut cmd = std::process::Command::new(program.as_path());
     cmd.args(args);
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -83,17 +100,26 @@ async fn start_download_inner(
         .tasks
         .get(&task_id)?
         .ok_or_else(|| AppError::other(format!("任务不存在: {task_id}")))?;
-    let spec = task.spec();
+    let mut spec = task.spec();
 
     let app_settings = db.settings.load_app_settings()?;
     let tools = load_tool_configs(db)?;
+
+    // 保存目录解析：任务覆盖 > 全局默认 > 系统下载目录。
+    // 空目录会让 N_m3u8DL-RE 落到自身 CWD，且完成回调 find_output_file 找不到输出文件。
+    if spec.save_dir.trim().is_empty() {
+        spec.save_dir = app_settings.default_save_dir.clone();
+    }
+    if spec.save_dir.trim().is_empty() {
+        spec.save_dir = default_save_dir(&app)?;
+    }
 
     let engine = engines
         .for_url(spec.url_type)
         .ok_or_else(|| AppError::other("无可用下载引擎"))?;
 
-    // 解析工具二进制 + 引擎构建参数
-    let program = match engine.id() {
+    // 解析工具二进制 + 引擎构建参数（ResolvedPath 保证非空+绝对+存在）
+    let program_path = match engine.id() {
         ToolId::Nm3u8dl => get_downloader_exe_path(none_if_empty(Some(
             tools.nm3u8dl.path.as_str(),
         )))
@@ -111,7 +137,7 @@ async fn start_download_inner(
             )
         })?,
     };
-    let program = program.to_string_lossy().to_string();
+    let program = ResolvedPath::from_path(program_path)?;
     let args = engine.build_download_args(&spec, &tools, &app_settings);
 
     log::info!(
@@ -194,11 +220,14 @@ async fn start_download_inner(
         }
     };
 
+    // ResolvedPath 编译期保证：非空 + 绝对 + 存在
+    let save_dir_resolved = ResolvedPath::new(&spec.save_dir)?;
+
     manager.lock().await.start_process(
         task_id,
         &program,
         args,
-        Some(&spec.save_dir),
+        Some(&save_dir_resolved),
         on_output,
         on_complete,
     )
@@ -268,14 +297,14 @@ async fn parse_url_inner(
 
     match engine.id() {
         ToolId::Nm3u8dl => {
-            let program = get_downloader_exe_path(none_if_empty(Some(tools.nm3u8dl.path.as_str())))
-                .ok_or_else(|| {
-                    AppError::tool_not_found(
-                        "N_m3u8DL-RE 未找到。请在设置中配置工具目录路径，或使用【下载】按钮自动下载。",
-                    )
-                })?
-                .to_string_lossy()
-                .to_string();
+            let program_path =
+                get_downloader_exe_path(none_if_empty(Some(tools.nm3u8dl.path.as_str())))
+                    .ok_or_else(|| {
+                        AppError::tool_not_found(
+                    "N_m3u8DL-RE 未找到。请在设置中配置工具目录路径，或使用【下载】按钮自动下载。",
+                )
+                    })?;
+            let program = ResolvedPath::from_path(program_path)?;
             let args = engine.build_parse_args(url, &tools, &app_settings);
 
             log::info!("Running parse command: {program} {args:?}");

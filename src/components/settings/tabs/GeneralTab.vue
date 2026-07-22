@@ -20,7 +20,6 @@ import {
 } from "..";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { AppIcon } from "@/components/common";
 import { systemService } from "@/services";
 import {
@@ -163,12 +162,9 @@ function handleCancelDownload() {
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div class="space-y-6">
     <!-- 语言与外观 -->
-    <SettingsGroup
-      :title="t('settings.general.langAppearance', '语言与外观')"
-      :description="t('settings.general.behaviorDesc')"
-    >
+    <SettingsGroup :title="t('settings.general.langAppearance', '语言与外观')">
       <SettingSelect
         :model-value="settingsStore.appSettings.language"
         :label="t('settings.general.language')"
@@ -316,109 +312,103 @@ function handleCancelDownload() {
       :description="t('settings.general.update.desc', '检查并安装应用程序更新')"
     >
       <!-- 下载进度/完成区域 -->
-      <div
-        v-if="isDownloading || isDownloaded"
-        class="mb-4 rounded-lg p-4"
-        style="background: rgba(255, 255, 255, 0.04)"
-      >
-        <div class="mb-2 flex items-center justify-between">
-          <span class="text-sm font-medium" style="color: var(--text-primary)">
-            {{
-              isDownloaded
-                ? t("settings.general.update.downloadComplete", "下载完成")
-                : t("settings.general.update.downloading", "正在下载更新...")
-            }}
-          </span>
-          <span class="font-mono text-sm" style="color: var(--text-secondary)">
-            {{ latestVersion }}
-          </span>
-        </div>
-
-        <Progress
-          v-if="isDownloading"
-          :model-value="downloadProgress"
-          class="mb-2 h-2"
-        />
-
-        <div
-          v-if="isDownloading"
-          class="flex items-center justify-between text-xs"
-          style="color: var(--text-secondary)"
-        >
-          <span class="font-mono">{{ progressText }}</span>
-        </div>
-
-        <!-- 下载完成 -->
-        <div v-if="isDownloaded" class="space-y-3">
-          <div
-            class="flex items-center gap-2 text-sm"
-            style="color: var(--accent-primary)"
-          >
-            <AppIcon name="CheckCircle" :size="16" />
-            <span>{{
-              t("settings.general.update.installerReady", "安装程序已下载")
-            }}</span>
+      <div v-if="isDownloading || isDownloaded" class="px-5 py-4">
+        <div class="rounded-lg bg-muted/40 p-4">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-sm font-medium text-foreground">
+              {{
+                isDownloaded
+                  ? t("settings.general.update.downloadComplete", "下载完成")
+                  : t("settings.general.update.downloading", "正在下载更新...")
+              }}
+            </span>
+            <span class="font-mono text-sm text-muted-foreground">
+              {{ latestVersion }}
+            </span>
           </div>
 
+          <Progress
+            v-if="isDownloading"
+            :model-value="downloadProgress"
+            class="mb-2 h-2"
+          />
+
           <div
-            class="flex items-center justify-between rounded p-2"
-            style="background: rgba(255, 255, 255, 0.04)"
+            v-if="isDownloading"
+            class="flex items-center justify-between text-xs text-muted-foreground"
           >
+            <span class="font-mono">{{ progressText }}</span>
+          </div>
+
+          <!-- 下载完成 -->
+          <div v-if="isDownloaded" class="space-y-3">
             <div
-              class="flex items-center gap-2 text-xs"
-              style="color: var(--text-secondary)"
+              class="flex items-center gap-2 text-sm text-[var(--accent-primary)]"
             >
-              <AppIcon name="FileDown" :size="14" />
-              <span
-                class="truncate font-mono"
-                :title="downloadedFilePath || undefined"
-              >
-                {{ displayFileName }}
-              </span>
+              <AppIcon name="CheckCircle" :size="16" />
+              <span>{{
+                t("settings.general.update.installerReady", "安装程序已下载")
+              }}</span>
             </div>
-            <div class="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-6 px-2 text-xs cursor-pointer"
-                @click="openDownloadLocation"
+
+            <div
+              class="flex items-center justify-between rounded-md bg-muted/40 p-2"
+            >
+              <div
+                class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
               >
-                <AppIcon name="FolderOpen" :size="12" class="mr-1" />
-                {{ t("settings.general.update.openLocation", "打开位置") }}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-6 px-2 text-xs cursor-pointer"
-                @click="runInstallerAgain"
-              >
-                <AppIcon name="Play" :size="12" class="mr-1" />
-                {{ t("settings.general.update.runInstaller", "运行") }}
-              </Button>
+                <AppIcon name="FileDown" :size="14" class="shrink-0" />
+                <span
+                  class="truncate font-mono"
+                  :title="downloadedFilePath || undefined"
+                >
+                  {{ displayFileName }}
+                </span>
+              </div>
+              <div class="flex shrink-0 items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-6 cursor-pointer px-2 text-xs"
+                  @click="openDownloadLocation"
+                >
+                  <AppIcon name="FolderOpen" :size="12" class="mr-1" />
+                  {{ t("settings.general.update.openLocation", "打开位置") }}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-6 cursor-pointer px-2 text-xs"
+                  @click="runInstallerAgain"
+                >
+                  <AppIcon name="Play" :size="12" class="mr-1" />
+                  {{ t("settings.general.update.runInstaller", "运行") }}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2">
-            <span class="text-sm" style="color: var(--text-secondary)">
+      <!-- 当前版本 + 检查更新 -->
+      <div class="flex items-center justify-between gap-4 px-5 py-4">
+        <div class="flex min-w-0 items-center gap-4">
+          <div class="flex shrink-0 items-center gap-2">
+            <span class="text-sm text-muted-foreground">
               {{ t("settings.general.currentVersion") }}
             </span>
-            <span class="font-mono text-sm" style="color: var(--text-primary)">
+            <span class="font-mono text-sm text-foreground">
               {{ currentVersion }}
             </span>
           </div>
           <div
             v-if="updateAvailable && latestVersion"
-            class="flex items-center gap-1.5"
+            class="flex min-w-0 items-center gap-1.5"
           >
             <span
-              class="inline-flex h-2 w-2 rounded-full animate-pulse"
-              style="background: var(--accent-primary)"
+              class="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-[var(--accent-primary)]"
             />
-            <span class="text-sm" style="color: var(--accent-primary)">
+            <span class="truncate text-sm text-[var(--accent-primary)]">
               {{
                 t("messages.updateAvailable", "发现新版本").replace(
                   "{version}",
@@ -428,7 +418,7 @@ function handleCancelDownload() {
             </span>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex shrink-0 items-center gap-2">
           <template v-if="updateAvailable">
             <Button
               v-if="isDownloading"
@@ -490,14 +480,13 @@ function handleCancelDownload() {
         v-if="
           updateAvailable && releaseNotes && !isDownloading && !isDownloaded
         "
-        class="mt-3 rounded-md p-3 text-xs line-clamp-3"
-        style="
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: var(--text-secondary);
-        "
+        class="px-5 py-4"
       >
-        {{ releaseNotes }}
+        <p
+          class="line-clamp-3 rounded-lg border border-border/60 bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground"
+        >
+          {{ releaseNotes }}
+        </p>
       </div>
 
       <!-- 资产信息 -->
@@ -505,15 +494,12 @@ function handleCancelDownload() {
         v-if="
           updateAvailable && selectedAsset && !isDownloading && !isDownloaded
         "
-        class="mt-3 rounded-md p-3 text-xs"
-        style="
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: var(--text-secondary);
-        "
+        class="px-5 py-4"
       >
-        <div class="flex items-center gap-2">
-          <AppIcon name="Package" :size="14" />
+        <div
+          class="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground"
+        >
+          <AppIcon name="Package" :size="14" class="shrink-0" />
           <span>
             {{ t("settings.general.update.detectedAsset", "检测到安装包") }}:
             {{ selectedAsset.name }}
@@ -525,11 +511,11 @@ function handleCancelDownload() {
       </div>
     </SettingsGroup>
 
-    <Separator class="my-6" />
-
     <!-- 导入/导出/重置 -->
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-3">
+    <div
+      class="flex items-center justify-between rounded-xl border border-border/60 bg-card/60 px-5 py-4"
+    >
+      <div class="flex items-center gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -556,11 +542,7 @@ function handleCancelDownload() {
           <Button
             variant="outline"
             size="sm"
-            class="cursor-pointer"
-            style="
-              color: var(--accent-error);
-              border-color: rgba(239, 68, 68, 0.3);
-            "
+            class="cursor-pointer border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             <AppIcon name="RotateCcw" :size="14" class="mr-1.5" />
             {{ t("settings.advanced.reset") }}

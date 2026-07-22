@@ -13,8 +13,6 @@
     "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",
     "core:window:allow-start-resize-dragging",
-    "shell:allow-open",
-    "shell:allow-execute",
     "fs:default",
     "fs:allow-read",
     "fs:allow-write",

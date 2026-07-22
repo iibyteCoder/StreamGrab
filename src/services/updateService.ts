@@ -10,6 +10,8 @@ import {
   type AppDownloadProgress,
   type UnlistenFn,
 } from "@/services";
+import { compareVersions } from "@/utils/version";
+import { formatFileSize as _formatFileSize } from "@/utils/format";
 
 // ========================================
 // 类型
@@ -82,26 +84,38 @@ function getPlatformAsset(assets: ReleaseAsset[]): ReleaseAsset | null {
   return null;
 }
 
-/** 比较语义化版本号：1 = v1 > v2，-1 = v1 < v2，0 = 相等 */
-function compareVersions(v1: string, v2: string): number {
-  const parts1 = v1.replace(/^v/, "").split(".").map(Number);
-  const parts2 = v2.replace(/^v/, "").split(".").map(Number);
+// ========================================
+// 条件请求缓存（ETag / Last-Modified / 结果）
+// 作用：未变更时 GitHub 返回 304 不消耗未鉴权配额；限流/离线时降级用缓存
+// ========================================
 
-  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    const p1 = parts1[i] || 0;
-    const p2 = parts2[i] || 0;
-    if (p1 > p2) return 1;
-    if (p1 < p2) return -1;
-  }
-  return 0;
+interface CachedRelease {
+  etag: string | null;
+  lastModified: string | null;
+  release: ReleaseInfo;
+  asset: ReleaseAsset | null;
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+const RELEASE_CACHE_KEY = "streamgrab:updateReleaseCache";
+
+function loadReleaseCache(): CachedRelease | null {
+  try {
+    const raw = localStorage.getItem(RELEASE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedRelease;
+    if (!parsed?.release?.version) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveReleaseCache(cache: CachedRelease): void {
+  try {
+    localStorage.setItem(RELEASE_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // 存储不可用时忽略
+  }
 }
 
 // ========================================
@@ -121,35 +135,55 @@ class UpdateService {
     return this.currentVersion;
   }
 
-  /** 从 GitHub API 获取最新版本（带重试） */
+  /**
+   * 获取最新版本（带条件请求缓存与重试）
+   *
+   * 未鉴权的 GitHub REST API 限额为 60 次/小时/IP。为避免后台检查反复触发 403：
+   * - 携带存储的 ETag / If-Modified-Since 发起条件请求；release 未变更时返回
+   *   304 Not Modified，**不消耗配额**；
+   * - 命中 304 / 限流(403) / 离线 时，回退到上次缓存的结果（降级而非报错）；
+   * - 仅 200 时刷新缓存。配合 composable 的 24h 节流，常态下不再产生 403。
+   */
   async fetchLatestVersion(
     retries = 2,
   ): Promise<{ release: ReleaseInfo; asset: ReleaseAsset | null } | null> {
     const url = `https://api.github.com/repos/${this.githubRepo}/releases/latest`;
+    const cache = loadReleaseCache();
+    const cached = cache
+      ? { release: cache.release, asset: cache.asset }
+      : null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
+        const headers: Record<string, string> = {
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "StreamGrab-Update-Checker",
+        };
+        // 条件请求头：未变更 → 304（零配额）
+        if (cache?.etag) headers["If-None-Match"] = cache.etag;
+        if (cache?.lastModified) {
+          headers["If-Modified-Since"] = cache.lastModified;
+        }
+
         const response = await fetch(url, {
-          headers: {
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "StreamGrab-Update-Checker",
-          },
+          headers,
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        if (response.status === 403) {
-          return null;
-        }
+        // 304 未变更：使用缓存，不消耗配额
+        if (response.status === 304) return cached;
 
-        if (response.status === 404) {
-          return null;
-        }
+        // 403 限流：有缓存则降级，否则放弃（不重试，避免放大限流）
+        if (response.status === 403) return cached;
+
+        // 404 无 release：缓存作废
+        if (response.status === 404) return null;
 
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
@@ -157,9 +191,7 @@ class UpdateService {
 
         const data = await response.json();
 
-        if (!data.tag_name && !data.name) {
-          return null;
-        }
+        if (!data.tag_name && !data.name) return cached;
 
         const release: ReleaseInfo = {
           version: data.tag_name || data.name,
@@ -169,20 +201,30 @@ class UpdateService {
         };
 
         const asset = getPlatformAsset(release.assets);
+
+        // 缓存 ETag / Last-Modified / 解析结果，供后续 304 与降级使用
+        saveReleaseCache({
+          etag: response.headers.get("etag"),
+          lastModified: response.headers.get("last-modified"),
+          release,
+          asset,
+        });
+
         return { release, asset };
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") {
-          return null;
+          // 离线/超时：有缓存则展示上次结果
+          return cached;
         }
         if (attempt < retries) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
         }
-        return null;
+        return cached;
       }
     }
 
-    return null;
+    return cached;
   }
 
   /** 下载更新安装包 */
@@ -208,7 +250,7 @@ class UpdateService {
   }
 
   formatFileSize(bytes: number): string {
-    return formatFileSize(bytes);
+    return _formatFileSize(bytes);
   }
 
   getPlatform(): Platform {

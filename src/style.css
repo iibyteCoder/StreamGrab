@@ -40,6 +40,9 @@
     --text-muted: #999999;
     --border-default: #e5e5e5;
     --border-hover: #d0d0d0;
+    --accent-primary: #3b82f6;
+    --accent-success: #22c55e;
+    --accent-error: #ef4444;
   }
 
   .dark {
@@ -77,6 +80,9 @@
     --text-muted: #666666;
     --border-default: #222222;
     --border-hover: #333333;
+    --accent-primary: #3b82f6;
+    --accent-success: #22c55e;
+    --accent-error: #ef4444;
   }
 
   * {

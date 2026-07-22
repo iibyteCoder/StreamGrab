@@ -14,12 +14,15 @@ interface Props {
   step?: number;
   disabled?: boolean;
   displayValue?: string;
+  /** 是否带独立行的内边距（网格内传 false） */
+  padded?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
   min: 0,
   max: 100,
   step: 1,
+  padded: true,
 });
 
 const emit = defineEmits<{
@@ -28,7 +31,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="grid gap-3">
+  <div class="grid gap-3" :class="padded ? 'px-5 py-4' : 'py-2.5'">
     <div class="flex items-center justify-between">
       <Label :class="{ 'opacity-50': disabled }">{{ label }}</Label>
       <span v-if="displayValue" class="text-sm text-muted-foreground">

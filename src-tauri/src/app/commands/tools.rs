@@ -8,7 +8,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::infrastructure::platform::Platform;
 use crate::infrastructure::tools::{ToolDetector, ToolInfo, ToolPaths, ToolRegistry};
@@ -234,12 +234,29 @@ pub async fn download_tool(
     target_dir: String,
     app: AppHandle,
 ) -> Result<String, String> {
-    let target_path = PathBuf::from(&target_dir);
-    log::info!("[Tools] 开始下载 {tool} 到 {target_dir}");
+    // 目标目录为空（工具未安装且未配置路径时，前端会传空串）→ 回退到应用数据目录下的
+    // tools 目录。ResolvedPath 保证最终路径非空+绝对+存在。
+    let target_path = if target_dir.trim().is_empty() {
+        let dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("获取应用数据目录失败: {e}"))?
+            .join("tools");
+        log::info!("[Tools] 未指定目标目录，回退默认目录: {}", dir.display());
+        dir
+    } else {
+        PathBuf::from(&target_dir)
+    };
 
     if !target_path.exists() {
         std::fs::create_dir_all(&target_path).map_err(|e| format!("创建目录失败: {e}"))?;
     }
+
+    // ResolvedPath 编译期保证：非空 + 绝对 + 存在
+    let target_resolved = crate::shared::ResolvedPath::from_path(target_path)
+        .map_err(|e| format!("目标目录无效: {e}"))?;
+    let target_path = target_resolved.into_inner();
+    log::info!("[Tools] 开始下载 {tool} 到 {}", target_path.display());
 
     let _ = app.emit(
         &format!("tool:download:start:{tool}"),
@@ -282,6 +299,10 @@ pub async fn download_tool(
     if bytes.len() < 4 || &bytes[0..2] != b"PK" {
         return Err("下载的文件不是有效的 ZIP 格式".to_string());
     }
+
+    // SHA-256 完整性校验（尝试获取 .sha256 伴随文件）
+    crate::infrastructure::fs::verify_download_integrity(&client, &download_url, filename, &bytes)
+        .await?;
 
     let _ = app.emit(
         &format!("tool:download:progress:{tool}"),

@@ -29,7 +29,6 @@ export default {
   nav: {
     home: "主页",
     settings: "设置",
-    history: "历史记录",
   },
 
   // 主页
@@ -438,20 +437,6 @@ export default {
       httpVideo: "直链视频",
       unknown: "未知",
     },
-  },
-
-  // 历史记录
-  history: {
-    title: "下载历史",
-    empty: "暂无下载记录",
-    reDownload: "重新下载",
-    openFolder: "打开文件夹",
-    clearAll: "清空历史",
-    clearConfirm: "确定要清空所有下载历史吗？此操作不可撤销。",
-    deleteRecord: "删除记录",
-    fileName: "文件名",
-    fileSize: "文件大小",
-    completedAt: "完成时间",
   },
 
   // 流选择器

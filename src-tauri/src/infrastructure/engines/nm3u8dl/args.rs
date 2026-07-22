@@ -205,11 +205,22 @@ pub fn build_download_args(
 }
 
 /// 构建解析模式命令参数（仅解析流信息，不下载）
-pub fn build_parse_args(url: &str, tools: &ToolConfigs, app: &AppSettings) -> Vec<String> {
+///
+/// `ffmpeg_bin`：与下载一致，注入 `--ffmpeg-binary-path`。N_m3u8DL-RE 在解析阶段也会
+/// 校验/调用 ffmpeg，缺失即抛 `FileNotFoundException: 找不到 ffmpeg`。
+pub fn build_parse_args(
+    url: &str,
+    tools: &ToolConfigs,
+    app: &AppSettings,
+    ffmpeg_bin: Option<&str>,
+) -> Vec<String> {
     let mut args: Vec<String> = vec![url.into(), "--skip-download".into(), "--auto-select".into()];
     append_network_args(&mut args, &tools.nm3u8dl.network);
     append_decryption_args(&mut args, &tools.nm3u8dl.decryption, false);
     append_log_args(&mut args, app);
+    if let Some(bin) = ffmpeg_bin {
+        args.extend(["--ffmpeg-binary-path".into(), bin.into()]);
+    }
     args
 }
 
@@ -597,7 +608,7 @@ mod tests {
         let tools = ToolConfigs::default();
         let app = AppSettings::default();
 
-        let args = build_parse_args("https://example.com/index.m3u8", &tools, &app);
+        let args = build_parse_args("https://example.com/index.m3u8", &tools, &app, None);
         let expected: Vec<String> = vec![
             "https://example.com/index.m3u8",
             "--skip-download",
@@ -610,5 +621,24 @@ mod tests {
         .map(String::from)
         .collect();
         assert_eq!(args, expected);
+    }
+
+    #[test]
+    fn parse_args_inject_ffmpeg_binary_path() {
+        let tools = ToolConfigs::default();
+        let app = AppSettings::default();
+
+        let args = build_parse_args(
+            "https://example.com/index.m3u8",
+            &tools,
+            &app,
+            Some("C:/ffmpeg/bin/ffmpeg.exe"),
+        );
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "--ffmpeg-binary-path" && w[1] == "C:/ffmpeg/bin/ffmpeg.exe"));
+
+        let args = build_parse_args("https://example.com/index.m3u8", &tools, &app, None);
+        assert!(!args.iter().any(|a| a == "--ffmpeg-binary-path"));
     }
 }

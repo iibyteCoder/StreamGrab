@@ -7,4 +7,3 @@ export { useTaskStore } from "./taskStore";
 export type { TaskLogEntry } from "./taskStore";
 export { useSettingsStore } from "./settingsStore";
 export { usePresetStore } from "./presetStore";
-export { useHistoryStore } from "./historyStore";

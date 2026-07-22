@@ -78,7 +78,7 @@ export function useClipboardWatcher() {
 
     pollInterval = setInterval(handleClipboardChange, 2000);
 
-    console.log("Clipboard watcher started");
+    console.debug("Clipboard watcher started");
   }
 
   function stopWatching(): void {
@@ -93,7 +93,7 @@ export function useClipboardWatcher() {
     }
 
     isWatching.value = false;
-    console.log("Clipboard watcher stopped");
+    console.debug("Clipboard watcher stopped");
   }
 
   function clearDetectedUrls(): void {

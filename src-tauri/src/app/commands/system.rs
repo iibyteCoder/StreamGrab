@@ -232,6 +232,11 @@ pub async fn download_app_update(
         ));
     }
 
+    // SHA-256 完整性校验（尝试获取 .sha256 伴随文件）
+    let filename = download_url.rsplit('/').next().unwrap_or("installer");
+    crate::infrastructure::fs::verify_download_integrity(&client, &download_url, filename, &bytes)
+        .await?;
+
     use std::io::Write;
     let mut file = std::fs::File::create(&save_path).map_err(|e| format!("创建文件失败: {e}"))?;
     file.write_all(&bytes)

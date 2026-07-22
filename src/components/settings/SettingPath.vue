@@ -19,6 +19,8 @@ interface Props {
   disabled?: boolean;
   /** 选择类型：文件夹或文件 */
   type?: "folder" | "file";
+  /** 是否带独立行的内边距（网格内传 false） */
+  padded?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -26,6 +28,7 @@ const props = withDefaults(defineProps<Props>(), {
   placeholder: "",
   disabled: false,
   type: "folder",
+  padded: true,
 });
 
 const emit = defineEmits<{
@@ -66,7 +69,7 @@ const handleSelect = async () => {
 </script>
 
 <template>
-  <div class="grid gap-2">
+  <div class="grid gap-2" :class="padded ? 'px-5 py-4' : 'py-2.5'">
     <Label :class="{ 'opacity-50': disabled }">{{ label }}</Label>
     <div class="flex gap-2">
       <Input

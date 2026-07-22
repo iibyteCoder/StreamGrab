@@ -2,7 +2,7 @@
  * 服务层导出
  *
  * 每个 service 与后端一个命令域对应：
- * task / download / settings / preset / history / tools / system
+ * task / download / settings / preset / tools / system
  */
 
 export { invokeTauri, subscribeToEvent, type UnlistenFn } from "./tauri";
@@ -20,8 +20,6 @@ export {
 export { settingsService, type DeepPartial } from "./settingsService";
 
 export { presetService } from "./presetService";
-
-export { historyService } from "./historyService";
 
 export {
   toolsService,

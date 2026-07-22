@@ -7,7 +7,6 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { AppIcon } from "@/components/common";
 import { useSettingsStore } from "@/stores";
 import { toolsService } from "@/services";
 
@@ -64,9 +63,6 @@ const goBack = () => router.push("/");
 
 // 跳转设置
 const goSettings = () => router.push("/settings");
-
-// 跳转历史
-const goHistory = () => router.push("/history");
 
 // 窗口控制
 const handleMinimize = async () => {
@@ -147,11 +143,12 @@ const toggleTheme = () => {
     >
       <!-- 左侧：Logo + 标题 -->
       <div class="flex items-center gap-2" data-tauri-drag-region>
-        <div
-          class="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10"
-        >
-          <AppIcon name="Download" :size="14" class="text-primary" />
-        </div>
+        <img
+          src="/logo.svg"
+          alt=""
+          draggable="false"
+          class="h-6 w-6 rounded-md"
+        />
         <span class="text-sm font-semibold tracking-tight">StreamGrab</span>
       </div>
 
@@ -194,16 +191,6 @@ const toggleTheme = () => {
               d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
             />
           </svg>
-        </button>
-
-        <!-- 历史记录按钮（仅首页） -->
-        <button
-          v-if="isHome"
-          class="window-btn h-7 w-7 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-          @click="goHistory"
-          title="历史记录"
-        >
-          <AppIcon name="History" :size="16" />
         </button>
 
         <!-- 设置按钮（仅首页） -->

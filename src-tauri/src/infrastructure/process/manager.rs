@@ -11,14 +11,13 @@
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
-use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use encoding_rs::GBK;
 
-use crate::shared::{AppError, AppResult};
+use crate::shared::{AppError, AppResult, ResolvedPath};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -82,14 +81,15 @@ impl ProcessManager {
 
     /// 启动下载进程
     ///
-    /// 参数不含程序路径的解析——调用方（命令层/引擎）负责提供完整路径。
+    /// `program` 和 `working_dir` 均为已验证的 [`ResolvedPath`]（非空+绝对+存在），
+    /// 由命令层构造一次往下传递，编译期保证不会收到空/相对/不存在的路径。
     /// `on_output` 逐行回调（已解码去尾换行），`on_complete(success, error)` 退出时回调。
     pub fn start_process<F, G>(
         &mut self,
         task_id: String,
-        program: &str,
+        program: &ResolvedPath,
         args: Vec<String>,
-        working_dir: Option<&str>,
+        working_dir: Option<&ResolvedPath>,
         on_output: F,
         on_complete: G,
     ) -> AppResult<()>
@@ -103,26 +103,13 @@ impl ProcessManager {
 
         log::info!("Starting process: {program} with args: {args:?}");
 
-        // 绝对路径必须存在
-        let program_path = Path::new(program);
-        if program_path.is_absolute() && !program_path.exists() {
-            return Err(AppError::tool_not_found(format!("工具不存在: {program}")));
-        }
-
-        let mut cmd = Command::new(program);
+        let mut cmd = Command::new(program.as_path());
         cmd.args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
         if let Some(dir) = working_dir {
-            if !dir.is_empty() {
-                let work_path = Path::new(dir);
-                if work_path.exists() {
-                    cmd.current_dir(work_path);
-                } else {
-                    log::warn!("Working directory does not exist, using default: {dir}");
-                }
-            }
+            cmd.current_dir(dir.as_path());
         }
 
         #[cfg(target_os = "windows")]

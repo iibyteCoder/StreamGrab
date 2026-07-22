@@ -7,6 +7,7 @@
  */
 
 import { ref, computed, onMounted, watch } from "vue";
+import { compareVersions } from "@/utils/version";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -18,7 +19,11 @@ import type {
   ToolDownloadProgress,
 } from "@/services";
 import { useToast } from "@/composables";
-import { SettingsGroup, SettingInput } from ".";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Tooltip } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-vue-next";
+import { SettingsGroup } from ".";
 
 const { t } = useI18n();
 
@@ -204,18 +209,6 @@ async function handleDownload() {
 // 工具函数
 // ========================================
 
-function compareVersions(v1: string, v2: string): number {
-  const parts1 = v1.replace(/^v/, "").split(".").map(Number);
-  const parts2 = v2.replace(/^v/, "").split(".").map(Number);
-  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    const p1 = parts1[i] || 0;
-    const p2 = parts2[i] || 0;
-    if (p1 > p2) return 1;
-    if (p1 < p2) return -1;
-  }
-  return 0;
-}
-
 function formatPublishedDate(dateStr: string): string {
   try {
     return new Date(dateStr).toLocaleDateString();
@@ -230,118 +223,114 @@ function formatPublishedDate(dateStr: string): string {
     :title="`${toolDisplayName} ${t('settings.tool.toolManagement', '工具管理')}`"
     :description="`${t('settings.tool.manageDescription', '管理')} ${toolDisplayName} ${t('settings.tool.manageDescriptionSuffix', '的路径、版本与更新')}`"
   >
-    <!-- 路径配置 -->
-    <div class="flex items-end gap-2">
-      <div class="flex-1">
-        <SettingInput
+    <!-- 路径配置 + 状态（合并为一行块） -->
+    <div class="space-y-2 px-5 py-4">
+      <!-- 标签行：标签 + 帮助 + 状态徽章 + 版本号（内联，不独占一行） -->
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Label
+          >{{ toolDisplayName }} {{ t("settings.tool.path", "路径") }}</Label
+        >
+        <Tooltip
+          :content="`${t('settings.tool.pathHelp', '填写包含')} ${toolDisplayName} ${t('settings.tool.pathHelpSuffix', '可执行文件的目录路径')}`"
+          side="right"
+        >
+          <HelpCircle
+            class="h-3.5 w-3.5 cursor-help text-muted-foreground transition-colors hover:text-foreground"
+          />
+        </Tooltip>
+
+        <!-- 状态徽章（内联） -->
+        <template v-if="toolInfo">
+          <span
+            v-if="toolInfo.installed"
+            class="inline-flex items-center gap-1 rounded-full bg-[var(--accent-success)]/15 px-2 py-0.5 text-xs font-medium text-[var(--accent-success)]"
+          >
+            <AppIcon name="CheckCircle" :size="12" />
+            {{ t("settings.tool.installed", "已安装") }}
+          </span>
+          <span
+            v-else
+            class="inline-flex items-center gap-1 rounded-full bg-[var(--accent-error)]/15 px-2 py-0.5 text-xs font-medium text-[var(--accent-error)]"
+          >
+            <AppIcon name="XCircle" :size="12" />
+            {{ t("settings.tool.notInstalled", "未安装") }}
+          </span>
+
+          <span
+            v-if="toolInfo.version"
+            class="font-mono text-xs text-muted-foreground"
+          >
+            v{{ toolInfo.version }}
+          </span>
+
+          <span v-if="hasUpdate" class="text-xs text-[var(--accent-primary)]">
+            ({{ t("settings.tool.hasNewVersion", "有新版本") }}
+            {{ latestRelease?.version }})
+          </span>
+        </template>
+      </div>
+
+      <!-- 控制行：路径输入 + 操作按钮（统一高度对齐） -->
+      <div class="flex items-center gap-2">
+        <Input
           :model-value="configPath"
-          :label="`${toolDisplayName} ${t('settings.tool.path', '路径')}`"
           :placeholder="t('settings.tool.pathPlaceholder', '留空使用系统 PATH')"
-          :help="`${t('settings.tool.pathHelp', '填写包含')} ${toolDisplayName} ${t('settings.tool.pathHelpSuffix', '可执行文件的目录路径')}`"
+          class="h-9 flex-1 text-sm"
           @update:model-value="emit('pathChange', String($event))"
           @blur="detectTool()"
         />
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        :disabled="isSelectingPath"
-        class="cursor-pointer"
-        @click="handleSelectDirectory"
-      >
-        <AppIcon
-          v-if="isSelectingPath"
-          name="Loader2"
-          :size="16"
-          class="mr-2 animate-spin"
-        />
-        <AppIcon v-else name="FolderOpen" :size="16" class="mr-2" />
-        {{ t("settings.tool.selectDirectory", "选择目录") }}
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        :disabled="isDetecting"
-        class="cursor-pointer"
-        :title="t('settings.tool.refresh', '重新检测')"
-        @click="detectTool()"
-      >
-        <AppIcon
-          :name="isDetecting ? 'Loader2' : 'RefreshCw'"
-          :size="16"
-          :class="{ 'animate-spin': isDetecting }"
-        />
-      </Button>
-    </div>
-
-    <!-- 状态显示 -->
-    <div v-if="toolInfo" class="flex flex-col gap-1.5 text-xs">
-      <div class="flex items-center gap-2">
-        <!-- 状态徽章 -->
-        <span
-          v-if="toolInfo.installed"
-          class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-          style="
-            background: rgba(34, 197, 94, 0.12);
-            color: var(--accent-success);
-          "
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="isSelectingPath"
+          class="cursor-pointer"
+          @click="handleSelectDirectory"
         >
-          <AppIcon name="CheckCircle" :size="12" />
-          {{ t("settings.tool.installed", "已安装") }}
-        </span>
-        <span
-          v-else
-          class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-          style="
-            background: rgba(239, 68, 68, 0.12);
-            color: var(--accent-error);
-          "
+          <AppIcon
+            v-if="isSelectingPath"
+            name="Loader2"
+            :size="16"
+            class="mr-2 animate-spin"
+          />
+          <AppIcon v-else name="FolderOpen" :size="16" class="mr-2" />
+          {{ t("settings.tool.selectDirectory", "选择目录") }}
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          :disabled="isDetecting"
+          class="h-9 w-9 cursor-pointer"
+          :title="t('settings.tool.refresh', '重新检测')"
+          @click="detectTool()"
         >
-          <AppIcon name="XCircle" :size="12" />
-          {{ t("settings.tool.notInstalled", "未安装") }}
-        </span>
-
-        <!-- 版本号 -->
-        <span
-          v-if="toolInfo.version"
-          class="font-mono"
-          style="color: var(--text-secondary)"
-        >
-          v{{ toolInfo.version }}
-        </span>
-
-        <!-- 更新提示 -->
-        <span
-          v-if="hasUpdate"
-          class="text-xs"
-          style="color: var(--accent-primary)"
-        >
-          ({{ t("settings.tool.hasNewVersion", "有新版本") }}
-          {{ latestRelease?.version }})
-        </span>
+          <AppIcon
+            :name="isDetecting ? 'Loader2' : 'RefreshCw'"
+            :size="16"
+            :class="{ 'animate-spin': isDetecting }"
+          />
+        </Button>
       </div>
 
-      <!-- 可执行文件路径 -->
-      <div
-        v-if="toolInfo.exePath"
-        class="font-mono truncate"
-        style="color: var(--text-secondary); opacity: 0.7"
-        :title="toolInfo.exePath"
-      >
-        {{ toolInfo.exePath }}
-      </div>
-
-      <!-- 错误信息 -->
-      <div
-        v-if="!toolInfo.installed && toolInfo.error"
-        style="color: var(--accent-error)"
-      >
-        {{ toolInfo.error }}
+      <!-- 可执行文件路径 / 错误（紧凑，按需显示） -->
+      <div v-if="toolInfo" class="space-y-1">
+        <p
+          v-if="toolInfo.exePath"
+          class="truncate font-mono text-xs text-muted-foreground/70"
+          :title="toolInfo.exePath"
+        >
+          {{ toolInfo.exePath }}
+        </p>
+        <p
+          v-if="!toolInfo.installed && toolInfo.error"
+          class="text-xs text-[var(--accent-error)]"
+        >
+          {{ toolInfo.error }}
+        </p>
       </div>
     </div>
 
     <!-- 版本更新区域 -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 px-5 py-4">
       <Button
         variant="outline"
         size="sm"
@@ -376,17 +365,11 @@ function formatPublishedDate(dateStr: string): string {
     </div>
 
     <!-- 最新版本信息 -->
-    <div
-      v-if="latestRelease && !isDownloading"
-      class="rounded-md p-3 text-xs"
-      style="
-        background: var(--bg-surface);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        color: var(--text-secondary);
-      "
-    >
-      <div class="flex items-center gap-2">
-        <AppIcon name="Package" :size="14" />
+    <div v-if="latestRelease && !isDownloading" class="px-5 py-4">
+      <div
+        class="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground"
+      >
+        <AppIcon name="Package" :size="14" class="shrink-0" />
         <span>
           {{ t("settings.tool.latestVersion", "最新版本") }}:
           <span class="font-mono">{{ latestRelease.version }}</span>
@@ -398,11 +381,9 @@ function formatPublishedDate(dateStr: string): string {
     </div>
 
     <!-- 下载进度 -->
-    <div v-if="isDownloading" class="space-y-2">
+    <div v-if="isDownloading" class="space-y-2 px-5 py-4">
       <div class="flex items-center justify-between text-xs">
-        <span style="color: var(--text-secondary)">{{
-          downloadStatusText
-        }}</span>
+        <span class="text-muted-foreground">{{ downloadStatusText }}</span>
         <span v-if="downloadProgress" class="font-mono">
           {{ downloadPercent.toFixed(1) }}%
         </span>

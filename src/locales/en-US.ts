@@ -29,7 +29,6 @@ export default {
   nav: {
     home: "Home",
     settings: "Settings",
-    history: "History",
   },
 
   // Home
@@ -432,20 +431,6 @@ export default {
       httpVideo: "Direct Video",
       unknown: "Unknown",
     },
-  },
-
-  history: {
-    title: "Download History",
-    empty: "No download records",
-    reDownload: "Re-download",
-    openFolder: "Open Folder",
-    clearAll: "Clear History",
-    clearConfirm:
-      "Are you sure you want to clear all download history? This cannot be undone.",
-    deleteRecord: "Delete Record",
-    fileName: "File Name",
-    fileSize: "File Size",
-    completedAt: "Completed At",
   },
 
   streamSelector: {

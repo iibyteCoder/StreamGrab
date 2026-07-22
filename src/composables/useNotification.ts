@@ -6,6 +6,9 @@
 import { useSettingsStore } from "@/stores";
 import { i18n } from "@/locales";
 
+/** 通知权限一旦被拒，缓存该结果，避免每次下载完成都重复请求/打印（webview 中通常恒为 denied） */
+let permissionDenied = false;
+
 /**
  * 通知组合式函数
  */
@@ -32,13 +35,16 @@ export function useNotification() {
   ): Promise<boolean> => {
     // 检查设置是否允许通知
     if (!canShowNotification()) {
-      console.log("Notification disabled by settings");
       return false;
     }
 
     // 检查浏览器是否支持通知
     if (!("Notification" in window)) {
-      console.warn("This browser does not support notifications");
+      return false;
+    }
+
+    // 一旦被拒绝就缓存，不再重复请求/打印（Tauri webview 中通常恒为 denied）
+    if (permissionDenied) {
       return false;
     }
 
@@ -51,7 +57,7 @@ export function useNotification() {
     }
 
     if (permission !== "granted") {
-      console.warn("Notification permission denied");
+      permissionDenied = true;
       return false;
     }
 
@@ -59,7 +65,7 @@ export function useNotification() {
     try {
       const notification = new Notification(title, {
         body,
-        icon: "/favicon.ico",
+        icon: "/logo.svg",
         ...options,
       });
 

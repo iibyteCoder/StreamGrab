@@ -21,3 +21,5 @@ export {
   extractFileName,
   sanitizeFileName,
 } from "./format";
+
+export { compareVersions } from "./version";

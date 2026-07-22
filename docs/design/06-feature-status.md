@@ -23,7 +23,7 @@
 | 项目结构 | `[x]` | `src/`, `src-tauri/` | Tauri 2.0 + Vue 3 + Vite；后端四层架构（app/domain/infrastructure/shared） |
 | 领域类型定义 | `[x]` | `src/domain/` (task.ts, config.ts, stream.ts, url.ts) | 前端类型唯一来源，与后端 JSON 契约一一对应 |
 | 路由配置 | `[x]` | `src/router/index.ts` | Vue Router |
-| Pinia Store | `[x]` | `src/stores/` | taskStore, settingsStore, presetStore, historyStore |
+| Pinia Store | `[x]` | `src/stores/` | taskStore, settingsStore, presetStore |
 | TailwindCSS | `[x]` | `tailwind.config.js` | 样式系统 |
 | Tauri 命令框架 | `[x]` | `src-tauri/src/app/commands/` | tasks, download, settings, presets, history, tools, system |
 | 进程管理器 | `[x]` | `src-tauri/src/infrastructure/process/manager.rs` | State 注入 + Drop/Exit 双保险清理 |
@@ -183,11 +183,11 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 类型定义 | P1 | `[x]` | `src/domain/task.ts` (HistoryRecord) | |
+| 类型定义 | P1 | `[x]` | `src/domain/task.ts` (HistoryRecord) | 保留：镜像后端 JSON 契约 |
 | SQLite 数据库 | P1 | `[x]` | `src-tauri/src/infrastructure/db/repository/history_repo.rs` | rusqlite 持久化 |
 | 后端命令 | P1 | `[x]` | `src-tauri/src/app/commands/history.rs` | load_history / delete_history_record / clear_history |
-| 记录保存 | P1 | `[x]` | `src/stores/historyStore.ts` + `src/services/historyService.ts` | 任务终态自动快照，含 overrides，清除任务不删历史 |
-| 历史列表 | P1 | `[x]` | `src/views/HistoryView.vue` | 历史记录页面，支持查看/删除/重新下载 |
+| 记录保存 | P1 | `[-]` | — | 2026-07 前端 historyStore/historyService 移除（后端仍自动快照）；首页已完成分类即历史 |
+| 历史列表 | P1 | `[-]` | — | 2026-07 HistoryView 移除：与首页「进行中/已完成」分类冗余，后者分类更清晰 |
 
 ### 8.3 任务预设
 
@@ -229,7 +229,8 @@
 | 主页布局 | P0 | `[x]` | `src/views/HomeView.vue` | 基本布局完成 |
 | 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情） |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
-| 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 4 标签页（常规·界面 / N_m3u8DL-RE / FFmpeg / 任务预设）+ ToolManagerCard 共用 |
+| 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 2026-07 重设计：左侧导航栏 + 右侧单列内容（4 分区），SettingsGroup 单卡片 + divide-y 行模型，内联样式全量替换为语义化 token（浅色主题修复） |
+| 添加任务弹窗 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | 2026-07 两层渐进披露：一级仅 URL 输入（默认无滚动），二级「更多选项」折叠（文件名/保存位置/预设/定时/高级参数）；checkbox → Switch；弹窗边缘裁切修复 |
 | Toast 提示 | P0 | `[x]` | `src/composables/useToast.ts` | |
 | 日志查看器 | P2 | `[x]` | `src/components/task/LogViewer.vue` | 实时日志显示 |
 | 进度图表 | P2 | `[x]` | `src/components/task/ProgressChart.vue` | Chart.js 下载速率曲线，实时更新 |
@@ -255,11 +256,11 @@
 
 | 状态 | 数量 | 说明 |
 | --- | --- | --- |
-| `[x]` 已完成 | 112 | 基础设施（含引擎策略/测试体系/错误处理）+ 输入（含 URL 重复检测）+ 解析（含 ffprobe）+ 流选择 + 下载（含双引擎分派/TaskOverrides）+ 处理 + 直播 + 网络 + 管理（含历史记录/预设 DB/定时调度）+ 系统集成 + UI/UX（4 标签页/进度图表/任务筛选）+ 通用组件 |
-| `[-]` 暂不实现 | 3 | 广告过滤、外部媒体导入、命名模板（均为旧空壳 UI，未接入参数构建） |
+| `[x]` 已完成 | 111 | 基础设施（含引擎策略/测试体系/错误处理）+ 输入（含 URL 重复检测）+ 解析（含 ffprobe）+ 流选择 + 下载（含双引擎分派/TaskOverrides）+ 处理 + 直播 + 网络 + 管理（含历史后端/预设 DB/定时调度）+ 系统集成 + UI/UX（设置页双栏导航/添加任务两层弹窗/进度图表/任务筛选）+ 通用组件 |
+| `[-]` 暂不实现 | 5 | 广告过滤、外部媒体导入、命名模板（旧空壳 UI）；历史列表/记录保存前端（2026-07 移除，与首页分类冗余） |
 | `[/]` 进行中 | 0 | - |
 | `[ ]` 计划中 | 0 | - |
-| **总计** | **115** | |
+| **总计** | **116** | |
 
 ### 核心待实现 (P0 优先)
 
@@ -289,3 +290,4 @@
 | 2026-02-19 | **设置修复 / 文件信息增强 / 解析器改进 / 媒体信息存储 / 进度图表 / commandBuilder 架构重构** |
 | 2026-02-20 | **自动更新下载安装功能** |
 | 2026-07-21 | **完全重构**——引擎策略架构（DownloadEngine + EngineRegistry 自动分派）、三层配置模型（全局默认 + TaskOverrides + 引擎 args）、schema v4 单表聚合（tasks JSON 列 + tool_settings 通用表 + history 快照）、设置中心 9→4 标签页（常规·界面 / N_m3u8DL-RE / FFmpeg / 任务预设）+ ToolManagerCard 参数化共用、添加任务闭环（URL 类型徽章 / 流选择 / 预设选择器 / 定时开始 / 高级折叠）、历史记录与定时开始真实实现、移除 3 个空壳功能（广告过滤 / 外部媒体导入 / 命名模板）、前端 commandBuilder 删除（参数构建移入后端引擎 `infrastructure/engines/*/args.rs`）、测试体系建立（Rust 96 + vitest 47）；schema v4 全量重建不保留旧数据。详见 `07-tool-config-architecture.md` |
+| 2026-07-21 | **UI 整修**——移除下载历史前端（HistoryView/historyStore/historyService 删除，与首页「进行中/已完成」分类冗余；后端历史快照保留）；设置页重设计（双栏导航栏 + 单卡片 SettingsGroup + divide-y 行模型 + 语义化 token，修复 tailwind alpha token 缺失与 `--accent-*` 变量未定义导致的浅色主题破图）；添加任务弹窗两层化（一级仅 URL，二级「更多选项」折叠，grid-rows 过渡，checkbox→Switch，宽度钳制 + 焦点环裁切修复） |

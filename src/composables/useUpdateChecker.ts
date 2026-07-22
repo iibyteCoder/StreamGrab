@@ -16,6 +16,28 @@ type DownloadStatus = "idle" | "downloading" | "downloaded" | "error";
 /** 检查间隔（24 小时） */
 const CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 
+/** 持久化上次检查时间的 key（跨挂载/会话节流，避免重复触发未鉴权请求） */
+const LAST_CHECK_KEY = "streamgrab:lastUpdateCheck";
+
+function loadLastCheck(): Date | null {
+  try {
+    const raw = localStorage.getItem(LAST_CHECK_KEY);
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+function saveLastCheck(d: Date): void {
+  try {
+    localStorage.setItem(LAST_CHECK_KEY, d.toISOString());
+  } catch {
+    // 存储不可用时忽略（隐私模式等）
+  }
+}
+
 export function useUpdateChecker() {
   const settingsStore = useSettingsStore();
   const toast = useToast();
@@ -25,7 +47,7 @@ export function useUpdateChecker() {
   // ==========================================
 
   const isChecking = ref(false);
-  const lastCheckTime = ref<Date | null>(null);
+  const lastCheckTime = ref<Date | null>(loadLastCheck());
   const latestVersion = ref<string | null>(null);
   const updateAvailable = ref(false);
   const releaseUrl = ref<string | null>(null);
@@ -53,6 +75,11 @@ export function useUpdateChecker() {
     if (isChecking.value) return false;
 
     isChecking.value = true;
+
+    // 记录本次检查时间（含失败），使自动检查跨挂载/会话也按间隔节流
+    const now = new Date();
+    lastCheckTime.value = now;
+    saveLastCheck(now);
 
     try {
       const result = await updateService.fetchLatestVersion();

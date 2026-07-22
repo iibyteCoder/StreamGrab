@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -135,25 +136,20 @@ function handleSave() {
 
 <template>
   <div class="space-y-6">
-    <!-- 标题和操作按钮 -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h3 class="text-sm font-medium" style="color: var(--text-primary)">
-          {{ t("settings.preset.title", "任务预设") }}
-        </h3>
-        <p class="text-xs mt-1" style="color: var(--text-secondary)">
-          {{
-            t(
-              "settings.preset.subtitle",
-              "保存常用的下载配置组合，快速应用到新任务",
-            )
-          }}
-        </p>
-      </div>
+    <!-- 操作栏 -->
+    <div class="flex items-center justify-between gap-4">
+      <p class="min-w-0 text-xs text-muted-foreground">
+        {{
+          t(
+            "settings.preset.subtitle",
+            "保存常用的下载配置组合，快速应用到新任务",
+          )
+        }}
+      </p>
       <Button
         variant="default"
         size="sm"
-        class="cursor-pointer"
+        class="shrink-0 cursor-pointer"
         @click="handleCreate"
       >
         <AppIcon name="Plus" :size="14" class="mr-1.5" />
@@ -164,8 +160,7 @@ function handleSave() {
     <!-- 预设列表 -->
     <div
       v-if="presets.length === 0"
-      class="text-center py-12"
-      style="color: var(--text-secondary)"
+      class="py-12 text-center text-muted-foreground"
     >
       <AppIcon name="FileBox" :size="40" class="mx-auto mb-3 opacity-50" />
       <p>{{ t("settings.preset.noPresets", "暂无预设") }}</p>
@@ -178,44 +173,27 @@ function handleSave() {
       <div
         v-for="preset in presets"
         :key="preset.id"
-        class="group relative rounded-xl p-4"
-        style="
-          background: var(--bg-surface);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          transition: border-color 150ms ease-out;
-        "
-        @mouseenter="
-          ($event.currentTarget as HTMLElement).style.borderColor =
-            'rgba(255, 255, 255, 0.16)'
-        "
-        @mouseleave="
-          ($event.currentTarget as HTMLElement).style.borderColor =
-            'rgba(255, 255, 255, 0.08)'
-        "
+        class="group relative rounded-xl border border-border/60 bg-card/60 p-4 transition-colors duration-150 ease-out hover:border-foreground/20 hover:bg-muted/20"
       >
-        <div class="flex items-start justify-between mb-2">
-          <div class="flex items-center gap-2">
+        <div class="mb-2 flex items-start justify-between">
+          <div class="flex min-w-0 items-center gap-2">
             <AppIcon
               :name="
                 (preset.icon as keyof typeof import('lucide-vue-next')) ||
                 'Bookmark'
               "
               :size="16"
-              style="color: var(--accent-primary)"
+              class="shrink-0 text-[var(--accent-primary)]"
             />
-            <span
-              class="text-sm font-medium"
-              style="color: var(--text-primary)"
-            >
+            <span class="truncate text-sm font-medium text-foreground">
               {{ preset.name }}
             </span>
           </div>
-          <div class="flex items-center gap-1">
+          <div class="flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
-              class="h-7 w-7 cursor-pointer opacity-0 group-hover:opacity-100"
-              style="transition: opacity 150ms ease-out"
+              class="h-7 w-7 cursor-pointer opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100"
               :title="t('common.edit', '编辑')"
               @click="manager.editPreset(preset)"
             >
@@ -224,8 +202,7 @@ function handleSave() {
             <Button
               variant="ghost"
               size="icon"
-              class="h-7 w-7 cursor-pointer opacity-0 group-hover:opacity-100"
-              style="transition: opacity 150ms ease-out"
+              class="h-7 w-7 cursor-pointer opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100"
               :title="t('common.copy', '复制')"
               @click="manager.duplicatePreset(preset)"
             >
@@ -234,11 +211,7 @@ function handleSave() {
             <Button
               variant="ghost"
               size="icon"
-              class="h-7 w-7 cursor-pointer opacity-0 group-hover:opacity-100"
-              style="
-                transition: opacity 150ms ease-out;
-                color: var(--accent-error);
-              "
+              class="h-7 w-7 cursor-pointer text-destructive opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100"
               :title="t('common.delete', '删除')"
               @click="manager.confirmDelete(preset)"
             >
@@ -249,13 +222,12 @@ function handleSave() {
 
         <p
           v-if="preset.description"
-          class="text-xs mb-2 line-clamp-2"
-          style="color: var(--text-secondary)"
+          class="mb-2 line-clamp-2 text-xs text-muted-foreground"
         >
           {{ preset.description }}
         </p>
 
-        <p class="text-xs" style="color: var(--text-secondary); opacity: 0.7">
+        <p class="text-xs text-muted-foreground/70">
           {{ getOverridesSummary(preset.overrides) }}
         </p>
       </div>
@@ -266,8 +238,8 @@ function handleSave() {
       :open="manager.showEditDialog.value"
       @update:open="manager.closeEditDialog()"
     >
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent class="flex max-h-[85vh] flex-col sm:max-w-lg">
+        <DialogHeader class="shrink-0">
           <DialogTitle>
             {{
               manager.editingPreset.value
@@ -275,9 +247,12 @@ function handleSave() {
                 : t("settings.preset.createPreset", "新建预设")
             }}
           </DialogTitle>
+          <DialogDescription class="sr-only">
+            编辑或新建任务预设，设置下载覆盖项
+          </DialogDescription>
         </DialogHeader>
 
-        <div class="space-y-4 py-4">
+        <div class="flex-1 space-y-4 overflow-y-auto py-4">
           <!-- 基本信息 -->
           <div class="grid grid-cols-3 gap-3">
             <div class="col-span-2 space-y-1.5">
@@ -370,10 +345,13 @@ function handleSave() {
                 <Label class="text-xs">{{ t("settings.mux.format") }}</Label>
                 <Select
                   :model-value="
-                    manager.editForm.value.overrides.muxFormat || ''
+                    manager.editForm.value.overrides.muxFormat || '__default__'
                   "
                   @update:model-value="
-                    updateOverride('muxFormat', ($event as MuxFormat) || null)
+                    updateOverride(
+                      'muxFormat',
+                      $event === '__default__' ? null : ($event as MuxFormat),
+                    )
                   "
                 >
                   <SelectTrigger>
@@ -384,7 +362,7 @@ function handleSave() {
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{{
+                    <SelectItem value="__default__">{{
                       t("settings.preset.followDefault", "沿用默认")
                     }}</SelectItem>
                     <SelectItem
@@ -403,12 +381,15 @@ function handleSave() {
                 }}</Label>
                 <Select
                   :model-value="
-                    manager.editForm.value.overrides.subtitleFormat || ''
+                    manager.editForm.value.overrides.subtitleFormat ||
+                    '__default__'
                   "
                   @update:model-value="
                     updateOverride(
                       'subtitleFormat',
-                      ($event as SubtitleFormat) || null,
+                      $event === '__default__'
+                        ? null
+                        : ($event as SubtitleFormat),
                     )
                   "
                 >
@@ -420,7 +401,7 @@ function handleSave() {
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{{
+                    <SelectItem value="__default__">{{
                       t("settings.preset.followDefault", "沿用默认")
                     }}</SelectItem>
                     <SelectItem
@@ -501,7 +482,7 @@ function handleSave() {
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter class="shrink-0">
           <Button
             variant="outline"
             class="cursor-pointer"
@@ -528,8 +509,11 @@ function handleSave() {
       <DialogContent class="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{{ t("common.confirm", "确认") }}</DialogTitle>
+          <DialogDescription class="sr-only">
+            确认是否删除该任务预设，此操作不可恢复
+          </DialogDescription>
         </DialogHeader>
-        <p class="text-sm" style="color: var(--text-secondary)">
+        <p class="text-sm text-muted-foreground">
           {{
             t(
               "settings.preset.deleteConfirm",

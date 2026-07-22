@@ -20,4 +20,17 @@ export default defineConfig({
   },
   // To make Tauri work in development mode
   clearScreen: false,
+  build: {
+    // 桌面应用从磁盘加载，chunk 大小不影响 UX；抑制 >500KB 警告
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-vue": ["vue", "vue-router", "pinia", "vue-i18n"],
+          "vendor-ui": ["reka-ui"],
+          "vendor-tauri": ["@tauri-apps/api"],
+        },
+      },
+    },
+  },
 });

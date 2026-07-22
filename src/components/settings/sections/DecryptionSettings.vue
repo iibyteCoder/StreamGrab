@@ -8,7 +8,6 @@
 
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { AppIcon } from "@/components/common";
 import { SettingSelect, SettingInput, SettingSwitch, SettingsGroup } from "..";
@@ -163,13 +162,12 @@ function updateCustomHls(patch: Partial<CustomHlsConfig>) {
   >
     <div
       v-if="keys.length === 0"
-      class="text-sm py-2"
-      style="color: var(--text-secondary)"
+      class="px-5 py-4 text-sm text-muted-foreground"
     >
       {{ t("settings.decryption.noKeys", "暂无密钥配置，点击下方按钮添加") }}
     </div>
 
-    <div v-else class="space-y-2">
+    <div v-else class="space-y-2 px-5 py-4">
       <div
         v-for="(keyConfig, index) in keys"
         :key="keyConfig.id"
@@ -179,8 +177,7 @@ function updateCustomHls(patch: Partial<CustomHlsConfig>) {
           :value="keyConfig.kid || ''"
           type="text"
           placeholder="KID (可选)"
-          class="w-40 h-9 px-3 text-sm rounded-md border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-          style="border-color: rgba(255, 255, 255, 0.08)"
+          class="h-9 w-40 rounded-md border border-border/60 bg-transparent px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           @input="
             updateKeyKid(index, ($event.target as HTMLInputElement).value)
           "
@@ -189,8 +186,7 @@ function updateCustomHls(patch: Partial<CustomHlsConfig>) {
           :value="keyConfig.key"
           type="text"
           placeholder="Key (十六进制)"
-          class="flex-1 h-9 px-3 text-sm rounded-md border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring"
-          style="border-color: rgba(255, 255, 255, 0.08)"
+          class="h-9 flex-1 rounded-md border border-border/60 bg-transparent px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           @input="
             updateKeyValue(index, ($event.target as HTMLInputElement).value)
           "
@@ -198,8 +194,7 @@ function updateCustomHls(patch: Partial<CustomHlsConfig>) {
         <Button
           variant="ghost"
           size="icon"
-          class="h-9 w-9 cursor-pointer"
-          style="color: var(--accent-error)"
+          class="h-9 w-9 cursor-pointer text-destructive"
           @click="removeKey(index)"
         >
           <AppIcon name="Trash2" :size="16" />
@@ -207,15 +202,17 @@ function updateCustomHls(patch: Partial<CustomHlsConfig>) {
       </div>
     </div>
 
-    <Button
-      variant="outline"
-      size="sm"
-      class="mt-2 cursor-pointer"
-      @click="addKey"
-    >
-      <AppIcon name="Plus" :size="14" class="mr-1" />
-      {{ t("settings.decryption.addKey", "添加密钥") }}
-    </Button>
+    <div class="px-5 py-4">
+      <Button
+        variant="outline"
+        size="sm"
+        class="cursor-pointer"
+        @click="addKey"
+      >
+        <AppIcon name="Plus" :size="14" class="mr-1" />
+        {{ t("settings.decryption.addKey", "添加密钥") }}
+      </Button>
+    </div>
   </SettingsGroup>
 
   <SettingsGroup
@@ -242,8 +239,6 @@ function updateCustomHls(patch: Partial<CustomHlsConfig>) {
     />
 
     <template v-if="customHls.enabled">
-      <Separator class="my-4" />
-
       <SettingSelect
         :model-value="customHls.method"
         label="加密方法"

@@ -168,6 +168,90 @@ pub fn file_info(path: &str) -> AppResult<FileInfo> {
     })
 }
 
+/// 计算字节的 SHA-256 哈希（小写十六进制）
+pub fn compute_sha256(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(data);
+    hash.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// 从 `.sha256` 文件内容中解析目标文件的期望哈希
+///
+/// 支持两种常见格式：
+/// - `<hash>  <filename>`（sha256sum 输出）
+/// - 仅 `<hash>`（单行纯哈希）
+pub fn parse_sha256_content(content: &str, filename: &str) -> Option<String> {
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        // 格式: "<hash>  <filename>" 或 "<hash> <filename>"
+        if let Some((hash, name)) = line.split_once(|c: char| c.is_whitespace()) {
+            let name = name.trim_start_matches('*').trim();
+            if name == filename || name.ends_with(filename) {
+                return Some(hash.to_lowercase());
+            }
+        } else {
+            // 单行纯哈希（无文件名）
+            let candidate = line.to_lowercase();
+            if candidate.len() == 64 && candidate.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// 验证下载内容的 SHA-256 完整性
+///
+/// 尝试从 `{download_url}.sha256` 获取校验文件：
+/// - 获取成功且哈希不匹配 → 返回 Err（供应链投毒风险）
+/// - 获取成功且哈希匹配 → Ok
+/// - 获取失败（404/网络错误）→ 日志警告，Ok（第三方 release 可能不提供）
+pub async fn verify_download_integrity(
+    client: &reqwest::Client,
+    download_url: &str,
+    filename: &str,
+    data: &[u8],
+) -> Result<(), String> {
+    let sha256_url = format!("{download_url}.sha256");
+    let response = client.get(&sha256_url).send().await;
+
+    let response = match response {
+        Ok(r) if r.status().is_success() => r,
+        Ok(r) => {
+            log::warn!(
+                "[Integrity] 校验文件不可用 (HTTP {}): {sha256_url}，跳过完整性验证",
+                r.status()
+            );
+            return Ok(());
+        }
+        Err(e) => {
+            log::warn!("[Integrity] 无法获取校验文件: {sha256_url} ({e})，跳过完整性验证");
+            return Ok(());
+        }
+    };
+
+    let content = response
+        .text()
+        .await
+        .map_err(|e| format!("读取校验文件失败: {e}"))?;
+
+    let expected = parse_sha256_content(&content, filename)
+        .ok_or_else(|| format!("校验文件中未找到 {filename} 的哈希值"))?;
+
+    let actual = compute_sha256(data);
+    if actual != expected {
+        return Err(format!(
+            "SHA-256 校验失败！文件可能被篡改。\n期望: {expected}\n实际: {actual}"
+        ));
+    }
+
+    log::info!("[Integrity] SHA-256 校验通过: {filename} ({actual})");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +332,59 @@ mod tests {
         assert_eq!(
             find_output_file("/nonexistent/dir/xyz", Some("a"), None),
             None
+        );
+    }
+
+    #[test]
+    fn sha256_computation_is_correct() {
+        // SHA-256 of empty string
+        assert_eq!(
+            compute_sha256(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        // SHA-256 of "hello"
+        assert_eq!(
+            compute_sha256(b"hello"),
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+    }
+
+    #[test]
+    fn parse_sha256_sum_format() {
+        let content = "abc123  myfile.zip\n";
+        assert_eq!(
+            parse_sha256_content(content, "myfile.zip"),
+            Some("abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_sha256_bare_hash() {
+        let hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        let content = format!("{hash}\n");
+        assert_eq!(
+            parse_sha256_content(&content, "anything.zip"),
+            Some(hash.to_string())
+        );
+    }
+
+    #[test]
+    fn parse_sha256_multiple_files() {
+        let content = "aaa111  first.zip\nbbb222  second.zip\n";
+        assert_eq!(
+            parse_sha256_content(content, "second.zip"),
+            Some("bbb222".to_string())
+        );
+        assert_eq!(parse_sha256_content(content, "third.zip"), None);
+    }
+
+    #[test]
+    fn parse_sha256_case_insensitive() {
+        let content =
+            "ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890  tool.zip\n";
+        assert_eq!(
+            parse_sha256_content(content, "tool.zip"),
+            Some("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890".to_string())
         );
     }
 

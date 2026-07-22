@@ -26,7 +26,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.github.com; font-src 'self' data:"
     }
   },
   "bundle": {
@@ -43,17 +43,6 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": ""
-    }
-  },
-  "plugins": {
-    "shell": {
-      "open": true
-    },
-    "updater": {
-      "endpoints": [
-        "https://github.com/iibyteCoder/StreamGrab/releases/latest/download/{{target}}-{{arch}}.json"
-      ],
-      "pubkey": ""
     }
   }
 }

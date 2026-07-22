@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -104,6 +105,9 @@ const closeDialog = () => {
               {{ task.fileName }}
             </span>
           </DialogTitle>
+          <DialogDescription class="sr-only">
+            查看该下载任务的实时运行日志
+          </DialogDescription>
           <div class="flex items-center gap-2">
             <Button
               variant="ghost"
