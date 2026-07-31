@@ -32,8 +32,8 @@
 | Store 缓存层架构 | `[x]` | `src/stores/taskStore.ts` | 数据来源于后端，Store 为内存缓存 |
 | 引擎策略架构 | `[x]` | `src-tauri/src/infrastructure/engines/` | DownloadEngine trait + EngineRegistry 自动分派，详见 07 |
 | 错误处理体系 | `[x]` | `src-tauri/src/shared/error.rs` | AppError (thiserror) + AppResult\<T\>，命令层边界转 String |
-| 前端测试设施 | `[x]` | vitest (src/domain/url.test.ts, src/utils/*.test.ts) | 47 个测试：url 检测、format、validate、id |
-| 后端测试设施 | `[x]` | cargo test (src-tauri/src/) | 96 个测试：引擎参数/解析器、状态机、仓储 CRUD |
+| 前端测试设施 | `[x]` | vitest (src/domain/url.test.ts, src/utils/*.test.ts) | 52 个测试：url 检测、format、validate、id |
+| 后端测试设施 | `[x]` | cargo test (src-tauri/src/) | 116 个测试：引擎参数/解析器（含 N_m3u8DL-RE 真实粘连进度流）、状态机、仓储 CRUD |
 
 ---
 
@@ -41,9 +41,10 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 单链接输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | URL 输入 + 类型徽章 |
+| 单链接输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `LinkConfigPanel.vue` | 主从详情式：单链接直达 L2 聚焦配置，引擎类型驱动选项可见性 |
 | URL 格式验证 | P0 | `[x]` | `src/utils/validate.ts` + 后端 `domain/url.rs` | M3U8/MPD/MSS/HTTP，前端本地检测与后端对照 |
-| 多链接批量输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | 多行输入框，换行分隔 |
+| 多链接逐条配置 | P0 | `[x]` | `src/components/task/TaskStagingList.vue` + `LinkConfigPanel.vue` | 粘贴→暂存清单→逐条聚焦配置→全部添加；流媒体行按类型显隐专属选项，直链行仅通用三件 |
+| 多链接批量输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | 多行输入框，换行分隔（并入暂存清单） |
 | 从文件导入 | P1 | `[x]` | `src/components/task/AddTaskDialog.vue` | TXT 文件导入 |
 | 剪贴板自动检测 | P2 | `[x]` | `src/composables/useClipboardWatcher.ts` | 监控剪贴板，自动检测 M3U8/MPD/MSS 链接 |
 | 拖拽输入 | P2 | `[x]` | `src/views/HomeView.vue` | 支持拖放文本链接或 TXT 文件 |
@@ -230,7 +231,7 @@
 | 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情） |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
 | 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 2026-07 重设计：左侧导航栏 + 右侧单列内容（4 分区），SettingsGroup 单卡片 + divide-y 行模型，内联样式全量替换为语义化 token（浅色主题修复） |
-| 添加任务弹窗 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | 2026-07 两层渐进披露：一级仅 URL 输入（默认无滚动），二级「更多选项」折叠（文件名/保存位置/预设/定时/高级参数）；checkbox → Switch；弹窗边缘裁切修复 |
+| 添加任务弹窗 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `TaskStagingList.vue` + `LinkConfigPanel.vue` | 2026-08 主从详情式暂存层：L1 总览（粘贴+批次默认+行清单），L2 单条聚焦配置（按 UrlType 动态显隐引擎专属选项，流选择内联 StreamPickerInline）；单链接零跳转；三层合并纯函数 `resolveLinkToTask`；后端契约零改动 |
 | Toast 提示 | P0 | `[x]` | `src/composables/useToast.ts` | |
 | 日志查看器 | P2 | `[x]` | `src/components/task/LogViewer.vue` | 实时日志显示 |
 | 进度图表 | P2 | `[x]` | `src/components/task/ProgressChart.vue` | Chart.js 下载速率曲线，实时更新 |
@@ -291,3 +292,4 @@
 | 2026-02-20 | **自动更新下载安装功能** |
 | 2026-07-21 | **完全重构**——引擎策略架构（DownloadEngine + EngineRegistry 自动分派）、三层配置模型（全局默认 + TaskOverrides + 引擎 args）、schema v4 单表聚合（tasks JSON 列 + tool_settings 通用表 + history 快照）、设置中心 9→4 标签页（常规·界面 / N_m3u8DL-RE / FFmpeg / 任务预设）+ ToolManagerCard 参数化共用、添加任务闭环（URL 类型徽章 / 流选择 / 预设选择器 / 定时开始 / 高级折叠）、历史记录与定时开始真实实现、移除 3 个空壳功能（广告过滤 / 外部媒体导入 / 命名模板）、前端 commandBuilder 删除（参数构建移入后端引擎 `infrastructure/engines/*/args.rs`）、测试体系建立（Rust 96 + vitest 47）；schema v4 全量重建不保留旧数据。详见 `07-tool-config-architecture.md` |
 | 2026-07-21 | **UI 整修**——移除下载历史前端（HistoryView/historyStore/historyService 删除，与首页「进行中/已完成」分类冗余；后端历史快照保留）；设置页重设计（双栏导航栏 + 单卡片 SettingsGroup + divide-y 行模型 + 语义化 token，修复 tailwind alpha token 缺失与 `--accent-*` 变量未定义导致的浅色主题破图）；添加任务弹窗两层化（一级仅 URL，二级「更多选项」折叠，grid-rows 过渡，checkbox→Switch，宽度钳制 + 焦点环裁切修复） |
+| 2026-08-01 | **进度解析修复**——N_m3u8DL-RE 20260628 在非 TTY（piped stdout）下进度块零分隔粘连且单条格式与旧正则不符，导致 `EngineEvent::Progress` 从不产出（DB `progress_history` 0 行、任务 `progress_json` 全 0、进度条/速度/图表全空）。`EngineSession` 由逐行 `parse_line→Option` 改为流式 `parse_chunk→Vec`；`OutputParser::parse_stream` 在累积文本上扫描核心进度块 + 手动定位尾部边界（标准 regex 不支持前瞻）；`Nm3u8dlSession` 改为缓冲 + 流式 + 双流聚合；`spawn_reader` 传原始行（含 `\n`）便于会话按 `\n` 排水。附带修复 `useDownloader` 多实例化导致任一消费者卸载（关闭弹窗/切标签页）会 `unsubscribeFromAll()` 全局清订阅的潜在缺陷——状态提升为模块级单例、移除 `onUnmounted(cleanup)`。真实捕获格式补 5 个后端单测，全量 116 后端 + 52 前端测试通过 |

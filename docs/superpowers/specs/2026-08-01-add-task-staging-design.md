@@ -153,7 +153,7 @@ open → [粘贴框] → 解析生成 StagedLink[]
 ### 5.5 提交语义
 
 - 顶部「全部添加」：遍历 `StagedLink[]`，对每条 `resolveLinkToTask` → 调 `addAndStartTask`（autoStart）或 `taskStore.addTask`。
-- **就绪门槛**：`ready` 才提交；`pending`/`invalid` 的行被跳过并在行内标注（红色「未配置/无效」）。**不因某条没配好而阻塞其他条**。
+- **提交门槛**：仅 `invalid` 行被跳过；`pending`/`parsed`/`ready` 均参与提交（未配置者用默认值）。`ready` 是「已查看」指示而非门槛——「全部添加」不强制逐条打开，逐条配置是机会而非必经。行内按状态标注（待配置/已解析/就绪/无效）。**不因某条没配好而阻塞其他条**。
 - **URL 重复**：提交时逐条走现有 `checkUrlExists`，遇重复仍弹 `UrlDuplicateDialog`，确认后 `skipUrlCheck` 加入——逻辑与现有一致，仅搬到逐条循环里。
 - **部分失败**：逐条 try/catch（现有 `addTasks` 已是这模式），统计成功数 toast，不回滚已成功条。
 
