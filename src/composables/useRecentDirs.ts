@@ -7,7 +7,9 @@ import { STORAGE_KEY, rememberDir, resolveDefaultDir } from "./recentDirs";
 export function useRecentDirs() {
   const settingsStore = useSettingsStore();
   const dirs = useStorage<string[]>(STORAGE_KEY, []);
-  const defaultDir = computed(() => resolveDefaultDir(dirs.value, settingsStore.defaultSaveDir));
+  const defaultDir = computed(() =>
+    resolveDefaultDir(dirs.value, settingsStore.defaultSaveDir),
+  );
   function remember(dir: string): void {
     dirs.value = rememberDir(dirs.value, dir);
   }
