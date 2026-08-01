@@ -32,7 +32,7 @@
 | Store 缓存层架构 | `[x]` | `src/stores/taskStore.ts` | 数据来源于后端，Store 为内存缓存 |
 | 引擎策略架构 | `[x]` | `src-tauri/src/infrastructure/engines/` | DownloadEngine trait + EngineRegistry 自动分派，详见 07 |
 | 错误处理体系 | `[x]` | `src-tauri/src/shared/error.rs` | AppError (thiserror) + AppResult\<T\>，命令层边界转 String |
-| 前端测试设施 | `[x]` | vitest (src/domain/url.test.ts, src/utils/*.test.ts) | 52 个测试：url 检测、format、validate、id |
+| 前端测试设施 | `[x]` | vitest (src/domain/url.test.ts, src/utils/*.test.ts, src/components/task/*.test.ts, src/composables/recentDirs.test.ts) | 77 个测试：url 检测、format、validate、id + 添加任务向导（parseLinks / resolveLinkToTask / linkOptionVisibility / recentDirs） |
 | 后端测试设施 | `[x]` | cargo test (src-tauri/src/) | 116 个测试：引擎参数/解析器（含 N_m3u8DL-RE 真实粘连进度流）、状态机、仓储 CRUD |
 
 ---
@@ -41,14 +41,14 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 单链接输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `LinkConfigPanel.vue` | 主从详情式：单链接直达 L2 聚焦配置，引擎类型驱动选项可见性 |
+| 单链接输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `LinkConfigCard.vue` | 三段式向导：粘贴步单链接直达单条配置卡（无页码/全部添加/跳过），完成即入库；选项可见性由引擎类型驱动（`linkOptionVisibility.ts`） |
 | URL 格式验证 | P0 | `[x]` | `src/utils/validate.ts` + 后端 `domain/url.rs` | M3U8/MPD/MSS/HTTP，前端本地检测与后端对照 |
-| 多链接逐条配置 | P0 | `[x]` | `src/components/task/TaskStagingList.vue` + `LinkConfigPanel.vue` | 粘贴→暂存清单→逐条聚焦配置→全部添加；流媒体行按类型显隐专属选项，直链行仅通用三件 |
-| 多链接批量输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` | 多行输入框，换行分隔（并入暂存清单） |
+| 多链接逐条配置 | P0 | `[x]` | `src/composables/useAddTaskWizard.ts` + `src/components/task/LinkConfigCard.vue` | 三段式向导：粘贴解析→逐条配置（页码 i/N、添加/跳过/全部添加）→完成提交；流媒体按类型显隐专属选项，直链仅通用件 |
+| 多链接批量输入 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `src/components/task/parseLinks.ts` | 多行粘贴/文件导入，换行分隔；`parseLinks` 纯函数分类（流媒体/直链/无效）并剔除无效项 + toast |
 | 从文件导入 | P1 | `[x]` | `src/components/task/AddTaskDialog.vue` | TXT 文件导入 |
 | 剪贴板自动检测 | P2 | `[x]` | `src/composables/useClipboardWatcher.ts` | 监控剪贴板，自动检测 M3U8/MPD/MSS 链接 |
 | 拖拽输入 | P2 | `[x]` | `src/views/HomeView.vue` | 支持拖放文本链接或 TXT 文件 |
-| URL 重复检测 | P1 | `[x]` | `src/components/common/UrlDuplicateDialog.vue` | 添加已存在 URL 时弹窗确认 |
+| URL 重复检测 | P1 | `[x]` | `src/components/common/UrlDuplicateDialog.vue` | 添加已存在 URL 时弹窗确认；向导逐条配置弹窗确认，批量添加静默跳过并在结束 toast 汇报 |
 
 ---
 
@@ -204,7 +204,7 @@
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
 | 类型定义 | P2 | `[x]` | `src/domain/task.ts` (TaskOverrides.scheduledStartAt) | |
-| 定时开始 | P2 | `[x]` | `src/components/task/AddTaskDialog.vue` + `src/composables/useDownloader.ts` | datetime-local + 30s 轮询调度，应用需运行 |
+| 定时开始 | P2 | `[x]` | `src/components/task/LinkAdvancedSection.vue` + `src/composables/useDownloader.ts` | datetime-local + 30s 轮询调度，应用需运行 |
 
 ---
 
@@ -231,7 +231,7 @@
 | 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情） |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
 | 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 2026-07 重设计：左侧导航栏 + 右侧单列内容（4 分区），SettingsGroup 单卡片 + divide-y 行模型，内联样式全量替换为语义化 token（浅色主题修复） |
-| 添加任务弹窗 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `TaskStagingList.vue` + `LinkConfigPanel.vue` | 2026-08 主从详情式暂存层：L1 总览（粘贴+批次默认+行清单），L2 单条聚焦配置（按 UrlType 动态显隐引擎专属选项，流选择内联 StreamPickerInline）；单链接零跳转；三层合并纯函数 `resolveLinkToTask`；后端契约零改动 |
+| 添加任务弹窗 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `LinkConfigCard.vue` + `LinkAdvancedSection.vue` + `src/composables/useAddTaskWizard.ts`、`useRecentDirs.ts`（`recentDirs.ts`） + `parseLinks.ts` / `resolveLinkToTask.ts` / `addTaskTypes.ts` | 2026-08 重设计为三段式向导：①粘贴步（多行/文件导入，`parseLinks` 分类+剔除无效并 toast）②逐条配置步（页码 i/N、添加/跳过/全部添加；L1 字段 + 最近保存目录记忆下拉（useStorage，上限 5、去重、最新在前）+ 高级手风琴；按 UrlType 动态显隐引擎专属选项，内联 StreamPickerInline + 解析失败可重试）③完成提交（`resolveLinkToTask` 两层映射 + 提交调度；重复 URL 逐条弹 UrlDuplicateDialog / 批量静默跳过并结束 toast 汇报）；旧暂存外壳 TaskStagingList/LinkConfigPanel/staging-types 已删除；后端契约零改动 |
 | Toast 提示 | P0 | `[x]` | `src/composables/useToast.ts` | |
 | 日志查看器 | P2 | `[x]` | `src/components/task/LogViewer.vue` | 实时日志显示 |
 | 进度图表 | P2 | `[x]` | `src/components/task/ProgressChart.vue` | Chart.js 下载速率曲线，实时更新 |
@@ -257,7 +257,7 @@
 
 | 状态 | 数量 | 说明 |
 | --- | --- | --- |
-| `[x]` 已完成 | 111 | 基础设施（含引擎策略/测试体系/错误处理）+ 输入（含 URL 重复检测）+ 解析（含 ffprobe）+ 流选择 + 下载（含双引擎分派/TaskOverrides）+ 处理 + 直播 + 网络 + 管理（含历史后端/预设 DB/定时调度）+ 系统集成 + UI/UX（设置页双栏导航/添加任务两层弹窗/进度图表/任务筛选）+ 通用组件 |
+| `[x]` 已完成 | 111 | 基础设施（含引擎策略/测试体系/错误处理）+ 输入（含 URL 重复检测）+ 解析（含 ffprobe）+ 流选择 + 下载（含双引擎分派/TaskOverrides）+ 处理 + 直播 + 网络 + 管理（含历史后端/预设 DB/定时调度）+ 系统集成 + UI/UX（设置页双栏导航/添加任务三段式向导/进度图表/任务筛选）+ 通用组件 |
 | `[-]` 暂不实现 | 5 | 广告过滤、外部媒体导入、命名模板（旧空壳 UI）；历史列表/记录保存前端（2026-07 移除，与首页分类冗余） |
 | `[/]` 进行中 | 0 | - |
 | `[ ]` 计划中 | 0 | - |
@@ -293,3 +293,4 @@
 | 2026-07-21 | **完全重构**——引擎策略架构（DownloadEngine + EngineRegistry 自动分派）、三层配置模型（全局默认 + TaskOverrides + 引擎 args）、schema v4 单表聚合（tasks JSON 列 + tool_settings 通用表 + history 快照）、设置中心 9→4 标签页（常规·界面 / N_m3u8DL-RE / FFmpeg / 任务预设）+ ToolManagerCard 参数化共用、添加任务闭环（URL 类型徽章 / 流选择 / 预设选择器 / 定时开始 / 高级折叠）、历史记录与定时开始真实实现、移除 3 个空壳功能（广告过滤 / 外部媒体导入 / 命名模板）、前端 commandBuilder 删除（参数构建移入后端引擎 `infrastructure/engines/*/args.rs`）、测试体系建立（Rust 96 + vitest 47）；schema v4 全量重建不保留旧数据。详见 `07-tool-config-architecture.md` |
 | 2026-07-21 | **UI 整修**——移除下载历史前端（HistoryView/historyStore/historyService 删除，与首页「进行中/已完成」分类冗余；后端历史快照保留）；设置页重设计（双栏导航栏 + 单卡片 SettingsGroup + divide-y 行模型 + 语义化 token，修复 tailwind alpha token 缺失与 `--accent-*` 变量未定义导致的浅色主题破图）；添加任务弹窗两层化（一级仅 URL，二级「更多选项」折叠，grid-rows 过渡，checkbox→Switch，宽度钳制 + 焦点环裁切修复） |
 | 2026-08-01 | **进度解析修复**——N_m3u8DL-RE 20260628 在非 TTY（piped stdout）下进度块零分隔粘连且单条格式与旧正则不符，导致 `EngineEvent::Progress` 从不产出（DB `progress_history` 0 行、任务 `progress_json` 全 0、进度条/速度/图表全空）。`EngineSession` 由逐行 `parse_line→Option` 改为流式 `parse_chunk→Vec`；`OutputParser::parse_stream` 在累积文本上扫描核心进度块 + 手动定位尾部边界（标准 regex 不支持前瞻）；`Nm3u8dlSession` 改为缓冲 + 流式 + 双流聚合；`spawn_reader` 传原始行（含 `\n`）便于会话按 `\n` 排水。附带修复 `useDownloader` 多实例化导致任一消费者卸载（关闭弹窗/切标签页）会 `unsubscribeFromAll()` 全局清订阅的潜在缺陷——状态提升为模块级单例、移除 `onUnmounted(cleanup)`。真实捕获格式补 5 个后端单测，全量 116 后端 + 52 前端测试通过 |
+| 2026-08-02 | **添加任务弹窗重设计**——主从详情式暂存层重写为三段式向导（粘贴→逐条配置→完成）：`AddTaskDialog` 降为薄壳，编排逻辑迁入 `useAddTaskWizard`（状态机+导航+提交调度）；新增 `LinkConfigCard`（L1 字段 + 最近保存目录记忆下拉）与 `LinkAdvancedSection`（引擎驱动动态项 + 内联流选择 + 解析重试）；纯函数 `parseLinks`（分类+剔除无效）/ `resolveLinkToTask`（两层映射，移除预设播种）/ `addTaskTypes`（类型徽章集中映射）；最近保存目录记忆（`useRecentDirs`/`recentDirs`，useStorage 上限 5、去重、最新在前）；键盘流（粘贴框 Enter 提交 / Shift+Enter 换行，配置步 Enter 添加/完成，Esc 关闭）；删除旧外壳 `TaskStagingList` / `LinkConfigPanel` / `staging-types`；前端门禁全绿（type-check / lint / vitest 77，9 文件）；后端契约零改动（`src-tauri/` diff 为空） |
