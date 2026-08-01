@@ -16,3 +16,5 @@ export {
   type SortOrder,
   type TaskViewType,
 } from "./useTaskFilter";
+export { useRecentDirs } from "./useRecentDirs";
+export { useAddTaskWizard } from "./useAddTaskWizard";
