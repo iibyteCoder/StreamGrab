@@ -22,16 +22,21 @@ type ReleaseCacheData = (Option<ToolReleaseInfo>, Option<ToolReleaseInfo>);
 struct CacheEntry {
     data: ReleaseCacheData,
     timestamp: Instant,
+    /// 限流负缓存：在此时间点之前不再请求 GitHub API
+    rate_limited_until: Option<Instant>,
 }
 
 static RELEASE_CACHE: OnceLock<Mutex<CacheEntry>> = OnceLock::new();
 const CACHE_TTL: Duration = Duration::from_secs(5 * 60);
+/// 限流后冷却时间（避免反复请求已耗尽配额的 API）
+const RATE_LIMIT_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 fn cache() -> &'static Mutex<CacheEntry> {
     RELEASE_CACHE.get_or_init(|| {
         Mutex::new(CacheEntry {
             data: (None, None),
             timestamp: Instant::now() - CACHE_TTL - Duration::from_secs(1),
+            rate_limited_until: None,
         })
     })
 }
@@ -120,6 +125,7 @@ pub async fn get_nm3u8dl_latest_release() -> Result<ToolReleaseInfo, String> {
     if let Some(info) = cached_release(0) {
         return Ok(info);
     }
+    check_rate_limit()?;
     let registry = ToolRegistry::global();
     let config = registry.downloader();
     let info = fetch_release(config).await?;
@@ -133,6 +139,7 @@ pub async fn get_ffmpeg_latest_release() -> Result<ToolReleaseInfo, String> {
     if let Some(info) = cached_release(1) {
         return Ok(info);
     }
+    check_rate_limit()?;
     let registry = ToolRegistry::global();
     let config = registry.ffmpeg();
     let info = fetch_release(config).await?;
@@ -161,6 +168,28 @@ fn store_cached_release(slot: usize, info: ToolReleaseInfo) {
     }
 }
 
+/// 检查是否处于限流冷却期
+fn check_rate_limit() -> Result<(), String> {
+    if let Ok(cache) = cache().lock() {
+        if let Some(until) = cache.rate_limited_until {
+            if Instant::now() < until {
+                let secs = (until - Instant::now()).as_secs();
+                return Err(format!(
+                    "GitHub API 请求频率限制，请 {secs} 秒后重试"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 标记限流（触发冷却期）
+fn mark_rate_limited() {
+    if let Ok(mut cache) = cache().lock() {
+        cache.rate_limited_until = Some(Instant::now() + RATE_LIMIT_COOLDOWN);
+    }
+}
+
 /// 从 GitHub 获取最新 release（经 ToolDefinition 选择平台资产）
 async fn fetch_release(
     config: &'static dyn crate::infrastructure::tools::ToolDefinition,
@@ -171,7 +200,7 @@ async fn fetch_release(
 
     let client = reqwest::Client::builder()
         .user_agent("StreamGrab")
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
 
@@ -183,6 +212,7 @@ async fn fetch_release(
         .map_err(|e| format!("请求 GitHub API 失败: {e}"))?;
 
     if response.status() == 403 {
+        mark_rate_limited();
         return Err("GitHub API 请求频率限制，请稍后重试".to_string());
     }
     if !response.status().is_success() {
@@ -235,13 +265,19 @@ pub async fn download_tool(
     app: AppHandle,
 ) -> Result<String, String> {
     // 目标目录为空（工具未安装且未配置路径时，前端会传空串）→ 回退到应用数据目录下的
-    // tools 目录。ResolvedPath 保证最终路径非空+绝对+存在。
+    // tools/<tool> 子目录，使各工具路径组织一致。ResolvedPath 保证最终路径非空+绝对+存在。
     let target_path = if target_dir.trim().is_empty() {
+        let tool_subdir = if tool.to_lowercase().contains("ffmpeg") {
+            "ffmpeg"
+        } else {
+            "nm3u8dl"
+        };
         let dir = app
             .path()
             .app_data_dir()
             .map_err(|e| format!("获取应用数据目录失败: {e}"))?
-            .join("tools");
+            .join("tools")
+            .join(tool_subdir);
         log::info!("[Tools] 未指定目标目录，回退默认目录: {}", dir.display());
         dir
     } else {

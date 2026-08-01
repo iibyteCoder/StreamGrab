@@ -5,7 +5,7 @@
  * 进度事件载荷直接使用后端 ProgressData（camelCase），不做字段转换。
  */
 
-import { ref, onUnmounted } from "vue";
+import { ref } from "vue";
 import { useTaskStore, useSettingsStore } from "@/stores";
 import {
   downloadService,
@@ -24,19 +24,29 @@ import { i18n } from "@/locales";
 /** 定时调度器轮询间隔（30 秒） */
 const SCHEDULE_TICK_INTERVAL = 30_000;
 
+// ==========================================
+// 模块级单例状态
+//
+// useDownloader 被 App / HomeView / TaskCard / TaskDetailPanel / AddTaskDialog
+// 多处调用。若状态随组件实例化，任一消费者卸载（如关闭 AddTaskDialog、切换
+// v-if 标签页）就会清掉正在下载任务的进度订阅。故订阅与队列状态提升到模块级，
+// 生命周期等同应用进程；任务的订阅在 complete/error 时由 handleDownloadEvent
+// 显式 unsubscribeTask 释放。
+// ==========================================
+const startingTasks = ref<Set<string>>(new Set());
+const unlisteners = new Map<string, UnlistenFn>();
+let isProcessingQueue = false;
+let scheduleTimer: ReturnType<typeof setInterval> | null = null;
+let scheduleStarted = false;
+
 export function useDownloader() {
   const taskStore = useTaskStore();
   const settingsStore = useSettingsStore();
   const toast = useToast();
   const notification = useNotification();
 
-  const startingTasks = ref<Set<string>>(new Set());
-  const unlisteners = new Map<string, UnlistenFn>();
   const isParsing = ref(false);
   const parsedStreamInfo = ref<StreamInfo | null>(null);
-
-  let isProcessingQueue = false;
-  let scheduleTimer: ReturnType<typeof setInterval> | null = null;
 
   // ==========================================
   // 队列处理
@@ -353,7 +363,7 @@ export function useDownloader() {
   };
 
   // ==========================================
-  // 定时调度器
+  // 定时调度器（模块级单例：仅启动一次）
   // ==========================================
 
   /** 扫描 pending 任务，启动已到期的定时任务 */
@@ -370,12 +380,14 @@ export function useDownloader() {
     }
   };
 
-  // 挂载时立即扫描一次 + 启动定时轮询
-  tickScheduledTasks();
-  scheduleTimer = setInterval(tickScheduledTasks, SCHEDULE_TICK_INTERVAL);
+  if (!scheduleStarted) {
+    scheduleStarted = true;
+    tickScheduledTasks();
+    scheduleTimer = setInterval(tickScheduledTasks, SCHEDULE_TICK_INTERVAL);
+  }
 
   // ==========================================
-  // 清理
+  // 清理（仅供显式调用，如应用退出；不再随组件卸载触发）
   // ==========================================
 
   const cleanup = (): void => {
@@ -385,10 +397,9 @@ export function useDownloader() {
     if (scheduleTimer) {
       clearInterval(scheduleTimer);
       scheduleTimer = null;
+      scheduleStarted = false;
     }
   };
-
-  onUnmounted(cleanup);
 
   return {
     // State

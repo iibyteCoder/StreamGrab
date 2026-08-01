@@ -84,6 +84,7 @@ impl DownloadEngine for Nm3u8dlEngine {
     fn new_session(&self) -> Box<dyn EngineSession> {
         Box::new(Nm3u8dlSession {
             parser: Arc::clone(&self.parser),
+            buffer: String::new(),
             video_total: 0,
             video_downloaded: 0,
             audio_total: 0,
@@ -94,10 +95,13 @@ impl DownloadEngine for Nm3u8dlEngine {
 
 /// N_m3u8DL-RE 逐任务解析会话
 ///
-/// 聚合视频/音频双流的下载进度，计算总体进度百分比，
+/// 缓冲进程输出，用流式扫描从粘连文本中提取进度块（N_m3u8DL-RE 非 TTY
+/// 下多次进度更新零分隔粘连），并聚合视频/音频双流分片进度，
 /// 避免「视频下完、音频开始时进度跳回 0」。
 struct Nm3u8dlSession {
     parser: Arc<OutputParser>,
+    /// 跨块输出缓冲（保留最后一个 `\n` 之后的未完成尾部）
+    buffer: String,
     video_total: u32,
     video_downloaded: u32,
     audio_total: u32,
@@ -105,36 +109,51 @@ struct Nm3u8dlSession {
 }
 
 impl EngineSession for Nm3u8dlSession {
-    fn parse_line(&mut self, line: &str) -> Option<EngineEvent> {
-        match self.parser.parse_line(line)? {
-            RawEvent::Log { level, message } => Some(EngineEvent::Log { level, message }),
-            RawEvent::Status { action } => Some(EngineEvent::Status { action }),
-            RawEvent::Progress { kind, mut data } => {
-                match kind {
-                    StreamKind::Video => {
-                        self.video_total = data.total_segments as u32;
-                        self.video_downloaded = data.downloaded_segments as u32;
-                    }
-                    StreamKind::Audio => {
-                        self.audio_total = data.total_segments as u32;
-                        self.audio_downloaded = data.downloaded_segments as u32;
-                    }
-                }
-
-                let total = self.video_total + self.audio_total;
-                let downloaded = self.video_downloaded + self.audio_downloaded;
-                data.overall_percent = if total > 0 {
-                    (downloaded * 100 / total) as i32
-                } else {
-                    0
-                };
-                data.total_segments = total as i32;
-                data.downloaded_segments = downloaded as i32;
-                data.current_action = format!("下载中 {downloaded}/{total}");
-
-                Some(EngineEvent::Progress { data })
-            }
+    fn parse_chunk(&mut self, chunk: &str) -> Vec<EngineEvent> {
+        self.buffer.push_str(chunk);
+        // 仅处理到最后一个 `\n`：其前的内容已完整，其后的尾部可能仍在写入
+        let split_at = match self.buffer.rfind('\n') {
+            Some(i) => i + 1,
+            None => return Vec::new(),
+        };
+        let complete: String = self.buffer.drain(..split_at).collect();
+        if complete.is_empty() {
+            return Vec::new();
         }
+
+        self.parser
+            .parse_stream(&complete)
+            .into_iter()
+            .map(|ev| match ev {
+                RawEvent::Log { level, message } => EngineEvent::Log { level, message },
+                RawEvent::Status { action } => EngineEvent::Status { action },
+                RawEvent::Progress { kind, mut data } => {
+                    match kind {
+                        StreamKind::Video => {
+                            self.video_total = data.total_segments as u32;
+                            self.video_downloaded = data.downloaded_segments as u32;
+                        }
+                        StreamKind::Audio => {
+                            self.audio_total = data.total_segments as u32;
+                            self.audio_downloaded = data.downloaded_segments as u32;
+                        }
+                    }
+
+                    let total = self.video_total + self.audio_total;
+                    let downloaded = self.video_downloaded + self.audio_downloaded;
+                    data.overall_percent = if total > 0 {
+                        (downloaded * 100 / total) as i32
+                    } else {
+                        0
+                    };
+                    data.total_segments = total as i32;
+                    data.downloaded_segments = downloaded as i32;
+                    data.current_action = format!("下载中 {downloaded}/{total}");
+
+                    EngineEvent::Progress { data }
+                }
+            })
+            .collect()
     }
 }
 
@@ -142,46 +161,46 @@ impl EngineSession for Nm3u8dlSession {
 mod tests {
     use super::*;
 
+    /// 从事件流中取出最后一条 Progress 的数据
+    fn last_progress(events: &[EngineEvent]) -> &crate::domain::task::ProgressData {
+        events
+            .iter()
+            .rev()
+            .find_map(|e| match e {
+                EngineEvent::Progress { data } => Some(data),
+                _ => None,
+            })
+            .expect("expected at least one progress event")
+    }
+
     #[test]
     fn session_aggregates_video_and_audio_progress() {
         let engine = Nm3u8dlEngine::new();
         let mut session = engine.new_session();
 
         // 视频流进度
-        let event = session
-            .parse_line("Vid 1280x720 | 1159 Kbps ------------------------------ 30/60 50.00% 1.00MB/2.00MB 1.00MBps 00:00:10")
-            .unwrap();
-        match event {
-            EngineEvent::Progress { data } => {
-                assert_eq!(data.overall_percent, 50); // 30/60，暂无音频
-                assert_eq!(data.total_segments, 60);
-            }
-            other => panic!("expected progress, got {other:?}"),
-        }
+        let events = session.parse_chunk(
+            "Vid 1280x720 | 1159 Kbps ------------------------------ 30/60 50.00% 1.00MB/2.00MB 1.00MBps 00:00:10\n",
+        );
+        let data = last_progress(&events);
+        assert_eq!(data.overall_percent, 50); // 30/60，暂无音频
+        assert_eq!(data.total_segments, 60);
 
         // 音频流进度加入后，总体进度 = (30+15)/(60+30) = 50%
-        let event = session
-            .parse_line("Aud Audio                ------------------------------ 15/30 50.00% -    -    --:--:--")
-            .unwrap();
-        match event {
-            EngineEvent::Progress { data } => {
-                assert_eq!(data.overall_percent, 50);
-                assert_eq!(data.total_segments, 90);
-                assert_eq!(data.downloaded_segments, 45);
-            }
-            other => panic!("expected progress, got {other:?}"),
-        }
+        let events = session.parse_chunk(
+            "Aud Audio                ------------------------------ 15/30 50.00% -    -    --:--:--\n",
+        );
+        let data = last_progress(&events);
+        assert_eq!(data.overall_percent, 50);
+        assert_eq!(data.total_segments, 90);
+        assert_eq!(data.downloaded_segments, 45);
 
         // 视频完成、音频继续 → 进度不回退
-        let event = session
-            .parse_line("Vid 1280x720 | 1159 Kbps ------------------------------ 60/60 100.00% 2.00MB/2.00MB 1.00MBps 00:00:00")
-            .unwrap();
-        match event {
-            EngineEvent::Progress { data } => {
-                assert_eq!(data.overall_percent, 83); // (60+15)/90 ≈ 83
-            }
-            other => panic!("expected progress, got {other:?}"),
-        }
+        let events = session.parse_chunk(
+            "Vid 1280x720 | 1159 Kbps ------------------------------ 60/60 100.00% 2.00MB/2.00MB 1.00MBps 00:00:00\n",
+        );
+        let data = last_progress(&events);
+        assert_eq!(data.overall_percent, 83); // (60+15)/90 ≈ 83
     }
 
     #[test]
@@ -190,18 +209,35 @@ mod tests {
         let mut s1 = engine.new_session();
         let mut s2 = engine.new_session();
 
-        let _ = s1.parse_line(
-            "Vid 1280x720 | 1159 Kbps ------------------------------ 60/60 100.00% - - --:--:--",
+        let _ = s1.parse_chunk(
+            "Vid 1280x720 | 1159 Kbps ------------------------------ 60/60 100.00% - - --:--:--\n",
         );
-        let event = s2
-            .parse_line(
-                "Vid 1280x720 | 1159 Kbps ------------------------------ 1/60 1.67% - - --:--:--",
-            )
-            .unwrap();
-        match event {
-            EngineEvent::Progress { data } => assert_eq!(data.total_segments, 60),
-            other => panic!("expected progress, got {other:?}"),
-        }
+        let events = s2.parse_chunk(
+            "Vid 1280x720 | 1159 Kbps ------------------------------ 1/60 1.67% - - --:--:--\n",
+        );
+        let data = last_progress(&events);
+        assert_eq!(data.total_segments, 60);
+    }
+
+    #[test]
+    fn session_parses_real_glued_progress_stream() {
+        // 真实捕获：N_m3u8DL-RE 20260628 非 TTY 下进度块零分隔粘连
+        let engine = Nm3u8dlEngine::new();
+        let mut session = engine.new_session();
+        let blob = "\
+01:33:30.258 INFO : [0x1]: Video, h264 (avc1), 1280x720Vid 1280x720 | 1981 Kbps ------------------------------  1/5 20.00% -0.00Bps00:00:00Aud Audio                ------------------------------ 0/100 0.00% -    -    --:--:--Vid 1280x720 | 1981 Kbps ------------------------------  2/5 40.00% -0.00Bps00:00:00Aud Audio                ------------------------------ 0/100 0.00% -    -    --:--:--01:33:30.803 INFO : 二进制合并中...\n";
+        let events = session.parse_chunk(blob);
+        let progs: Vec<&EngineEvent> = events
+            .iter()
+            .filter(|e| matches!(e, EngineEvent::Progress { .. }))
+            .collect();
+        assert!(progs.len() >= 4, "got {} progress events", progs.len());
+        // 应存在 Vid 2/5 = 40% 的进度（单流 percent 字段，聚合不改写 percent）
+        let vid40 = events.iter().any(|e| match e {
+            EngineEvent::Progress { data } => data.percent == 40,
+            _ => false,
+        });
+        assert!(vid40, "应提取到 Vid 2/5 40% 进度");
     }
 
     #[test]

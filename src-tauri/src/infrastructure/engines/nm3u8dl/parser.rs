@@ -67,6 +67,17 @@ pub struct OutputParser {
     duration_approx: Regex,
     /// 大小值 `32.88KB`
     size_value: Regex,
+    /// 流式进度核心（Vid/Aud <desc> --- N/M p%），不含尾部（标准 regex 不支持前瞻，
+    /// 尾部由 [`OutputParser::parse_stream`] 手动扫描到下一个边界确定）
+    progress_stream: Regex,
+    /// 时间戳日志行前缀（非锚定，用于在进度尾部中定位下一个日志行边界）
+    ts_boundary: Regex,
+    /// 流式进度尾部的单个大小 `2.48MB`（排除 `Bps` 速度单位）
+    stream_size: Regex,
+    /// 流式进度尾部的速度 `0.00Bps` / `32.88KBps`
+    stream_speed: Regex,
+    /// 流式进度尾部的 ETA `00:00:00` / `--:--:--`
+    stream_eta: Regex,
 }
 
 impl OutputParser {
@@ -91,6 +102,18 @@ impl OutputParser {
             segment_count: Regex::new(r"(\d+)\s*[Ss]egment").unwrap(),
             duration_approx: Regex::new(r"~(\d+)m(\d+)s").unwrap(),
             size_value: Regex::new(r"([\d.]+)(KB|MB|GB|B)").unwrap(),
+            // 流式进度核心：`Vid/Aud <desc> --- N/M p%`（尾部由 parse_stream 手动扫描边界）
+            progress_stream: Regex::new(
+                r"(?P<kind>Vid|Aud)\s+(?P<desc>.+?)\s+(?:-{3,})\s*(?P<done>\d+)/(?P<total>\d+)\s+(?P<pct>\d+(?:\.\d+)?)%",
+            )
+            .unwrap(),
+            // 非锚定时间戳日志行前缀，用于定位进度尾部中的下一个日志行
+            ts_boundary: Regex::new(r"\d{2}:\d{2}:\d{2}\.\d+\s+(?:INFO|WARN|ERROR|DEBUG|EXTRA)")
+                .unwrap(),
+            // 排除 `Bps`：仅 KB/MB/GB
+            stream_size: Regex::new(r"([\d.]+)(KB|MB|GB)").unwrap(),
+            stream_speed: Regex::new(r"([\d.]+)(KB|MB|GB|B)ps").unwrap(),
+            stream_eta: Regex::new(r"(\d{2}:\d{2}:\d{2}|--:--:--)").unwrap(),
         }
     }
 
@@ -268,6 +291,127 @@ impl OutputParser {
             }
         }
         0
+    }
+
+    // ========================================
+    // 流式解析：非 TTY 下载输出（进度块零分隔粘连）
+    // ========================================
+
+    /// 流式解析下载输出（处理 N_m3u8DL-RE 非 TTY 下进度块零分隔粘连）
+    ///
+    /// 在整段文本上扫描：先用核心进度正则捕获所有进度块（含粘连的），
+    /// 每个进度块的尾部手动扫描到下一个边界（`Vid `/`Aud `/时间戳日志行/换行），
+    /// 进度块之间的残留文本按行做日志/状态解析。返回事件保持出现顺序。
+    /// `overall_percent` 留 0，由 [`Nm3u8dlSession`] 聚合视频/音频双流。
+    pub fn parse_stream(&self, text: &str) -> Vec<RawEvent> {
+        let mut events = Vec::new();
+        let mut last_end = 0usize;
+        for caps in self.progress_stream.captures_iter(text) {
+            let m = caps.get(0).unwrap();
+            if m.start() > last_end {
+                self.emit_residual_logs(&text[last_end..m.start()], &mut events);
+            }
+            // 尾部 = 从核心匹配结尾到下一个进度块/日志行/换行
+            let rest = &text[m.end()..];
+            let tail_len = self.tail_boundary(rest);
+            let tail = &rest[..tail_len];
+            events.push(self.build_stream_progress(&caps, tail));
+            last_end = m.end() + tail_len;
+        }
+        if last_end < text.len() {
+            self.emit_residual_logs(&text[last_end..], &mut events);
+        }
+        events
+    }
+
+    /// 进度尾部边界：最早出现 `Vid `/`Aud `/时间戳日志行/换行 的位置
+    fn tail_boundary(&self, rest: &str) -> usize {
+        let mut best = rest.len();
+        for pat in ["\n", "Vid ", "Aud "] {
+            if let Some(i) = rest.find(pat) {
+                best = best.min(i);
+            }
+        }
+        if let Some(m) = self.ts_boundary.find(rest) {
+            best = best.min(m.start());
+        }
+        best
+    }
+
+    /// 残留文本按行解析为日志/状态事件（剥离 `\r`，识别状态标记）
+    fn emit_residual_logs(&self, text: &str, events: &mut Vec<RawEvent>) {
+        for raw in text.split('\n') {
+            let line = raw.trim_end_matches('\r').trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Some(caps) = self.log_line.captures(line) {
+                let level = &caps[2];
+                let message = &caps[3];
+                events.push(self.parse_log_message(level, message).unwrap_or_else(|| {
+                    RawEvent::Log {
+                        level: "info".into(),
+                        message: message.to_string(),
+                    }
+                }));
+            } else {
+                events.push(RawEvent::Log {
+                    level: "info".into(),
+                    message: line.to_string(),
+                });
+            }
+        }
+    }
+
+    /// 从流式进度捕获 + 尾部文本构建单流 `ProgressData`
+    fn build_stream_progress(&self, caps: &regex::Captures<'_>, tail: &str) -> RawEvent {
+        let kind = if caps.name("kind").unwrap().as_str() == "Vid" {
+            StreamKind::Video
+        } else {
+            StreamKind::Audio
+        };
+        let downloaded: i32 = caps.name("done").unwrap().as_str().parse().unwrap_or(0);
+        let total: i32 = caps.name("total").unwrap().as_str().parse().unwrap_or(0);
+        let percent = if total > 0 {
+            (downloaded as f64 / total as f64 * 100.0).round() as i32
+        } else {
+            caps.name("pct")
+                .unwrap()
+                .as_str()
+                .parse::<f64>()
+                .unwrap_or(0.0)
+                .round() as i32
+        };
+        let downloaded_size = self
+            .stream_size
+            .captures(tail)
+            .map(|c| self.parse_size(c.get(0).unwrap().as_str()))
+            .unwrap_or(0) as i64;
+        let speed = self
+            .stream_speed
+            .captures(tail)
+            .map(|c| self.parse_speed(c.get(0).unwrap().as_str()))
+            .unwrap_or(0) as i64;
+        let eta = self
+            .stream_eta
+            .captures(tail)
+            .map(|c| self.parse_eta(c.get(0).unwrap().as_str()))
+            .unwrap_or(0) as i32;
+
+        RawEvent::Progress {
+            kind,
+            data: ProgressData {
+                percent,
+                overall_percent: 0,
+                speed,
+                downloaded_size,
+                total_size: 0,
+                downloaded_segments: downloaded,
+                total_segments: total,
+                eta,
+                current_action: format!("下载中 {downloaded}/{total}"),
+            },
+        }
     }
 
     // ========================================
@@ -648,5 +792,73 @@ mod tests {
         let parser = OutputParser::new();
         let info = parser.parse_streams("no streams here\njust noise");
         assert_eq!(info, StreamInfo::default());
+    }
+
+    // ===== 流式解析测试（N_m3u8DL-RE 20260628 非 TTY 真实输出） =====
+    // 真实捕获：piped stdout 下多次进度更新零分隔粘连，且单条格式与旧正则不同
+    // （速度带 `-` 前缀、与 eta 无空格、`---5/5` 有时无空格）。
+
+    /// 真实捕获的进度块（日志行 + 多条粘连进度 + 后续日志行）
+    const REAL_PROGRESS_BLOB: &str = "\
+01:33:30.258 INFO : [0x1]: Video, h264 (avc1), 1280x720Vid 1280x720 | 1981 Kbps ------------------------------  1/5 20.00% -0.00Bps00:00:00Aud Audio                ------------------------------ 0/100 0.00% -    -    --:--:--Vid 1280x720 | 1981 Kbps ------------------------------  2/5 40.00% -0.00Bps00:00:00Aud Audio                ------------------------------ 0/100 0.00% -    -    --:--:--01:33:30.803 INFO : 二进制合并中...\n";
+
+    fn progress_events(events: &[RawEvent]) -> Vec<&ProgressData> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                RawEvent::Progress { data, .. } => Some(data),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn parse_stream_extracts_glued_progress_bars() {
+        let parser = OutputParser::new();
+        let events = parser.parse_stream(REAL_PROGRESS_BLOB);
+        let progs = progress_events(&events);
+        // 至少提取出 4 条进度（2 条 Vid + 2 条 Aud）
+        assert!(progs.len() >= 4, "got {} progress events", progs.len());
+
+        // 最后一条 Vid 进度应为 2/5 = 40%
+        let last_vid = progs
+            .iter()
+            .rev()
+            .find(|d| d.total_segments == 5)
+            .expect("应存在 total=5 的进度");
+        assert_eq!(last_vid.downloaded_segments, 2);
+        assert_eq!(last_vid.percent, 40);
+    }
+
+    #[test]
+    fn parse_stream_handles_dash_speed_and_no_space_eta() {
+        let parser = OutputParser::new();
+        // 100% 时 size 有值、speed 为 `-`、eta 无空格紧随
+        let blob = "Vid 1280x720 | 1981 Kbps ------------------------------5/5 100.00%2.48MB    -    00:00:00Aud Audio                ------------------------------   0/5 0.00%      -0.00Bps --:--:--\n";
+        let events = parser.parse_stream(blob);
+        let progs = progress_events(&events);
+        assert_eq!(progs.len(), 2);
+        assert_eq!(progs[0].percent, 100);
+        assert_eq!(progs[0].total_segments, 5);
+        assert_eq!(progs[0].downloaded_segments, 5);
+        assert!(progs[0].downloaded_size >= 2_000_000); // 2.48MB
+    }
+
+    #[test]
+    fn parse_stream_emits_residual_logs_and_status() {
+        let parser = OutputParser::new();
+        let events = parser.parse_stream(REAL_PROGRESS_BLOB);
+        // 残留日志应产出至少一条 Log 和一条 merging 状态
+        assert!(
+            events.iter().any(|e| matches!(e, RawEvent::Log { .. })),
+            "应产出日志事件"
+        );
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                RawEvent::Status { action } if action == "merging"
+            )),
+            "应识别二进制合并中为 merging 状态"
+        );
     }
 }

@@ -6,3 +6,7 @@
 # Temporary directories (e.g., from Tauri dev)
 G8R_*/
 iKWYYTAdS*/
+
+# N_m3u8DL-RE 解析/下载时在工作目录创建的元数据目录（name_date_time 格式）
+# 修复后解析模式 CWD 已改为系统临时目录，此规则为兜底防护
+*_????-??-??_??-??-??/

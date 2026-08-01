@@ -148,8 +148,11 @@ async function handleCheckLatest() {
     } else {
       latestRelease.value = await toolsService.getFfmpegLatestRelease();
     }
-  } catch {
-    toast.error(t("settings.tool.fetchLatestFailed", "获取最新版本信息失败"));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+    toast.error(
+      msg || t("settings.tool.fetchLatestFailed", "获取最新版本信息失败"),
+    );
   } finally {
     isCheckingLatest.value = false;
   }

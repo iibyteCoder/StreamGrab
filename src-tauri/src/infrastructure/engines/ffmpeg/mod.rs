@@ -77,10 +77,10 @@ struct FfmpegSession {
 }
 
 impl EngineSession for FfmpegSession {
-    fn parse_line(&mut self, line: &str) -> Option<EngineEvent> {
-        let line = line.trim();
+    fn parse_chunk(&mut self, chunk: &str) -> Vec<EngineEvent> {
+        let line = chunk.trim();
         if line.is_empty() {
-            return None;
+            return Vec::new();
         }
 
         // Duration 行（启动阶段输出）
@@ -88,7 +88,7 @@ impl EngineSession for FfmpegSession {
             if let Some(duration) = self.parser.parse_duration(line) {
                 self.total_duration_us = duration;
             }
-            return None;
+            return Vec::new();
         }
 
         // 进度 key=value 行（排除普通信息行）
@@ -114,7 +114,7 @@ impl EngineSession for FfmpegSession {
                     } else {
                         0
                     };
-                    return Some(EngineEvent::Progress {
+                    return vec![EngineEvent::Progress {
                         data: ProgressData {
                             percent,
                             overall_percent: percent,
@@ -124,17 +124,17 @@ impl EngineSession for FfmpegSession {
                             current_action: "下载中".into(),
                             ..Default::default()
                         },
-                    });
+                    }];
                 }
             }
-            return None;
+            return Vec::new();
         }
 
         // 其余作为日志
-        Some(EngineEvent::Log {
+        vec![EngineEvent::Log {
             level: "info".into(),
             message: line.to_string(),
-        })
+        }]
     }
 }
 
@@ -149,8 +149,8 @@ mod tests {
 
         // 启动输出中的 Duration（5 分钟）
         assert!(session
-            .parse_line("  Duration: 00:05:00.00, start: 0.000000, bitrate: 1234 kb/s")
-            .is_none());
+            .parse_chunk("  Duration: 00:05:00.00, start: 0.000000, bitrate: 1234 kb/s")
+            .is_empty());
 
         // 进度块：已进行 2.5 分钟 → 50%
         for line in [
@@ -159,9 +159,12 @@ mod tests {
             "bitrate=500.0kbits/s",
             "speed=1.50x",
         ] {
-            assert!(session.parse_line(line).is_none());
+            assert!(session.parse_chunk(line).is_empty());
         }
-        let event = session.parse_line("progress=continue").unwrap();
+        let event = session
+            .parse_chunk("progress=continue")
+            .pop()
+            .unwrap();
         match event {
             EngineEvent::Progress { data } => {
                 assert_eq!(data.percent, 50);
@@ -177,7 +180,8 @@ mod tests {
         let engine = FfmpegEngine::new();
         let mut session = engine.new_session();
         let event = session
-            .parse_line("Input #0, mov,mp4,m4a,3gp,3g2,mj2")
+            .parse_chunk("Input #0, mov,mp4,m4a,3gp,3g2,mj2")
+            .pop()
             .unwrap();
         // "Input" 开头不作为进度行 → 日志
         assert!(matches!(event, EngineEvent::Log { .. }));

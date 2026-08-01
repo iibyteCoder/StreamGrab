@@ -112,8 +112,11 @@ pub trait DownloadEngine: Send + Sync {
 
 /// 逐任务的引擎输出解析会话
 pub trait EngineSession: Send {
-    /// 解析单行进程输出为事件（逐行调用，需保持低开销）
-    fn parse_line(&mut self, line: &str) -> Option<EngineEvent>;
+    /// 解析一段进程输出为事件
+    ///
+    /// 接收任意大小的输出块（可能跨多行，或 N_m3u8DL-RE 非 TTY 下
+    /// 零分隔粘连的进度块），返回 0..N 个事件。会话内部自行缓冲跨块状态。
+    fn parse_chunk(&mut self, chunk: &str) -> Vec<EngineEvent>;
 }
 
 /// 引擎注册表：按 URL 类型分派策略
@@ -210,8 +213,8 @@ mod tests {
     struct StubSession;
 
     impl EngineSession for StubSession {
-        fn parse_line(&mut self, _line: &str) -> Option<EngineEvent> {
-            None
+        fn parse_chunk(&mut self, _chunk: &str) -> Vec<EngineEvent> {
+            Vec::new()
         }
     }
 

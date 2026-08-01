@@ -68,9 +68,20 @@ fn load_tool_configs(db: &Database) -> AppResult<ToolConfigs> {
 }
 
 /// 同步执行命令并捕获输出（解析模式使用）
-fn run_command_capture(program: &ResolvedPath, args: &[String]) -> AppResult<std::process::Output> {
+///
+/// `working_dir`：子进程 CWD。解析模式下 N_m3u8DL-RE 即使 `--skip-download`
+/// 也会在 CWD 创建元数据目录（raw.m3u8 / meta.json），必须指向系统临时目录
+/// 而非工程目录，避免开发时污染 src-tauri/。
+fn run_command_capture(
+    program: &ResolvedPath,
+    args: &[String],
+    working_dir: Option<&std::path::Path>,
+) -> AppResult<std::process::Output> {
     let mut cmd = std::process::Command::new(program.as_path());
     cmd.args(args);
+    if let Some(dir) = working_dir {
+        cmd.current_dir(dir);
+    }
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd.output()
@@ -153,8 +164,12 @@ async fn start_download_inner(
     let task_id_out = task_id.clone();
     let app_out = app.clone();
     let on_output = move |line: String| {
-        let event = session.lock().ok().and_then(|mut s| s.parse_line(&line));
-        if let Some(event) = event {
+        let events = session
+            .lock()
+            .ok()
+            .map(|mut s| s.parse_chunk(&line))
+            .unwrap_or_default();
+        for event in events {
             match event {
                 EngineEvent::Log { level, message } => {
                     let _ = app_out.emit(
@@ -220,6 +235,17 @@ async fn start_download_inner(
         }
     };
 
+    // 确保保存目录存在（用户可能配置了尚未创建的路径）
+    let save_dir_path = PathBuf::from(&spec.save_dir);
+    if !save_dir_path.exists() {
+        std::fs::create_dir_all(&save_dir_path).map_err(|e| {
+            AppError::config(format!(
+                "保存目录不存在且无法创建: {} ({e})",
+                save_dir_path.display()
+            ))
+        })?;
+        log::info!("已创建保存目录: {}", save_dir_path.display());
+    }
     // ResolvedPath 编译期保证：非空 + 绝对 + 存在
     let save_dir_resolved = ResolvedPath::new(&spec.save_dir)?;
 
@@ -307,10 +333,15 @@ async fn parse_url_inner(
             let program = ResolvedPath::from_path(program_path)?;
             let args = engine.build_parse_args(url, &tools, &app_settings);
 
-            log::info!("Running parse command: {program} {args:?}");
-            let output = tokio::task::spawn_blocking(move || run_command_capture(&program, &args))
-                .await
-                .map_err(|e| AppError::process(format!("解析任务中断: {e}")))??;
+            // 解析模式下 N_m3u8DL-RE 会在 CWD 创建元数据目录，
+            // 必须指向系统临时目录，避免污染工程目录（开发时 CWD = src-tauri/）
+            let parse_cwd = std::env::temp_dir();
+            log::info!("Running parse command: {program} {args:?} (cwd: {})", parse_cwd.display());
+            let output = tokio::task::spawn_blocking(move || {
+                run_command_capture(&program, &args, Some(&parse_cwd))
+            })
+            .await
+            .map_err(|e| AppError::process(format!("解析任务中断: {e}")))??;
 
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();

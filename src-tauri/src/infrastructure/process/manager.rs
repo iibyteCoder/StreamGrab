@@ -186,7 +186,11 @@ impl ProcessManager {
         Ok(())
     }
 
-    /// 输出读取线程：逐行解码并回调
+    /// 输出读取线程：按 `\n` 切分解码并回调
+    ///
+    /// 回调接收**含行尾 `\n`** 的原始文本（不裁剪）。这是为了让
+    /// [`EngineSession`] 能按 `\n` 排水内部缓冲——N_m3u8DL-RE 在非 TTY
+    /// 下会把多条进度更新粘连在一行内，会话需保留 `\n` 作为完整块边界。
     fn spawn_reader(
         task_id: String,
         stream: &'static str,
@@ -206,12 +210,19 @@ impl ProcessManager {
                     Ok(0) => break, // EOF
                     Ok(_) => {
                         let text = decode_output(&buf);
-                        callback(text.trim_end().to_string());
+                        callback(text);
                     }
                     Err(e) => {
                         log::error!("Error reading {stream} for {task_id}: {e}");
                         break;
                     }
+                }
+            }
+            // EOF：冲刷尚未以 `\n` 结尾的剩余缓冲，避免丢失最后一行/进度块
+            if !buf.is_empty() {
+                let text = decode_output(&buf);
+                if !text.trim().is_empty() {
+                    callback(text);
                 }
             }
             log::debug!("{stream} reader thread exited for task {task_id}");
