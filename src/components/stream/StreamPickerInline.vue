@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 流选择体（无 Dialog 外壳）。
- * 供 LinkConfigPanel 内联嵌入；StreamSelector 也可包它做独立弹窗。
+ * 供 LinkAdvancedSection 内联嵌入；StreamSelector 也可包它做独立弹窗。
  * 业务逻辑在 useStreamSelector。
  */
 import { toRef } from "vue";
