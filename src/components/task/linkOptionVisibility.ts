@@ -1,6 +1,6 @@
 import { isStreamingType } from "@/domain/url";
 import type { UrlType } from "@/domain";
-import type { LinkOption } from "./staging-types";
+import type { LinkOption } from "./addTaskTypes";
 
 /** 仅流媒体（HLS/DASH/MSS）行可见的选项 */
 const STREAMING_ONLY: ReadonlySet<LinkOption> = new Set<LinkOption>([
