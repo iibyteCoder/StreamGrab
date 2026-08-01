@@ -142,6 +142,7 @@ export function useAddTaskWizard() {
       return true;
     } catch (e) {
       console.error("Failed to add task:", e);
+      toast.error(`添加失败：${link.fileName.trim() || link.url}`);
       return false;
     }
   }
@@ -185,6 +186,7 @@ export function useAddTaskWizard() {
 
   /** 跳过当前条 */
   function skip(): void {
+    if (isSubmitting.value) return;
     advance();
   }
 
@@ -207,7 +209,7 @@ export function useAddTaskWizard() {
     } finally {
       isSubmitting.value = false;
     }
-    closeWithSummary(added, dupSkipped);
+    closeWithSummary(addedCount.value + added, dupSkipped);
   }
 
   // ===== 重复确认 =====

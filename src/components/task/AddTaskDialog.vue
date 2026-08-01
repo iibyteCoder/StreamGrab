@@ -181,7 +181,12 @@ function onContentKeydown(e: KeyboardEvent) {
             @browse-save-dir="browseSaveDir"
           />
           <div class="flex items-center justify-between border-t pt-3">
-            <Button v-if="!isSingle" variant="ghost" size="sm" @click="skip"
+            <Button
+              v-if="!isSingle"
+              variant="ghost"
+              size="sm"
+              :disabled="isSubmitting"
+              @click="skip"
               >跳过</Button
             >
             <span v-else />
