@@ -22,7 +22,7 @@ import { isOptionVisible } from "./linkOptionVisibility";
 import type { StagedLink } from "./addTaskTypes";
 import type { MuxFormat, StreamSelection, SubtitleFormat } from "@/domain";
 
-const props = defineProps<{ parsing: boolean }>();
+defineProps<{ parsing: boolean }>();
 const emit = defineEmits<{ (e: "parse"): void }>();
 const link = defineModel<StagedLink>({ required: true });
 
@@ -51,10 +51,14 @@ function handleStreamConfirm(sel: StreamSelection) {
     <!-- 定时开始（通用） -->
     <div class="space-y-1.5">
       <div class="flex items-center justify-between">
-        <Label class="cursor-pointer text-xs text-muted-foreground">定时开始</Label>
+        <Label class="cursor-pointer text-xs text-muted-foreground"
+          >定时开始</Label
+        >
         <Switch
           :checked="!!scheduleTime"
-          @update:checked="(v: boolean) => (scheduleTime = v ? minScheduleTime : '')"
+          @update:checked="
+            (v: boolean) => (scheduleTime = v ? minScheduleTime : '')
+          "
         />
       </div>
       <Input
@@ -70,13 +74,33 @@ function handleStreamConfirm(sel: StreamSelection) {
     <template v-if="isStreaming">
       <div class="space-y-3 border-t border-border/60 pt-3">
         <!-- 流选择 / 解析 / 重试 -->
-        <div v-if="isOptionVisible('streamSelection', link.detectedType)" class="space-y-1.5">
+        <div
+          v-if="isOptionVisible('streamSelection', link.detectedType)"
+          class="space-y-1.5"
+        >
           <Label class="text-xs text-muted-foreground">流选择</Label>
           <div class="flex gap-2">
-            <Button variant="outline" size="sm" class="h-9" :disabled="parsing" @click="emit('parse')">
-              <AppIcon v-if="parsing" name="Loader2" :size="14" class="mr-1.5 animate-spin" />
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-9"
+              :disabled="parsing"
+              @click="emit('parse')"
+            >
+              <AppIcon
+                v-if="parsing"
+                name="Loader2"
+                :size="14"
+                class="mr-1.5 animate-spin"
+              />
               <AppIcon v-else name="Search" :size="14" class="mr-1.5" />
-              {{ link.streamInfo ? "重新解析" : link.parseFailed ? "重试解析" : "解析流" }}
+              {{
+                link.streamInfo
+                  ? "重新解析"
+                  : link.parseFailed
+                    ? "重试解析"
+                    : "解析流"
+              }}
             </Button>
             <Button
               v-if="link.streamInfo"
@@ -92,12 +116,18 @@ function handleStreamConfirm(sel: StreamSelection) {
           <p v-if="link.parseFailed && !parsing" class="text-xs text-red-400">
             解析失败，可重试或直接添加（下载时按默认处理）
           </p>
-          <p v-else-if="link.overrides.selection" class="text-xs text-muted-foreground/70">
+          <p
+            v-else-if="link.overrides.selection"
+            class="text-xs text-muted-foreground/70"
+          >
             已选：视频 {{ link.overrides.selection.video ?? "自动" }} · 音频
             {{ link.overrides.selection.audio ?? "自动" }} · 字幕
             {{ link.overrides.selection.subtitle ?? "自动" }}
           </p>
-          <div v-if="showStreamPicker && link.streamInfo" class="rounded-lg border bg-muted/30 p-3">
+          <div
+            v-if="showStreamPicker && link.streamInfo"
+            class="rounded-lg border bg-muted/30 p-3"
+          >
             <StreamPickerInline
               :stream-info="link.streamInfo"
               :loading="parsing"

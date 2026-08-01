@@ -16,7 +16,9 @@ function firstNonEmpty(...vals: string[]): string | undefined {
 }
 
 /** 剔除空字段，返回干净 TaskOverrides（无字段则 undefined） */
-export function cleanOverrides(overrides: TaskOverrides): TaskOverrides | undefined {
+export function cleanOverrides(
+  overrides: TaskOverrides,
+): TaskOverrides | undefined {
   const o: TaskOverrides = {};
   if (overrides.saveDir) o.saveDir = overrides.saveDir;
   if (overrides.saveName) o.saveName = overrides.saveName;
@@ -24,8 +26,10 @@ export function cleanOverrides(overrides: TaskOverrides): TaskOverrides | undefi
   if (overrides.maxSpeed) o.maxSpeed = overrides.maxSpeed;
   if (overrides.customRange) o.customRange = overrides.customRange;
   if (overrides.subtitleFormat) o.subtitleFormat = overrides.subtitleFormat;
-  if (overrides.subtitlesOnly != null) o.subtitlesOnly = overrides.subtitlesOnly;
-  if (overrides.scheduledStartAt) o.scheduledStartAt = overrides.scheduledStartAt;
+  if (overrides.subtitlesOnly != null)
+    o.subtitlesOnly = overrides.subtitlesOnly;
+  if (overrides.scheduledStartAt)
+    o.scheduledStartAt = overrides.scheduledStartAt;
   if (overrides.selection) o.selection = overrides.selection;
   if (overrides.presetId) o.presetId = overrides.presetId;
   if (overrides.key) o.key = overrides.key;
@@ -37,7 +41,10 @@ export function cleanOverrides(overrides: TaskOverrides): TaskOverrides | undefi
  * 两层合并「逐条配置 > 有效默认目录」，产出可直接建任务的规格。
  * fallbackSaveDir 传 useRecentDirs.defaultDir（最近记忆 > 全局默认）。
  */
-export function resolveLinkToTask(link: StagedLink, fallbackSaveDir: string): ResolvedTask {
+export function resolveLinkToTask(
+  link: StagedLink,
+  fallbackSaveDir: string,
+): ResolvedTask {
   const saveDir = firstNonEmpty(link.saveDir, fallbackSaveDir);
   const fileName = link.fileName.trim() || undefined;
   const overrides = cleanOverrides(link.overrides);

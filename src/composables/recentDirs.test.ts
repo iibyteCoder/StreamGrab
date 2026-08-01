@@ -9,7 +9,13 @@ describe("rememberDir", () => {
     expect(rememberDir(["A", "B", "C"], "B")).toEqual(["B", "A", "C"]);
   });
   it("截断到上限 5", () => {
-    expect(rememberDir(["1", "2", "3", "4", "5"], "6")).toEqual(["6", "1", "2", "3", "4"]);
+    expect(rememberDir(["1", "2", "3", "4", "5"], "6")).toEqual([
+      "6",
+      "1",
+      "2",
+      "3",
+      "4",
+    ]);
   });
   it("空白目录忽略，原样返回", () => {
     const list = ["A"];
@@ -22,7 +28,9 @@ describe("rememberDir", () => {
 
 describe("resolveDefaultDir", () => {
   it("最近记忆优先", () => {
-    expect(resolveDefaultDir(["D:/recent", "D:/old"], "D:/global")).toBe("D:/recent");
+    expect(resolveDefaultDir(["D:/recent", "D:/old"], "D:/global")).toBe(
+      "D:/recent",
+    );
   });
   it("无记忆回退全局", () => {
     expect(resolveDefaultDir([], "D:/global")).toBe("D:/global");
