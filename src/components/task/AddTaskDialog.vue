@@ -1,14 +1,9 @@
 <script setup lang="ts">
 /**
- * AddTaskDialog —— 主从详情式暂存层编排外壳（重写）。
- *
- * L1 总览（TaskStagingList）：粘贴 + 批次默认 + 行清单。
- * L2 聚焦（LinkConfigPanel）：单条引擎类型驱动配置 + 内联流选择。
- * 单链接（len==1）：直接进 L2，零跳转。
- * 提交：resolveLinkToTask 三层合并 → addAndStartTask / taskStore.addTask。
- * 后端契约零改动。
+ * AddTaskDialog —— 三段式向导薄壳。
+ * 流程编排在 useAddTaskWizard；本组件只做渲染 + 路由用户操作。
  */
-import { ref, computed, watch, nextTick } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import {
   Dialog,
   DialogContent,
@@ -18,17 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AppIcon, UrlDuplicateDialog } from "@/components/common";
-import { useToast, useDownloader, usePresetManager } from "@/composables";
-import { useSettingsStore, useTaskStore } from "@/stores";
-import { systemService } from "@/services";
-import { detectUrlType, isStreamingType } from "@/domain/url";
-import { extractFileName } from "@/utils/format";
-import { generateId } from "@/utils/id";
-import type { DownloadTask } from "@/domain";
-import TaskStagingList from "./TaskStagingList.vue";
-import LinkConfigPanel from "./LinkConfigPanel.vue";
-import { resolveLinkToTask, seedPresetOverrides } from "./resolveLinkToTask";
-import type { BatchDefaults, StagedLink } from "./staging-types";
+import { useAddTaskWizard } from "@/composables";
+import LinkConfigCard from "./LinkConfigCard.vue";
 
 interface Props {
   open: boolean;
@@ -36,320 +22,194 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: "update:open", value: boolean): void }>();
 
-const toast = useToast();
-const settingsStore = useSettingsStore();
-const taskStore = useTaskStore();
-const { addAndStartTask, parseUrl } = useDownloader();
-const { applyPreset } = usePresetManager();
-
 const isOpen = computed({
   get: () => props.open,
   set: (v) => emit("update:open", v),
 });
 
-// ===== 状态 =====
-const staged = ref<StagedLink[]>([]);
-const view = ref<"list" | "focus">("list");
-const selectedId = ref<string | null>(null);
-const isSubmitting = ref(false);
+const {
+  step,
+  current,
+  index,
+  total,
+  isSingle,
+  isLast,
+  showAddAll,
+  isSubmitting,
+  parseDone,
+  parseTotal,
+  parsingId,
+  dirs,
+  defaultDir,
+  showDuplicate,
+  duplicateTask,
+  reset,
+  submitPaste,
+  retryParse,
+  browseSaveDir,
+  addCurrent,
+  skip,
+  addAll,
+  confirmDuplicate,
+  cancelDuplicate,
+} = useAddTaskWizard();
 
-const batch = ref<BatchDefaults>({ saveDir: "", autoStart: false });
-const batchPresetId = ref<string>("__none__");
+const pasteText = ref("");
+const isDragging = ref(false);
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
-// URL 重复
-const showUrlDuplicateDialog = ref(false);
-const duplicateTask = ref<DownloadTask | null>(null);
-const pendingResume = ref<(() => Promise<void>) | null>(null);
-
-const isSingle = computed(() => staged.value.length === 1);
-const selectedLink = computed(
-  () => staged.value.find((l) => l.id === selectedId.value) ?? null,
-);
-const canCommit = computed(
-  () => staged.value.some((l) => l.status !== "invalid") && !isSubmitting.value,
-);
-const globalSaveDir = computed(() => settingsStore.defaultSaveDir);
-const saveDirPlaceholder = computed(() => {
-  const b = batch.value.saveDir.trim();
-  const g = globalSaveDir.value;
-  if (b) return `将使用批次默认：${b}`;
-  if (g) return `将使用全局默认：${g}`;
-  return "使用全局默认";
-});
-
-// ===== 生命周期 =====
 watch(isOpen, async (open) => {
   if (open) {
-    batch.value = {
-      saveDir: "",
-      autoStart: settingsStore.autoStartDownload,
-    };
-    batchPresetId.value = "__none__";
-    staged.value = [];
-    view.value = "list";
-    selectedId.value = null;
+    reset();
+    pasteText.value = "";
     await nextTick();
+    textareaRef.value?.focus();
   }
 });
 
-const reset = () => {
-  staged.value = [];
-  view.value = "list";
-  selectedId.value = null;
-  isSubmitting.value = false;
-  batch.value = { saveDir: "", autoStart: false };
-  batchPresetId.value = "__none__";
-  showUrlDuplicateDialog.value = false;
-  duplicateTask.value = null;
-  pendingResume.value = null;
-};
+// 向导进入 done → 关闭弹窗
+watch(step, (s) => {
+  if (s === "done") isOpen.value = false;
+});
 
-// ===== 粘贴 → 构造 StagedLink[]（编排者持有构造逻辑） =====
-function buildLinks(text: string): StagedLink[] {
-  const presetOv =
-    batchPresetId.value !== "__none__"
-      ? applyPreset(batchPresetId.value)
-      : null;
-  const lines = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.startsWith("http://") || l.startsWith("https://"));
-  return lines.map((url) => {
-    const detectedType = detectUrlType(url);
-    const streaming = isStreamingType(detectedType);
-    return {
-      id: generateId(),
-      url,
-      detectedType,
-      fileName: extractFileName(url),
-      saveDir: "",
-      overrides: seedPresetOverrides(presetOv, detectedType),
-      status: streaming ? ("pending" as const) : ("ready" as const),
-    };
-  });
+function handleSubmitPaste() {
+  if (pasteText.value.trim()) void submitPaste(pasteText.value);
 }
-
-function handlePaste(text: string) {
-  const links = buildLinks(text);
-  if (links.length === 0) return;
-  staged.value = [...staged.value, ...links];
-  if (isSingle.value) {
-    selectedId.value = staged.value[0]!.id;
-    view.value = "focus";
-    void maybeAutoParse();
-  } else {
-    view.value = "list";
+function onPasteKeydown(e: KeyboardEvent) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    handleSubmitPaste();
   }
 }
-
-// 单链接流媒体：进入聚焦即自动解析一次
-async function maybeAutoParse() {
-  if (!isSingle.value || !selectedLink.value) return;
-  const link = selectedLink.value;
-  if (
-    link.detectedType &&
-    isStreamingType(link.detectedType) &&
-    !link.streamInfo
-  ) {
-    const info = await parseUrl(link.url);
-    if (info) {
-      link.streamInfo = info;
-      link.status = "parsed";
-    }
-  }
+function onDrop(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = false;
+  const text = e.dataTransfer?.getData("text/plain");
+  if (text) pasteText.value = text;
 }
-
-// ===== 批次预设变更：重播种未触碰的流媒体行 =====
-function handlePresetChange(presetId: string) {
-  batchPresetId.value = presetId;
-  const presetOv = presetId !== "__none__" ? applyPreset(presetId) : null;
-  for (const link of staged.value) {
-    if (
-      link.status === "pending" &&
-      link.detectedType &&
-      isStreamingType(link.detectedType)
-    ) {
-      link.overrides = seedPresetOverrides(presetOv, link.detectedType);
-    }
-  }
-}
-
-// ===== 选择/导航 =====
-function handleSelect(id: string) {
-  selectedId.value = id;
-  view.value = "focus";
-}
-function handleFocusDone() {
-  if (selectedLink.value && selectedLink.value.status !== "invalid") {
-    selectedLink.value.status = "ready";
-  }
-  view.value = isSingle.value ? "focus" : "list";
-}
-function handleRemove(id: string) {
-  staged.value = staged.value.filter((l) => l.id !== id);
-  if (selectedId.value === id) selectedId.value = null;
-  if (isSingle.value && staged.value[0]) {
-    selectedId.value = staged.value[0]!.id;
-  }
-}
-
-// 保存目录浏览（经 systemService，仅编排者知道 service）
-async function handleBrowseSaveDir() {
-  const dir = await systemService.selectDirectory();
-  if (dir) batch.value.saveDir = dir;
-}
-
-// ===== 提交 =====
-async function handleCommit() {
-  if (isSubmitting.value || !canCommit.value) return;
-  isSubmitting.value = true;
-  const links = staged.value.filter((l) => l.status !== "invalid");
-  await runSubmit(links, 0);
-}
-
-async function runSubmit(links: StagedLink[], from: number) {
-  let success = 0;
-  for (let i = from; i < links.length; i++) {
-    const link = links[i]!;
-    // URL 重复检测
-    const existing = taskStore.checkUrlExists(link.url);
-    if (existing) {
-      duplicateTask.value = existing;
-      showUrlDuplicateDialog.value = true;
-      // 暂停：用户确认后从下一条继续（强制跳过检查）
-      pendingResume.value = async () => {
-        try {
-          await addOne(link, true);
-          success++;
-        } catch {
-          // 逐条失败不阻塞
-        }
-        await runSubmit(links, i + 1);
-      };
-      return; // 暂停
-    }
-    try {
-      await addOne(link, false);
-      success++;
-    } catch {
-      // 逐条失败不阻塞
-    }
-  }
-  if (success > 0) {
-    toast.success(`已添加 ${success} 个任务`);
-  }
-  isSubmitting.value = false;
-  handleClose();
-}
-
-async function addOne(link: StagedLink, skipUrlCheck: boolean) {
-  const resolved = resolveLinkToTask(link, batch.value, globalSaveDir.value);
-  if (batch.value.autoStart && !resolved.hasSchedule) {
-    await addAndStartTask(
-      resolved.url,
-      resolved.fileName,
-      resolved.saveDir,
-      resolved.overrides,
-    );
-  } else {
-    await taskStore.addTask({
-      url: resolved.url,
-      fileName: resolved.fileName,
-      saveDir: resolved.saveDir,
-      overrides: resolved.overrides,
-      skipUrlCheck,
-    });
-  }
-}
-
-async function handleUrlDuplicateConfirm() {
-  showUrlDuplicateDialog.value = false;
-  const resume = pendingResume.value;
-  pendingResume.value = null;
-  if (resume) await resume();
-}
-
-function handleUrlDuplicateCancel() {
-  showUrlDuplicateDialog.value = false;
-  pendingResume.value = null;
-  isSubmitting.value = false;
-  toast.warning("已取消，部分任务未添加");
-}
-
-// ===== 关闭 =====
-function handleClose() {
-  reset();
-  isOpen.value = false;
+// 配置步 Enter = 添加/完成（避开 textarea，其由 onPasteKeydown 处理）
+function onContentKeydown(e: KeyboardEvent) {
+  if (e.key !== "Enter" || e.shiftKey) return;
+  if ((e.target as HTMLElement)?.tagName === "TEXTAREA") return;
+  if (step.value !== "config") return;
+  e.preventDefault();
+  void addCurrent();
 }
 </script>
 
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent
-      class="flex max-h-[85vh] max-w-[min(640px,calc(100vw-2rem))] flex-col"
-      @close-auto-focus="reset"
+      class="flex max-h-[85vh] max-w-[min(600px,calc(100vw-2rem))] flex-col"
+      @keydown="onContentKeydown"
     >
       <DialogHeader>
         <DialogTitle class="flex items-center gap-2">
           <AppIcon name="Plus" :size="20" />
           添加下载任务
+          <span
+            v-if="step === 'config' && !isSingle"
+            class="text-sm font-normal text-muted-foreground"
+          >
+            {{ index + 1 }}/{{ total }}
+          </span>
         </DialogTitle>
-        <DialogDescription class="sr-only">
-          粘贴链接，逐条配置后添加下载任务
-        </DialogDescription>
+        <DialogDescription class="sr-only"
+          >粘贴链接并配置下载任务</DialogDescription
+        >
       </DialogHeader>
 
       <div class="-mx-2 flex-1 space-y-4 overflow-y-auto px-2">
-        <!-- L1 总览：单链接时也显示（便于继续粘贴追加） -->
-        <TaskStagingList
-          v-if="view === 'list' || isSingle"
-          :links="staged"
-          :batch="batch"
-          :batch-preset-id="batchPresetId"
-          :global-save-dir="globalSaveDir"
-          @update:batch="(b: BatchDefaults) => (batch = b)"
-          @update:preset="handlePresetChange"
-          @paste="handlePaste"
-          @select="handleSelect"
-          @remove="handleRemove"
-          @commit="handleCommit"
+        <!-- 步骤 1：粘贴 -->
+        <div
+          v-if="step === 'paste'"
+          class="space-y-4"
+          @dragover.prevent="isDragging = true"
+          @dragleave="isDragging = false"
+          @drop="onDrop"
         >
-          <template #saveDirBrowse>
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-9 px-3"
-              @click="handleBrowseSaveDir"
+          <div class="relative">
+            <div
+              v-if="isDragging"
+              class="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/10"
             >
-              <AppIcon name="FolderOpen" :size="14" />
+              <span class="text-sm font-medium text-primary"
+                >释放以粘贴链接</span
+              >
+            </div>
+            <textarea
+              ref="textareaRef"
+              v-model="pasteText"
+              placeholder="粘贴下载链接，每行一个（支持 M3U8 / DASH / MP4 直链）"
+              class="h-40 w-full resize-none rounded-lg border bg-muted/50 px-3 py-2 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+              @keydown="onPasteKeydown"
+            />
+          </div>
+          <div class="flex justify-end">
+            <Button :disabled="!pasteText.trim()" @click="handleSubmitPaste">
+              <AppIcon name="ArrowRight" :size="16" class="mr-2" />
+              解析并添加
             </Button>
-          </template>
-        </TaskStagingList>
+          </div>
+        </div>
 
-        <!-- L2 聚焦 -->
-        <div v-if="view === 'focus' && selectedLink" class="space-y-3">
-          <button
-            v-if="!isSingle"
-            class="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            @click="view = 'list'"
-          >
-            <AppIcon name="ChevronLeft" :size="14" />
-            返回列表
-          </button>
-          <LinkConfigPanel
-            :model-value="selectedLink"
-            :save-dir-placeholder="saveDirPlaceholder"
-            @done="handleFocusDone"
+        <!-- 步骤 2：解析中 -->
+        <div
+          v-else-if="step === 'parsing'"
+          class="flex flex-col items-center justify-center gap-3 py-16"
+        >
+          <AppIcon
+            name="Loader2"
+            :size="32"
+            class="animate-spin text-primary"
           />
+          <span class="text-sm text-muted-foreground">
+            正在解析 {{ parseTotal }} 个链接…（{{ parseDone }}/{{
+              parseTotal
+            }}）
+          </span>
+        </div>
+
+        <!-- 步骤 3：逐条配置 -->
+        <div v-else-if="step === 'config' && current" class="space-y-4">
+          <LinkConfigCard
+            :model-value="current"
+            :recent-dirs="dirs"
+            :default-dir="defaultDir"
+            :parsing="parsingId === current.id"
+            @parse="current && retryParse(current)"
+            @browse-save-dir="browseSaveDir"
+          />
+          <div class="flex items-center justify-between border-t pt-3">
+            <Button v-if="!isSingle" variant="ghost" size="sm" @click="skip"
+              >跳过</Button
+            >
+            <span v-else />
+            <div class="flex gap-2">
+              <Button
+                v-if="showAddAll"
+                variant="outline"
+                size="sm"
+                :disabled="isSubmitting"
+                @click="addAll"
+              >
+                全部添加
+              </Button>
+              <Button size="sm" :disabled="isSubmitting" @click="addCurrent">
+                <AppIcon name="Download" :size="16" class="mr-1.5" />
+                {{ isLast ? "完成" : "添加" }}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- URL 重复确认 -->
       <UrlDuplicateDialog
-        v-model:open="showUrlDuplicateDialog"
+        v-model:open="showDuplicate"
         :existing-task="duplicateTask"
-        @confirm="handleUrlDuplicateConfirm"
-        @cancel="handleUrlDuplicateCancel"
+        @confirm="confirmDuplicate"
+        @cancel="cancelDuplicate"
       />
     </DialogContent>
   </Dialog>
