@@ -71,6 +71,13 @@ export default {
       remove: "Remove",
       viewLog: "View Log",
     },
+    contextMenu: {
+      redownload: "Redownload from this link",
+      copyUrl: "Copy download link",
+      copyFileName: "Copy file name",
+      copyFilePath: "Copy file path",
+      openDetail: "Open details",
+    },
     unnamed: "Unnamed File",
     remaining: "Remaining",
   },
@@ -495,6 +502,9 @@ export default {
     settingsReset: "Settings reset to default",
     clipboardUrlDetected: "Download link added",
     clipboardUrlsDetected: "{count} download links added",
+    copiedUrl: "Download link copied",
+    copiedFileName: "File name copied",
+    copiedFilePath: "File path copied",
     urlCopied: "Link copied",
     updateAvailable:
       "New version {version} available, please download from GitHub",
