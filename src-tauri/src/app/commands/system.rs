@@ -8,6 +8,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 // ========================================
 // 对话框
@@ -120,6 +121,20 @@ pub async fn open_file_in_explorer(file_path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// 使用系统默认程序打开文件（如播放视频、查看文档）
+#[tauri::command]
+pub async fn open_file_with_default(app: AppHandle, path: String) -> Result<(), String> {
+    log::info!("Opening file with default app: {path}");
+
+    if !PathBuf::from(&path).exists() {
+        return Err(format!("文件不存在: {path}"));
+    }
+
+    app.opener()
+        .open_path(path, None::<&str>)
+        .map_err(|e| format!("打开文件失败: {e}"))
 }
 
 /// 检查文件是否存在

@@ -58,6 +58,11 @@ class SystemService {
     return invokeTauri("open_file_in_explorer", { filePath });
   }
 
+  /** 使用系统默认程序打开文件（如播放视频） */
+  openFile(path: string): Promise<void> {
+    return invokeTauri("open_file_with_default", { path });
+  }
+
   fileExists(path: string): Promise<boolean> {
     return invokeTauri<boolean>("file_exists", { path });
   }

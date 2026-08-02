@@ -145,6 +145,7 @@ pub fn run() {
             select_file,
             open_in_explorer,
             open_file_in_explorer,
+            open_file_with_default,
             file_exists,
             delete_file_or_folder,
             get_db_path,

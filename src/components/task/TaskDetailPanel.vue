@@ -74,7 +74,7 @@ const handleOpenFolder = async () => {
 const handleOpenFile = async () => {
   if (task.value?.outputPath && fileExists.value) {
     try {
-      await systemService.openFileInExplorer(task.value.outputPath);
+      await systemService.openFile(task.value.outputPath);
     } catch (e) {
       console.error("Failed to open file:", e);
     }
