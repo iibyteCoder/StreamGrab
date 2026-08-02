@@ -4,11 +4,13 @@
  * 使用扁平化任务数据，实时检查文件状态
  */
 
-import { computed, ref, watch, onMounted } from "vue";
+import { computed, ref, watch, onMounted, onBeforeUnmount } from "vue";
+import { useI18n } from "vue-i18n";
 import { AppIcon } from "@/components/common";
-import { useTasks, useDownloader } from "@/composables";
+import { Button } from "@/components/ui/button";
+import { useTasks, useDownloader, useToast } from "@/composables";
 import { useTaskStore } from "@/stores";
-import { systemService } from "@/services";
+import { systemService, clipboardService } from "@/services";
 import {
   TaskStatusHeader,
   TaskMediaInfo,
@@ -32,6 +34,8 @@ const { getTask } = useTasks();
 const { startDownload, stopDownload, pauseDownload, resumeDownload } =
   useDownloader();
 const taskStore = useTaskStore();
+const { t } = useI18n();
+const toast = useToast();
 
 // 当前任务
 const task = computed(() =>
@@ -108,6 +112,30 @@ const handleRetry = async () => {
 const handleClose = () => {
   emit("update:open", false);
 };
+
+// 复制下载链接（图标态 1.5s 自动还原）
+const copied = ref(false);
+let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+const handleCopyUrl = async () => {
+  if (!task.value) return;
+  try {
+    await clipboardService.writeText(task.value.url);
+    copied.value = true;
+    toast.success(t("messages.urlCopied", "链接已复制"));
+    if (copiedTimer) clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
+      copied.value = false;
+    }, 1500);
+  } catch (e) {
+    console.error("Failed to copy URL:", e);
+    toast.error(t("settings.preset.copyFailed", "复制失败"));
+  }
+};
+
+onBeforeUnmount(() => {
+  if (copiedTimer) clearTimeout(copiedTimer);
+});
 </script>
 
 <template>
@@ -146,11 +174,26 @@ const handleClose = () => {
 
             <!-- URL -->
             <div class="space-y-2">
-              <h4
-                class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
-              >
-                下载链接
-              </h4>
+              <div class="flex items-center justify-between">
+                <h4
+                  class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                >
+                  下载链接
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="h-7 w-7 cursor-pointer"
+                  :title="t('common.copy', '复制')"
+                  @click="handleCopyUrl"
+                >
+                  <AppIcon
+                    :name="copied ? 'Check' : 'Copy'"
+                    :size="14"
+                    :class="copied ? 'text-green-500' : ''"
+                  />
+                </Button>
+              </div>
               <div class="bg-muted/30 rounded-lg p-2.5">
                 <p
                   class="text-xs break-all text-muted-foreground leading-relaxed"
