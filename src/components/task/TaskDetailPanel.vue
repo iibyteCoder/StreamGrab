@@ -136,6 +136,15 @@ const handleCopyUrl = async () => {
 onBeforeUnmount(() => {
   if (copiedTimer) clearTimeout(copiedTimer);
 });
+
+// 切换任务时复位复制图标态，避免上一任务的 Check 残留到新任务
+watch(
+  () => props.taskId,
+  () => {
+    copied.value = false;
+    if (copiedTimer) clearTimeout(copiedTimer);
+  },
+);
 </script>
 
 <template>
