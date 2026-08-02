@@ -489,6 +489,7 @@ export default {
     settingsReset: "設定已恢復為預設值",
     clipboardUrlDetected: "已新增下載連結",
     clipboardUrlsDetected: "已新增 {count} 個下載連結",
+    urlCopied: "連結已複製",
     updateAvailable: "發現新版本 {version}，請前往 GitHub 下載",
     noUpdate: "目前已是最新版本",
     updateCheckFailed: "檢查更新失敗",

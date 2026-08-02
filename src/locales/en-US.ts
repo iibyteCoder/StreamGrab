@@ -495,6 +495,7 @@ export default {
     settingsReset: "Settings reset to default",
     clipboardUrlDetected: "Download link added",
     clipboardUrlsDetected: "{count} download links added",
+    urlCopied: "Link copied",
     updateAvailable:
       "New version {version} available, please download from GitHub",
     noUpdate: "You are using the latest version",

@@ -505,6 +505,7 @@ export default {
     settingsReset: "设置已恢复为默认值",
     clipboardUrlDetected: "已添加下载链接",
     clipboardUrlsDetected: "已添加 {count} 个下载链接",
+    urlCopied: "链接已复制",
     updateAvailable: "发现新版本 {version}，请前往 GitHub 下载",
     noUpdate: "当前已是最新版本",
     updateCheckFailed: "检查更新失败",
