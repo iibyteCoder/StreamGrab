@@ -19,6 +19,7 @@ export { default as TaskBasicInfo } from "./TaskBasicInfo.vue";
 export { default as TaskActionButtons } from "./TaskActionButtons.vue";
 
 // TaskCard 子组件
+export { default as TaskContextMenu } from "./TaskContextMenu.vue";
 export { default as TaskStatusBadge } from "./TaskStatusBadge.vue";
 export { default as TaskQuickActions } from "./TaskQuickActions.vue";
 export { default as TaskDeleteDialog } from "./TaskDeleteDialog.vue";
