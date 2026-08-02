@@ -230,6 +230,7 @@
 | 主页布局 | P0 | `[x]` | `src/views/HomeView.vue` | 基本布局完成 |
 | 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情） |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
+| 详情链接复制 | P2 | `[x]` | `src/components/task/TaskDetailPanel.vue` + `src/services/clipboardService.ts` | 标题行复制按钮：图标态切换 + toast 反馈；同期补齐 clipboard 读/写权限（修复剪贴板监控静默失败） |
 | 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 2026-07 重设计：左侧导航栏 + 右侧单列内容（4 分区），SettingsGroup 单卡片 + divide-y 行模型，内联样式全量替换为语义化 token（浅色主题修复） |
 | 添加任务弹窗 | P0 | `[x]` | `src/components/task/AddTaskDialog.vue` + `LinkConfigCard.vue` + `LinkAdvancedSection.vue` + `src/composables/useAddTaskWizard.ts`、`useRecentDirs.ts`（`recentDirs.ts`） + `parseLinks.ts` / `resolveLinkToTask.ts` / `addTaskTypes.ts` | 2026-08 重设计为三段式向导：①粘贴步（多行/文件导入，`parseLinks` 分类+剔除无效并 toast）②逐条配置步（页码 i/N、添加/跳过/全部添加；L1 字段 + 最近保存目录记忆下拉（useStorage，上限 5、去重、最新在前）+ 高级手风琴；按 UrlType 动态显隐引擎专属选项，内联 StreamPickerInline + 解析失败可重试）③完成提交（`resolveLinkToTask` 两层映射 + 提交调度；重复 URL 逐条弹 UrlDuplicateDialog / 批量静默跳过并结束 toast 汇报）；旧暂存外壳 TaskStagingList/LinkConfigPanel/staging-types 已删除；后端契约零改动 |
 | Toast 提示 | P0 | `[x]` | `src/composables/useToast.ts` | |
