@@ -101,7 +101,6 @@ function onContentKeydown(e: KeyboardEvent) {
   <Dialog v-model:open="isOpen">
     <DialogContent
       class="flex max-h-[85vh] max-w-[min(600px,calc(100vw-2rem))] flex-col"
-      @keydown="onContentKeydown"
     >
       <DialogHeader>
         <DialogTitle class="flex items-center gap-2">
@@ -119,7 +118,10 @@ function onContentKeydown(e: KeyboardEvent) {
         >
       </DialogHeader>
 
-      <div class="-mx-2 flex-1 space-y-4 overflow-y-auto px-2">
+      <div
+        class="-mx-2 flex-1 space-y-4 overflow-y-auto px-2"
+        @keydown="onContentKeydown"
+      >
         <!-- 步骤 1：粘贴 -->
         <div
           v-if="step === 'paste'"

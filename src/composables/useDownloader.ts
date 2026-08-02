@@ -52,21 +52,25 @@ export function useDownloader() {
   // 队列处理
   // ==========================================
 
+  /** 定时未到期的任务：由调度器 tick 到期启动，队列不提前启动 */
+  const isScheduledForLater = (task: DownloadTask): boolean => {
+    const at = task.overrides?.scheduledStartAt;
+    if (!at) return false;
+    const time = new Date(at).getTime();
+    return !isNaN(time) && time > Date.now();
+  };
+
   const processQueue = async (): Promise<void> => {
     if (isProcessingQueue) return;
     isProcessingQueue = true;
 
     try {
-      while (
-        taskStore.activeTasks.length < MAX_CONCURRENT_TASKS &&
-        taskStore.pendingTasks.length > 0
-      ) {
-        const nextTask = taskStore.pendingTasks[0];
-        if (nextTask && !startingTasks.value.has(nextTask.id)) {
-          await startDownload(nextTask);
-        } else {
-          break;
-        }
+      while (taskStore.activeTasks.length < MAX_CONCURRENT_TASKS) {
+        const nextTask = taskStore.pendingTasks.find(
+          (t) => !isScheduledForLater(t) && !startingTasks.value.has(t.id),
+        );
+        if (!nextTask) break;
+        await startDownload(nextTask);
       }
     } finally {
       isProcessingQueue = false;

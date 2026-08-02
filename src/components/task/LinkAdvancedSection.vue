@@ -29,6 +29,9 @@ const link = defineModel<StagedLink>({ required: true });
 const isStreaming = computed(() => isStreamingType(link.value.detectedType));
 const showStreamPicker = ref(false);
 
+/** reka-ui 的 SelectItem 禁用空字符串值，用哨兵值表示「跟随全局」 */
+const FOLLOW_GLOBAL = "__follow_global__";
+
 const minScheduleTime = computed(() => {
   const now = new Date();
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -178,19 +181,18 @@ function handleStreamConfirm(sel: StreamSelection) {
         >
           <Label class="text-xs text-muted-foreground">容器格式</Label>
           <Select
-            :model-value="link.overrides.muxFormat ?? ''"
+            :model-value="link.overrides.muxFormat ?? FOLLOW_GLOBAL"
             @update:model-value="
               (v) =>
-                (link.overrides.muxFormat = (v ? String(v) : undefined) as
-                  | MuxFormat
-                  | undefined)
+                (link.overrides.muxFormat =
+                  v === FOLLOW_GLOBAL ? undefined : (String(v) as MuxFormat))
             "
           >
             <SelectTrigger class="h-9 text-sm">
               <SelectValue placeholder="跟随全局" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">跟随全局</SelectItem>
+              <SelectItem :value="FOLLOW_GLOBAL">跟随全局</SelectItem>
               <SelectItem value="mp4">MP4</SelectItem>
               <SelectItem value="mkv">MKV</SelectItem>
             </SelectContent>
@@ -204,19 +206,20 @@ function handleStreamConfirm(sel: StreamSelection) {
         >
           <Label class="text-xs text-muted-foreground">字幕格式</Label>
           <Select
-            :model-value="link.overrides.subtitleFormat ?? ''"
+            :model-value="link.overrides.subtitleFormat ?? FOLLOW_GLOBAL"
             @update:model-value="
               (v) =>
-                (link.overrides.subtitleFormat = (v ? String(v) : undefined) as
-                  | SubtitleFormat
-                  | undefined)
+                (link.overrides.subtitleFormat =
+                  v === FOLLOW_GLOBAL
+                    ? undefined
+                    : (String(v) as SubtitleFormat))
             "
           >
             <SelectTrigger class="h-9 text-sm">
               <SelectValue placeholder="跟随全局" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">跟随全局</SelectItem>
+              <SelectItem :value="FOLLOW_GLOBAL">跟随全局</SelectItem>
               <SelectItem value="SRT">SRT</SelectItem>
               <SelectItem value="VTT">VTT</SelectItem>
             </SelectContent>
