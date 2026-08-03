@@ -215,9 +215,9 @@ toast 走 `src/composables/useToast`（`Toaster` 已在 `App.vue` 挂载）。
 
 | 测试文件 | 用例 |
 | --- | --- |
-| `src/components/task/TaskContextMenu.test.ts`（新建） | ① 任意状态下 4 个常驻项均渲染；② "复制文件路径" 仅在 `completed + outputPath` 时渲染，其余状态（含 completed 无 outputPath）不渲染；③ 点击各项 emit 对应事件 |
-| `src/components/task/TaskCard.test.ts`（新建） | ① mock `clipboardService`，三个复制 handler 写入正确内容并触发 toast；② 菜单 redownload → 组件 emit `redownload`；③ 左键点击卡片仍 emit `click`（回归） |
-| `src/components/task/AddTaskDialog.test.ts`（新建） | ① mock `useAddTaskWizard`，带 `initialUrl` 打开 → `submitPaste(initialUrl)` 被调用；② 不带 `initialUrl` 打开 → `submitPaste` 不被调用（回归） |
+| `src/components/task/__tests__/TaskContextMenu.test.ts`（新建） | ① 任意状态下 4 个常驻项均渲染；② "复制文件路径" 仅在 `completed + outputPath` 时渲染，其余状态（含 completed 无 outputPath）不渲染；③ 点击各项 emit 对应事件 |
+| `src/components/task/__tests__/TaskCard.test.ts`（新建） | ① mock `clipboardService`，三个复制 handler 写入正确内容并触发 toast；② 菜单 redownload → 组件 emit `redownload`；③ 左键点击卡片仍 emit `click`（回归） |
+| `src/components/task/__tests__/AddTaskDialog.test.ts`（新建） | ① mock `useAddTaskWizard`，带 `initialUrl` 打开 → `submitPaste(initialUrl)` 被调用；② 不带 `initialUrl` 打开 → `submitPaste` 不被调用（回归） |
 
 ### 6.2 手工验收清单
 

@@ -11,7 +11,7 @@ import {
   formatSpeed,
   sanitizeFileName,
   splitFilename,
-} from "./format";
+} from "../format";
 
 describe("formatFileSize", () => {
   it("零字节", () => {

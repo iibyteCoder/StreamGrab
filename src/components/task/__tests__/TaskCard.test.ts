@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
-import TaskCard from "./TaskCard.vue";
-import TaskContextMenu from "./TaskContextMenu.vue";
+import TaskCard from "../TaskCard.vue";
+import TaskContextMenu from "../TaskContextMenu.vue";
 import { i18n } from "@/locales";
 import type { DownloadTask } from "@/domain";
 

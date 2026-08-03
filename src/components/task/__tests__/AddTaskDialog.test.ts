@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { shallowMount, flushPromises } from "@vue/test-utils";
-import AddTaskDialog from "./AddTaskDialog.vue";
+import AddTaskDialog from "../AddTaskDialog.vue";
 
 const mocks = vi.hoisted(() => ({
   submitPaste: vi.fn(),

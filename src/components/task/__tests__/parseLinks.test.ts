@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractLinks, classifyLink, parsePastedText } from "./parseLinks";
+import { extractLinks, classifyLink, parsePastedText } from "../parseLinks";
 
 describe("extractLinks", () => {
   it("trim 并只保留 http(s) 行", () => {

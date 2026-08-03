@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rememberDir, resolveDefaultDir } from "./recentDirs";
+import { rememberDir, resolveDefaultDir } from "../recentDirs";
 
 describe("rememberDir", () => {
   it("新目录置最前", () => {

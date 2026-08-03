@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { detectUrlType, isHttpUrl, isStreamingType, needsFfmpeg } from "./url";
+import { detectUrlType, isHttpUrl, isStreamingType, needsFfmpeg } from "../url";
 
 describe("detectUrlType", () => {
   it("识别 HLS 链接", () => {

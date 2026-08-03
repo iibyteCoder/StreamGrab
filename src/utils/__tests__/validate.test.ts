@@ -12,7 +12,7 @@ import {
   validateRegex,
   validateUrl,
   validateUrls,
-} from "./validate";
+} from "../validate";
 
 describe("validateUrl", () => {
   it("接受合法的流媒体链接", () => {

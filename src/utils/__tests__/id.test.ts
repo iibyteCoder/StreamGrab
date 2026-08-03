@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { generateId } from "./id";
+import { generateId } from "../id";
 
 describe("generateId", () => {
   it("生成 UUID 格式", () => {

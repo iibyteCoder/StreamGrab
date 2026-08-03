@@ -4,7 +4,7 @@ import { mount } from "@vue/test-utils";
 import { nextTick, defineComponent } from "vue";
 import type { PropType } from "vue";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
-import TaskContextMenu from "./TaskContextMenu.vue";
+import TaskContextMenu from "../TaskContextMenu.vue";
 import { i18n, setLocale } from "@/locales";
 import type { DownloadTask } from "@/domain";
 

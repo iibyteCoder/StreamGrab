@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { cleanOverrides, resolveLinkToTask } from "./resolveLinkToTask";
-import type { StagedLink } from "./addTaskTypes";
+import { cleanOverrides, resolveLinkToTask } from "../resolveLinkToTask";
+import type { StagedLink } from "../addTaskTypes";
 import type { TaskOverrides } from "@/domain";
 
 function mkLink(over: Partial<TaskOverrides> = {}, saveDir = ""): StagedLink {

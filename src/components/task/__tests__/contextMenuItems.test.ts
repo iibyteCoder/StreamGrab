@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildContextMenuItems } from "./contextMenuItems";
+import { buildContextMenuItems } from "../contextMenuItems";
 import type { DownloadTask } from "@/domain";
 
 function mkTask(overrides: Partial<DownloadTask> = {}): DownloadTask {

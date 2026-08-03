@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isOptionVisible } from "./linkOptionVisibility";
+import { isOptionVisible } from "../linkOptionVisibility";
 import type { UrlType } from "@/domain";
 
 const T = (s: string) => s as UrlType;
