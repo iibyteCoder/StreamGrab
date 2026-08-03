@@ -467,8 +467,8 @@ impl OutputParser {
         }
 
         // 按带宽降序排序
-        videos.sort_by(|a, b| b.base.bandwidth.cmp(&a.base.bandwidth));
-        audios.sort_by(|a, b| b.base.bandwidth.cmp(&a.base.bandwidth));
+        videos.sort_by_key(|v| std::cmp::Reverse(v.base.bandwidth));
+        audios.sort_by_key(|a| std::cmp::Reverse(a.base.bandwidth));
 
         StreamInfo {
             videos,
@@ -485,10 +485,9 @@ impl OutputParser {
     fn parse_video_line(line: &str) -> Option<VideoStream> {
         let vid_part = if let Some(stripped) = line.strip_prefix("Vid ") {
             stripped
-        } else if let Some(pos) = line.find("| Vid ") {
-            &line[pos + 6..]
         } else {
-            return None;
+            let pos = line.find("| Vid ")?;
+            &line[pos + 6..]
         };
 
         let parts: Vec<&str> = vid_part.split('|').map(|s| s.trim()).collect();
@@ -529,10 +528,9 @@ impl OutputParser {
     fn parse_audio_line(line: &str) -> Option<AudioStream> {
         let aud_part = if let Some(stripped) = line.strip_prefix("Aud ") {
             stripped
-        } else if let Some(pos) = line.find("| Aud ") {
-            &line[pos + 6..]
         } else {
-            return None;
+            let pos = line.find("| Aud ")?;
+            &line[pos + 6..]
         };
 
         let parts: Vec<&str> = aud_part.split('|').map(|s| s.trim()).collect();
@@ -568,10 +566,9 @@ impl OutputParser {
     fn parse_subtitle_line(line: &str) -> Option<SubtitleStream> {
         let sub_part = if let Some(stripped) = line.strip_prefix("Sub ") {
             stripped
-        } else if let Some(pos) = line.find("| Sub ") {
-            &line[pos + 6..]
         } else {
-            return None;
+            let pos = line.find("| Sub ")?;
+            &line[pos + 6..]
         };
 
         let parts: Vec<&str> = sub_part.split('|').map(|s| s.trim()).collect();

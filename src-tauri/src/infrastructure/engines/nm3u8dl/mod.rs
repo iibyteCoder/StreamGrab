@@ -128,11 +128,10 @@ impl Nm3u8dlSession {
 
                 let total = self.video_total + self.audio_total;
                 let downloaded = self.video_downloaded + self.audio_downloaded;
-                data.overall_percent = if total > 0 {
-                    (downloaded * 100 / total) as i32
-                } else {
-                    0
-                };
+                data.overall_percent = downloaded
+                    .checked_mul(100)
+                    .and_then(|d| d.checked_div(total))
+                    .unwrap_or(0) as i32;
                 data.total_segments = total as i32;
                 data.downloaded_segments = downloaded as i32;
                 data.current_action = format!("下载中 {downloaded}/{total}");
