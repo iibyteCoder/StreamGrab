@@ -7,10 +7,11 @@
  */
 
 import { computed, ref, onMounted, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { AppIcon } from "@/components/common";
-import { useTasks, useDownloader } from "@/composables";
+import { useTasks, useDownloader, useToast } from "@/composables";
 import { useTaskStore } from "@/stores";
-import { systemService } from "@/services";
+import { systemService, clipboardService } from "@/services";
 import {
   formatSpeed,
   formatFileSize,
@@ -22,8 +23,10 @@ import {
   TaskStatusBadge,
   TaskQuickActions,
   TaskDeleteDialog,
+  TaskContextMenu,
   LogViewer,
 } from "@/components/task";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { DownloadTask } from "@/domain";
 
 interface Props {
@@ -38,12 +41,15 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "click", task: DownloadTask): void;
+  (e: "redownload", task: DownloadTask): void;
 }>();
 
 const { removeTask } = useTasks();
 const { startDownload, stopDownload, pauseDownload, resumeDownload } =
   useDownloader();
 const taskStore = useTaskStore();
+const { t } = useI18n();
+const toast = useToast();
 
 // 文件存在状态（实时检查）
 const fileExists = ref<boolean | null>(null);
@@ -228,185 +234,234 @@ const performDelete = async (withFile: boolean) => {
 };
 
 const handleClick = () => emit("click", props.task);
+
+// 右键菜单操作
+const handleRedownload = () => emit("redownload", props.task);
+
+const handleCopyUrl = async () => {
+  try {
+    await clipboardService.writeText(props.task.url);
+    toast.success(t("messages.copiedUrl", "已复制下载链接"));
+  } catch (e) {
+    console.error("Failed to copy URL:", e);
+  }
+};
+
+const handleCopyFileName = async () => {
+  try {
+    await clipboardService.writeText(props.task.fileName);
+    toast.success(t("messages.copiedFileName", "已复制文件名"));
+  } catch (e) {
+    console.error("Failed to copy file name:", e);
+  }
+};
+
+const handleCopyFilePath = async () => {
+  const path = props.task.outputPath;
+  if (!path) return;
+  try {
+    await clipboardService.writeText(path);
+    toast.success(t("messages.copiedFilePath", "已复制文件路径"));
+  } catch (e) {
+    console.error("Failed to copy file path:", e);
+  }
+};
 </script>
 
 <template>
-  <div
-    class="task-card group relative rounded-lg border bg-card p-3 transition-all duration-200"
-    :class="[
-      task.status === 'cancelled' ? 'opacity-60' : '',
-      active
-        ? 'ring-2 ring-primary/50 border-primary/30 bg-primary/5 shadow-md'
-        : 'hover:shadow-md',
-    ]"
-    @click="handleClick"
-  >
-    <!-- 状态标签 -->
-    <TaskStatusBadge
-      :text="statusConfig?.text ?? ''"
-      :color="statusConfig?.color ?? '#888'"
-    />
-
-    <!-- 主内容 -->
-    <div class="flex items-start gap-3">
-      <!-- 状态指示器 -->
+  <ContextMenu>
+    <ContextMenuTrigger as-child>
       <div
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-0.5"
-        :style="{ backgroundColor: `${statusConfig?.color ?? '#888'}20` }"
+        class="task-card group relative rounded-lg border bg-card p-3 transition-all duration-200"
+        :class="[
+          task.status === 'cancelled' ? 'opacity-60' : '',
+          active
+            ? 'ring-2 ring-primary/50 border-primary/30 bg-primary/5 shadow-md'
+            : 'hover:shadow-md',
+        ]"
+        @click="handleClick"
       >
-        <AppIcon
-          :name="statusIcon as any"
-          :size="16"
-          :style="{ color: statusConfig?.color ?? '#888' }"
+        <!-- 状态标签 -->
+        <TaskStatusBadge
+          :text="statusConfig?.text ?? ''"
+          :color="statusConfig?.color ?? '#888'"
+        />
+
+        <!-- 主内容 -->
+        <div class="flex items-start gap-3">
+          <!-- 状态指示器 -->
+          <div
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-0.5"
+            :style="{ backgroundColor: `${statusConfig?.color ?? '#888'}20` }"
+          >
+            <AppIcon
+              :name="statusIcon as any"
+              :size="16"
+              :style="{ color: statusConfig?.color ?? '#888' }"
+            />
+          </div>
+
+          <!-- 信息区 -->
+          <div class="flex-1 min-w-0">
+            <!-- 第一行：文件名 -->
+            <h4 class="text-sm font-medium truncate">
+              {{ task.fileName || "未命名文件" }}
+            </h4>
+
+            <!-- 进度可视化区域 -->
+            <div v-if="shouldShowProgress" class="mt-2">
+              <!-- 进度条 + 百分比 -->
+              <div class="flex items-center gap-2">
+                <div class="progress-track flex-1">
+                  <div
+                    class="progress-bar"
+                    :class="{ 'progress-animated': showProgressAnimation }"
+                    :style="progressStyle"
+                  />
+                </div>
+                <span
+                  class="text-xs font-medium tabular-nums"
+                  :style="{
+                    color: progressColor,
+                    minWidth: '36px',
+                    textAlign: 'right',
+                  }"
+                >
+                  {{ task.progress.overallPercent }}%
+                </span>
+              </div>
+
+              <!-- 进度详情行 -->
+              <div
+                class="flex items-center gap-3 mt-1 text-xs text-muted-foreground"
+              >
+                <!-- 下载中：速度 + 已下载/总大小 + 剩余时间 -->
+                <template v-if="task.status === 'downloading'">
+                  <span v-if="speedText" class="text-primary font-medium">{{
+                    speedText
+                  }}</span>
+                  <span
+                    v-if="
+                      task.progress.downloadedSize && task.progress.totalSize
+                    "
+                  >
+                    {{ formatFileSize(task.progress.downloadedSize) }} /
+                    {{ formatFileSize(task.progress.totalSize) }}
+                  </span>
+                  <span v-else-if="task.progress.downloadedSize">
+                    {{ formatFileSize(task.progress.downloadedSize) }}
+                  </span>
+                  <span v-if="etaText">剩余 {{ etaText }}</span>
+                </template>
+
+                <!-- 暂停中 -->
+                <template v-else-if="task.status === 'paused'">
+                  <span v-if="task.progress.downloadedSize">{{
+                    formatFileSize(task.progress.downloadedSize)
+                  }}</span>
+                  <span class="text-amber-500">已暂停</span>
+                </template>
+
+                <!-- 失败 -->
+                <template v-else-if="task.status === 'failed'">
+                  <span v-if="task.progress.downloadedSize">{{
+                    formatFileSize(task.progress.downloadedSize)
+                  }}</span>
+                  <span class="text-destructive">下载失败</span>
+                </template>
+
+                <!-- 合并中 -->
+                <template
+                  v-else-if="
+                    task.status === 'merging' || task.status === 'muxing'
+                  "
+                >
+                  <span class="text-purple-400">正在合并...</span>
+                </template>
+              </div>
+            </div>
+
+            <!-- 非进度状态：显示简单信息 -->
+            <div
+              v-else
+              class="flex items-center gap-3 mt-1.5 h-4 text-xs text-muted-foreground"
+            >
+              <template v-if="task.status === 'analyzing'">
+                <span class="text-primary">正在解析...</span>
+              </template>
+              <template v-else-if="task.status === 'pending'">
+                <span>等待中</span>
+              </template>
+              <template v-else-if="task.status === 'cancelled'">
+                <span>已取消</span>
+              </template>
+              <template v-else-if="task.status === 'completed'">
+                <span v-if="task.progress.totalSize">{{
+                  formatFileSize(task.progress.totalSize)
+                }}</span>
+                <span v-else-if="task.progress.downloadedSize">{{
+                  formatFileSize(task.progress.downloadedSize)
+                }}</span>
+                <span>{{ completedTimeText }}</span>
+                <span
+                  v-if="showFileMissingHint"
+                  class="text-amber-500 flex items-center gap-0.5"
+                >
+                  <AppIcon name="AlertTriangle" :size="12" />
+                  文件已移除
+                </span>
+              </template>
+            </div>
+
+            <!-- 错误信息 -->
+            <div
+              v-if="task.status === 'failed' && task.error"
+              class="mt-2 p-2 bg-destructive/10 rounded text-xs text-destructive break-all"
+            >
+              {{ task.error }}
+            </div>
+          </div>
+
+          <!-- 快速操作按钮 -->
+          <TaskQuickActions
+            :task="task"
+            :file-exists="fileExists ?? false"
+            :has-logs="hasLogs"
+            @open-folder="handleOpenFolder"
+            @open-file="handleOpenFile"
+            @show-logs="showLogViewer = true"
+            @pause="handlePause"
+            @start="handleStart"
+            @resume="handleResume"
+            @retry="handleRetry"
+            @stop="handleStop"
+            @delete="handleRemoveClick"
+          />
+        </div>
+
+        <!-- 日志查看器 -->
+        <LogViewer v-model:open="showLogViewer" :task-id="task.id" />
+
+        <!-- 删除确认对话框 -->
+        <TaskDeleteDialog
+          v-model:open="showDeleteDialog"
+          :task="task"
+          :file-exists="fileExists ?? false"
+          :is-deleting="isDeleting"
+          @confirm="performDelete"
         />
       </div>
-
-      <!-- 信息区 -->
-      <div class="flex-1 min-w-0">
-        <!-- 第一行：文件名 -->
-        <h4 class="text-sm font-medium truncate">
-          {{ task.fileName || "未命名文件" }}
-        </h4>
-
-        <!-- 进度可视化区域 -->
-        <div v-if="shouldShowProgress" class="mt-2">
-          <!-- 进度条 + 百分比 -->
-          <div class="flex items-center gap-2">
-            <div class="progress-track flex-1">
-              <div
-                class="progress-bar"
-                :class="{ 'progress-animated': showProgressAnimation }"
-                :style="progressStyle"
-              />
-            </div>
-            <span
-              class="text-xs font-medium tabular-nums"
-              :style="{
-                color: progressColor,
-                minWidth: '36px',
-                textAlign: 'right',
-              }"
-            >
-              {{ task.progress.overallPercent }}%
-            </span>
-          </div>
-
-          <!-- 进度详情行 -->
-          <div
-            class="flex items-center gap-3 mt-1 text-xs text-muted-foreground"
-          >
-            <!-- 下载中：速度 + 已下载/总大小 + 剩余时间 -->
-            <template v-if="task.status === 'downloading'">
-              <span v-if="speedText" class="text-primary font-medium">{{
-                speedText
-              }}</span>
-              <span
-                v-if="task.progress.downloadedSize && task.progress.totalSize"
-              >
-                {{ formatFileSize(task.progress.downloadedSize) }} /
-                {{ formatFileSize(task.progress.totalSize) }}
-              </span>
-              <span v-else-if="task.progress.downloadedSize">
-                {{ formatFileSize(task.progress.downloadedSize) }}
-              </span>
-              <span v-if="etaText">剩余 {{ etaText }}</span>
-            </template>
-
-            <!-- 暂停中 -->
-            <template v-else-if="task.status === 'paused'">
-              <span v-if="task.progress.downloadedSize">{{
-                formatFileSize(task.progress.downloadedSize)
-              }}</span>
-              <span class="text-amber-500">已暂停</span>
-            </template>
-
-            <!-- 失败 -->
-            <template v-else-if="task.status === 'failed'">
-              <span v-if="task.progress.downloadedSize">{{
-                formatFileSize(task.progress.downloadedSize)
-              }}</span>
-              <span class="text-destructive">下载失败</span>
-            </template>
-
-            <!-- 合并中 -->
-            <template
-              v-else-if="task.status === 'merging' || task.status === 'muxing'"
-            >
-              <span class="text-purple-400">正在合并...</span>
-            </template>
-          </div>
-        </div>
-
-        <!-- 非进度状态：显示简单信息 -->
-        <div
-          v-else
-          class="flex items-center gap-3 mt-1.5 h-4 text-xs text-muted-foreground"
-        >
-          <template v-if="task.status === 'analyzing'">
-            <span class="text-primary">正在解析...</span>
-          </template>
-          <template v-else-if="task.status === 'pending'">
-            <span>等待中</span>
-          </template>
-          <template v-else-if="task.status === 'cancelled'">
-            <span>已取消</span>
-          </template>
-          <template v-else-if="task.status === 'completed'">
-            <span v-if="task.progress.totalSize">{{
-              formatFileSize(task.progress.totalSize)
-            }}</span>
-            <span v-else-if="task.progress.downloadedSize">{{
-              formatFileSize(task.progress.downloadedSize)
-            }}</span>
-            <span>{{ completedTimeText }}</span>
-            <span
-              v-if="showFileMissingHint"
-              class="text-amber-500 flex items-center gap-0.5"
-            >
-              <AppIcon name="AlertTriangle" :size="12" />
-              文件已移除
-            </span>
-          </template>
-        </div>
-
-        <!-- 错误信息 -->
-        <div
-          v-if="task.status === 'failed' && task.error"
-          class="mt-2 p-2 bg-destructive/10 rounded text-xs text-destructive break-all"
-        >
-          {{ task.error }}
-        </div>
-      </div>
-
-      <!-- 快速操作按钮 -->
-      <TaskQuickActions
-        :task="task"
-        :file-exists="fileExists ?? false"
-        :has-logs="hasLogs"
-        @open-folder="handleOpenFolder"
-        @open-file="handleOpenFile"
-        @show-logs="showLogViewer = true"
-        @pause="handlePause"
-        @start="handleStart"
-        @resume="handleResume"
-        @retry="handleRetry"
-        @stop="handleStop"
-        @delete="handleRemoveClick"
-      />
-    </div>
-
-    <!-- 日志查看器 -->
-    <LogViewer v-model:open="showLogViewer" :task-id="task.id" />
-
-    <!-- 删除确认对话框 -->
-    <TaskDeleteDialog
-      v-model:open="showDeleteDialog"
+    </ContextMenuTrigger>
+    <TaskContextMenu
       :task="task"
       :file-exists="fileExists ?? false"
-      :is-deleting="isDeleting"
-      @confirm="performDelete"
+      @redownload="handleRedownload"
+      @copy-url="handleCopyUrl"
+      @copy-file-name="handleCopyFileName"
+      @copy-file-path="handleCopyFilePath"
+      @open-detail="handleClick"
     />
-  </div>
+  </ContextMenu>
 </template>
 
 <style scoped>
