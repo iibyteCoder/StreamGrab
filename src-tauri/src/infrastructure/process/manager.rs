@@ -9,7 +9,7 @@
 //!
 //! 子进程被杀后管道关闭，stdout/stderr 读取线程随 EOF 自然退出。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -70,6 +70,126 @@ fn decode_output(buf: &[u8]) -> String {
 /// 读取停止标志（Mutex 中毒视为「已停止」，避免级联 panic）
 fn read_stop_flag(flag: &Mutex<bool>) -> bool {
     *flag.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// 输出行缓冲上限（条）。N_m3u8DL-RE 进度帧刷屏，仅保留尾部以便提取最后错误。
+const MAX_BUFFERED_LINES: usize = 200;
+
+/// 透传给用户的错误提示最大长度（字符），防刷屏
+const MAX_ERROR_HINT_LEN: usize = 300;
+
+/// 错误关键词（小写匹配；N_m3u8DL-RE 日志与 FFmpeg stderr 通用）
+const ERROR_KEYWORDS: &[&str] = &[
+    "error",
+    "exception",
+    "failed",
+    "failure",
+    "forbidden",
+    "unauthorized",
+    "status code",
+    "not found",
+    "refused",
+    "denied",
+    "timeout",
+    "403",
+    "404",
+    "500",
+    "拒绝",
+    "失败",
+    "错误",
+    "找不到",
+    "无法",
+    "超时",
+];
+
+/// 从任务输出缓冲提取错误摘要；无有效信息返回 `None`
+fn collect_error_hint(lines: &Mutex<VecDeque<String>>) -> Option<String> {
+    let q = lines.lock().ok()?;
+    extract_error_hint(&q.iter().map(String::as_str).collect::<Vec<_>>())
+}
+
+/// 从进程输出行中提取用于展示的错误摘要（纯函数，可单测）。
+///
+/// 策略：优先取命中 [`ERROR_KEYWORDS`] 的行（如 `... 403 (Forbidden)`、
+/// `Unhandled exception: ...`、FFmpeg 的 `Error: ...`），最多取最后 3 条以 `|` 拼接；
+/// 未命中时兜底最近一条「日志行」（N_m3u8DL-RE 带时间戳前缀、FFmpeg 以
+/// Error/Invalid 开头），覆盖关键词未命中但仍失败的场景。
+/// 结果剥离日志行前缀并截断至 [`MAX_ERROR_HINT_LEN`]。
+fn extract_error_hint(lines: &[&str]) -> Option<String> {
+    let hits: Vec<&str> = lines
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .filter(|s| {
+            ERROR_KEYWORDS
+                .iter()
+                .any(|k| s.to_ascii_lowercase().contains(k))
+        })
+        .map(clean_log_line)
+        .collect();
+    if !hits.is_empty() {
+        let tail = hits[hits.len().saturating_sub(3)..].join(" | ");
+        return Some(truncate(&tail));
+    }
+    lines
+        .iter()
+        .rev()
+        .find(|s| looks_like_log_line(s))
+        .map(|s| truncate(clean_log_line(s)))
+}
+
+/// 是否像日志行（而非进度刷屏行）
+fn looks_like_log_line(line: &str) -> bool {
+    let t = line.trim_start();
+    let lower = t.to_ascii_lowercase();
+    // N_m3u8DL-RE 日志行：`01:15:05.728 WARN : ...`（HH:MM:SS 时间戳）
+    (t.len() >= 3 && t.as_bytes()[0].is_ascii_digit() && t.as_bytes()[2] == b':')
+        || lower.starts_with("error")
+        || lower.starts_with("invalid")
+        || lower.starts_with("failed")
+        || lower.starts_with("unhandled")
+}
+
+/// 剥掉 N_m3u8DL-RE 日志行的时间戳/级别前缀（`01:15:05.728 WARN : ` → 内容），
+/// 其余行原样返回
+fn clean_log_line(line: &str) -> &str {
+    let t = line.trim();
+    match t.find(" : ") {
+        Some(pos) => {
+            let prefix = &t[..pos];
+            let head = prefix.split_whitespace().next_back().unwrap_or("");
+            let is_level = matches!(head, "INFO" | "WARN" | "ERROR" | "DEBUG" | "FATAL");
+            let has_ts = prefix
+                .as_bytes()
+                .first()
+                .is_some_and(|b| b.is_ascii_digit());
+            if is_level || has_ts {
+                t[pos + 3..].trim()
+            } else {
+                t
+            }
+        }
+        None => t,
+    }
+}
+
+/// 截断至 [`MAX_ERROR_HINT_LEN`] 字符（含省略号）
+fn truncate(s: &str) -> String {
+    if s.chars().count() <= MAX_ERROR_HINT_LEN {
+        s.to_string()
+    } else {
+        let mut out: String = s.chars().take(MAX_ERROR_HINT_LEN - 1).collect();
+        out.push('…');
+        out
+    }
+}
+
+/// 组装下载失败消息：`{base}。{详细输出}`
+fn format_download_error(base: &str, hint: Option<&str>) -> String {
+    match hint {
+        Some(h) if !h.trim().is_empty() => format!("{base}。{h}"),
+        _ => base.to_string(),
+    }
 }
 
 impl ProcessManager {
@@ -147,19 +267,36 @@ impl ProcessManager {
         let complete_callback: Arc<dyn Fn(bool, Option<String>) + Send + Sync> =
             Arc::new(on_complete);
 
+        // 输出行缓冲：reader 线程逐行写入，等待线程在失败时提取错误摘要。
+        // 容量有限（保留最近 N 行）、随任务生命周期消亡，无全局状态泄漏。
+        let output_lines: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+        let buffered_callback: Arc<dyn Fn(String) + Send + Sync> = {
+            let lines = Arc::clone(&output_lines);
+            let orig = Arc::clone(&output_callback);
+            Arc::new(move |text| {
+                if let Ok(mut q) = lines.lock() {
+                    q.push_back(text.clone());
+                    while q.len() > MAX_BUFFERED_LINES {
+                        q.pop_front();
+                    }
+                }
+                orig(text);
+            })
+        };
+
         // stdout/stderr 读取线程（子进程被杀后管道关闭，线程随 EOF 退出）
         let stdout_reader = Self::spawn_reader(
             task_id.clone(),
             "stdout",
             stdout,
-            Arc::clone(&output_callback),
+            Arc::clone(&buffered_callback),
             Arc::clone(&stop_flag),
         );
         let stderr_reader = Self::spawn_reader(
             task_id.clone(),
             "stderr",
             stderr,
-            Arc::clone(&output_callback),
+            Arc::clone(&buffered_callback),
             Arc::clone(&stop_flag),
         );
 
@@ -182,7 +319,14 @@ impl ProcessManager {
                     if success {
                         complete_callback(true, None);
                     } else {
-                        complete_callback(false, Some(format!("进程退出码: {code}")));
+                        let hint = collect_error_hint(&output_lines);
+                        complete_callback(
+                            false,
+                            Some(format_download_error(
+                                &format!("进程退出码: {code}"),
+                                hint.as_deref(),
+                            )),
+                        );
                     }
                 }
                 Err(e) => {
@@ -190,7 +334,14 @@ impl ProcessManager {
                     if read_stop_flag(&stop_flag) {
                         complete_callback(false, Some("下载已取消".into()));
                     } else {
-                        complete_callback(false, Some(format!("进程错误: {e}")));
+                        let hint = collect_error_hint(&output_lines);
+                        complete_callback(
+                            false,
+                            Some(format_download_error(
+                                &format!("进程错误: {e}"),
+                                hint.as_deref(),
+                            )),
+                        );
                     }
                 }
             }
@@ -291,5 +442,76 @@ impl Drop for ProcessManager {
 impl Default for ProcessManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 真实 N_m3u8DL-RE 403 失败样本（进度刷屏 + 错误行）
+    #[test]
+    fn extracts_forbidden_error_from_nm3u8dl_output() {
+        let lines: Vec<&str> = vec![
+            "Vid 1922x1080 | 3075 Kbps ------------------------------ 0/559 0.00% -0.00Bps --:--:--",
+            "01:15:05.728 WARN : Response status code does not indicate success: 403 (Forbidden).",
+            "Unhandled exception: System.Exception: Download init file failed!",
+        ];
+        let hint = extract_error_hint(&lines).unwrap();
+        assert!(hint.contains("403"), "got: {hint}");
+        assert!(hint.contains("Download init file failed"), "got: {hint}");
+        // 进度刷屏行不应出现在提示中
+        assert!(!hint.contains("0/559"), "got: {hint}");
+        // 日志级别前缀已被剥离
+        assert!(!hint.contains("WARN :"), "got: {hint}");
+    }
+
+    #[test]
+    fn falls_back_to_last_log_line() {
+        let lines: Vec<&str> = vec![
+            "Vid 1922x1080 ------------------------------ 0/559 0.00%",
+            "01:15:05.728 INFO : 开始下载...",
+        ];
+        let hint = extract_error_hint(&lines).unwrap();
+        assert!(hint.contains("开始下载"), "got: {hint}");
+    }
+
+    #[test]
+    fn empty_or_progress_only_yields_none() {
+        assert!(extract_error_hint(&[]).is_none());
+        let lines = vec!["Vid 1922x1080 ------------------------------ 0/559 0.00% --:--:--"];
+        assert!(extract_error_hint(&lines).is_none());
+    }
+
+    #[test]
+    fn truncates_long_lines() {
+        let long = format!("01:15:05.728 WARN : {}", "x".repeat(1000));
+        let hint = extract_error_hint(&[&long]).unwrap();
+        assert!(hint.chars().count() <= MAX_ERROR_HINT_LEN);
+    }
+
+    #[test]
+    fn formats_error_with_and_without_hint() {
+        assert_eq!(
+            format_download_error("进程退出码: 1", Some("403")),
+            "进程退出码: 1。403"
+        );
+        assert_eq!(
+            format_download_error("进程退出码: 1", None),
+            "进程退出码: 1"
+        );
+        assert_eq!(
+            format_download_error("进程退出码: 1", Some("  ")),
+            "进程退出码: 1"
+        );
+    }
+
+    #[test]
+    fn cleans_nm3u8dl_log_prefix() {
+        assert_eq!(clean_log_line("01:15:05.728 WARN : 下载失败"), "下载失败");
+        assert_eq!(
+            clean_log_line("Unhandled exception: boom"),
+            "Unhandled exception: boom"
+        );
     }
 }
