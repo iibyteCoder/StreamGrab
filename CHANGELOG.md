@@ -5,11 +5,45 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.6.0] - 2026-08-04
 
 ### 新增
 
-- 首次发布
+- 添加任务三段式向导（粘贴 → 逐条配置 → 完成提交）
+  - 多行粘贴 + TXT 文件导入，自动分类流媒体/直链并剔除无效链接
+  - 逐条配置卡 + 最近保存目录记忆下拉
+  - 高级设置手风琴：引擎驱动动态项、内联流选择、解析失败可重试
+- 任务卡片右键菜单：复制链接/文件名/保存路径、以此链接重新下载、打开详情
+- 任务详情面板一键复制下载链接
+- 启动时检测中断任务并弹窗恢复下载
+- URL 重复检测弹窗确认
+
+### 优化
+
+- 设置中心重构为 4 分区双栏导航 + 统一工具管理卡片
+- 添加任务弹窗渐进披露（一级仅 URL，二级「更多选项」折叠）
+- 播放下载文件改用系统默认程序打开
+
+### 修复
+
+- 修复 N_m3u8DL-RE 20260628 非 TTY 下进度块粘连导致进度/速度/图表全空
+- 修复下载完成后进度数据丢失（退出倾泻冲刷，实测 0→53 事件、0→100%）
+- 修复预设弹窗 SelectItem 空值崩溃
+- 修复 keydown 监听告警与定时任务提前启动
+- 修复「恢复默认」设置不写回数据库
+- 修复浅色主题破图（tailwind alpha token 与 accent 变量缺失）
+- 修复升级后 FFmpeg 相对路径找不到
+
+### 重构
+
+- 后端四层架构 + 引擎策略模式，命令行参数由引擎构建（前端零 CLI 知识）
+- schema v4 单表聚合 + 三层配置模型；数据库版本不符时先备份 `.bak` 再重建
+- 移除「下载历史」前端页与 3 个空壳功能（广告过滤/外部媒体导入/命名模板）
+- 测试体系建立：Rust 117 单元测试 + 前端 93 测试 + 实跑集成测试基建
+
+### 升级提醒
+
+数据库全新重建（schema v2 → v4），旧版设置/任务/预设不会自动迁移，旧库备份为 `.bak.<时间戳>` 后重建空库。
 
 ## [0.5.2] - 2026-02-20
 
@@ -88,7 +122,7 @@
 - 使用 Tauri 2.0 + Vue 3 + TypeScript 构建
 - 跨平台支持（Windows、macOS、Linux）
 
-[未发布]: https://github.com/iibyteCoder/StreamGrab/compare/v0.5.2...HEAD
+[0.6.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.0
 [0.5.2]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.5.2
 [0.5.1]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.5.1
 [0.5.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.5.0
