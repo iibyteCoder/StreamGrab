@@ -17,6 +17,12 @@
 
 ## 1. 本会话【已修】清单（新会话勿重复）
 
+### 2026-08-03 续：进度退出倾泻冲刷（上一轮 parse_stream 修复后仍为 0 的根因）
+- **根因（实测闭环）**：N_m3u8DL-RE 重定向下强制 Spectre 交互 live 显示，`StartAsync` 后全部输出积压至进程退出瞬间一次性倾泻，且 `NonAnsiWriter` 剥光换行 → 无 `\n` 粘连块被 `parse_chunk` 永久滞留。证据/机制详解见 `docs/design/07-tool-config-architecture.md` 七-附节。
+- **修复**：`EngineSession::finalize()`（nm3u8dl 会话冲刷残余）+ `ProcessManager` join 读取线程后再 `on_complete` + `download.rs` 完成回调先分派 finalize 再 `flush_progress`。实测集成测试 0 → 53 事件、0→100%。
+- **遗留（用户拍板暂缓）**：下载过程中进度条仍不动——根治需工具侧改造（去 Interactive 强制 + 节流日志行，或 ConPTY），方案已评估，用户明确"工具侧先不改"。
+- **新增**：`src-tauri/tests/nm3u8dl_live_pipeline.rs`（#[ignore] 实跑集成测试：真实二进制+管道+GBK 解码+会话管线；`cargo test --test nm3u8dl_live_pipeline -- --ignored --nocapture`）。
+
 ### 功能性 bug（同源：空/相对路径无统一保障）
 - **下载保存目录为空 → 文件落 CWD/找不到**：[download.rs](src-tauri/src/app/commands/download.rs) 启动时按 `任务覆盖 > 全局默认 > 系统 Downloads/StreamGrab` 解析 `save_dir` 并 `create_dir_all`，同时作 `--save-dir` 与子进程 CWD、完成回调查找目录。
 - **工具下载目标为空 → 误解压到 CWD**：[tools.rs](src-tauri/src/app/commands/tools.rs) `download_tool` 空目标时回退 `<app_data_dir>/tools`（绝对、可写，dev/打包都稳）。

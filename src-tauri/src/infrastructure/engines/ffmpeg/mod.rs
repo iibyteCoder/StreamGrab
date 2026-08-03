@@ -161,10 +161,7 @@ mod tests {
         ] {
             assert!(session.parse_chunk(line).is_empty());
         }
-        let event = session
-            .parse_chunk("progress=continue")
-            .pop()
-            .unwrap();
+        let event = session.parse_chunk("progress=continue").pop().unwrap();
         match event {
             EngineEvent::Progress { data } => {
                 assert_eq!(data.percent, 50);

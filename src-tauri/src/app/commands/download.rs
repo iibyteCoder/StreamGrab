@@ -160,9 +160,36 @@ async fn start_download_inner(
     // 逐任务解析会话（跨行状态）
     let session: Arc<Mutex<Box<dyn EngineSession>>> = Arc::new(Mutex::new(engine.new_session()));
 
-    // 输出回调：会话解析 → Tauri 事件 + 进度采样持久化
+    // 事件分派：Tauri 事件推送 + 进度采样持久化（on_output 与 on_complete 共用）
     let task_id_out = task_id.clone();
     let app_out = app.clone();
+    let dispatch: Arc<dyn Fn(EngineEvent) + Send + Sync> = Arc::new(move |event| match event {
+        EngineEvent::Log { level, message } => {
+            let _ = app_out.emit(
+                &format!("download:log:{task_id_out}"),
+                serde_json::json!({ "level": level, "message": message }),
+            );
+        }
+        EngineEvent::Progress { data } => {
+            record_progress(
+                &task_id_out,
+                data.overall_percent,
+                data.speed,
+                data.downloaded_size,
+            );
+            let _ = app_out.emit(&format!("download:progress:{task_id_out}"), &data);
+        }
+        EngineEvent::Status { action } => {
+            let _ = app_out.emit(
+                &format!("download:status:{task_id_out}"),
+                serde_json::json!({ "action": action }),
+            );
+        }
+    });
+
+    // 输出回调：会话解析 → 分派
+    let dispatch_out = Arc::clone(&dispatch);
+    let session_done = Arc::clone(&session);
     let on_output = move |line: String| {
         let events = session
             .lock()
@@ -170,33 +197,14 @@ async fn start_download_inner(
             .map(|mut s| s.parse_chunk(&line))
             .unwrap_or_default();
         for event in events {
-            match event {
-                EngineEvent::Log { level, message } => {
-                    let _ = app_out.emit(
-                        &format!("download:log:{task_id_out}"),
-                        serde_json::json!({ "level": level, "message": message }),
-                    );
-                }
-                EngineEvent::Progress { data } => {
-                    record_progress(
-                        &task_id_out,
-                        data.overall_percent,
-                        data.speed,
-                        data.downloaded_size,
-                    );
-                    let _ = app_out.emit(&format!("download:progress:{task_id_out}"), &data);
-                }
-                EngineEvent::Status { action } => {
-                    let _ = app_out.emit(
-                        &format!("download:status:{task_id_out}"),
-                        serde_json::json!({ "action": action }),
-                    );
-                }
-            }
+            dispatch_out(event);
         }
     };
 
-    // 完成回调：刷新进度历史 + 查找输出文件 + 事件通知
+    // 完成回调：冲刷会话残余 → 刷新进度历史 → 查找输出文件 → 事件通知。
+    // 排序依赖 ProcessManager 的保证：本回调在输出读取线程 EOF 排空之后触发。
+    // N_m3u8DL-RE 非 TTY 下将全部进度帧积压到退出瞬间一次性输出（无换行粘连块），
+    // 必须由 finalize 兜底解析——否则完成事件抢跑、前端订阅读者注销后进度数据全部丢失。
     let task_id_done = task_id.clone();
     let app_done = app.clone();
     let save_dir_done = spec.save_dir.clone();
@@ -204,6 +212,16 @@ async fn start_download_inner(
     let engine_id = engine.id();
     let mux_format = spec.overrides.mux_format.unwrap_or(tools.ffmpeg.mux_format);
     let on_complete = move |success: bool, error_msg: Option<String>| {
+        // 冲刷会话缓冲中无 `\n` 结尾的残余（退出倾泻的进度块）
+        let residual = session_done
+            .lock()
+            .ok()
+            .map(|mut s| s.finalize())
+            .unwrap_or_default();
+        for event in residual {
+            dispatch(event);
+        }
+        // finalize 的进度点已入采样缓冲，此时刷新才能落库
         flush_progress(&task_id_done);
         if success {
             let output_path = match engine_id {
@@ -336,7 +354,10 @@ async fn parse_url_inner(
             // 解析模式下 N_m3u8DL-RE 会在 CWD 创建元数据目录，
             // 必须指向系统临时目录，避免污染工程目录（开发时 CWD = src-tauri/）
             let parse_cwd = std::env::temp_dir();
-            log::info!("Running parse command: {program} {args:?} (cwd: {})", parse_cwd.display());
+            log::info!(
+                "Running parse command: {program} {args:?} (cwd: {})",
+                parse_cwd.display()
+            );
             let output = tokio::task::spawn_blocking(move || {
                 run_command_capture(&program, &args, Some(&parse_cwd))
             })

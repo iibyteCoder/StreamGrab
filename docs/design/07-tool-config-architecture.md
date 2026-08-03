@@ -95,6 +95,17 @@ pub trait DownloadEngine: Send + Sync {
 - `ProcessManager` 经 Tauri State 注入（`Arc<tokio::sync::Mutex<ProcessManager>>`）
 - 孤儿进程双保险：`impl Drop` + `RunEvent::Exit` hook 均调用 `stop_all_sync()`（PID + taskkill /T 终止进程树）
 - 子进程被杀后管道关闭，stdout/stderr 读取线程随 EOF 自然退出
+- **排序保证**：等待线程在 `child.wait()` 后先 join 两个读取线程，再触发 `on_complete`——保证退出瞬间倾泻的输出全部到达回调（见下节）；`on_complete` 开头调用 `EngineSession::finalize()` 冲刷无 `\n` 结尾的残余缓冲
+
+## 七-附、N_m3u8DL-RE 输出特性（实测结论，2026-08）
+
+结合 N_m3u8DL-RE 源码（Spectre.Console 0.57.1）与真实二进制（0.6.0+df70f0b，20260628）管道抓包实测：
+
+1. **重定向检测**：`Console.IsOutputRedirected` 时工具自动置 `ForceAnsiConsole + NoAnsiColor`（`Program.cs`），用 `NonAnsiWriter` 剥 ANSI——这是它为 GUI 包装设计的管道模式。
+2. **进度来自 Spectre live 显示**：下载进度是 `Progress().AutoRefresh`（刷新率 100ms，`LogLevel != OFF` 时启用）渲染的表格帧（`Vid <desc> ------ N/M x% size speed eta`，ASCII 横线、GBK 编码）。
+3. **关键缺陷（实测）**：`progress.StartAsync()` 启动 live 显示后，Spectre 的 RenderHook 管线接管控制台，**此后所有输出（Markup 日志 + 进度帧）积压在进程内，仅进程退出瞬间一次性倾泻**；`NonAnsiWriter` 的 `[\r\n] +` 正则又把倾泻内容的换行剥光，变成**无 `\n` 的单个粘连块**。普通日志行（`Logger.Info/Warn` 的消息体走 `Console.WriteLine`）不受影响、实时到达。
+4. **StreamGrab 的应对**：`parse_stream` 解析粘连块（已验证格式）；`finalize()` 冲刷退出倾泻；因此**下载完成后**进度历史/图表数据完整。局限：下载**过程中**进度条不动——根治需工具侧改造（候选方案：重定向时不强制 Interactive，改由工具节流输出普通日志行；或 StreamGrab 侧 ConPTY 伪终端使工具进入真交互模式），当前暂缓。
+5. **使用注意**：`--log-level OFF` 会关闭进度自动刷新（`progress.AutoRefresh = false`），设置中心勿提供/勿默认该级别；工具自身日志 `<工具目录>/Logs/*.log`（UTF-8、逐行实时落盘）是可用的旁路信号源。
 
 ## 八、错误处理
 

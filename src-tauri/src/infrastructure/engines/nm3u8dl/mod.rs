@@ -108,6 +108,41 @@ struct Nm3u8dlSession {
     audio_downloaded: u32,
 }
 
+impl Nm3u8dlSession {
+    /// `RawEvent` → `EngineEvent`，同时聚合视频/音频双流总体进度
+    fn map_event(&mut self, ev: RawEvent) -> EngineEvent {
+        match ev {
+            RawEvent::Log { level, message } => EngineEvent::Log { level, message },
+            RawEvent::Status { action } => EngineEvent::Status { action },
+            RawEvent::Progress { kind, mut data } => {
+                match kind {
+                    StreamKind::Video => {
+                        self.video_total = data.total_segments as u32;
+                        self.video_downloaded = data.downloaded_segments as u32;
+                    }
+                    StreamKind::Audio => {
+                        self.audio_total = data.total_segments as u32;
+                        self.audio_downloaded = data.downloaded_segments as u32;
+                    }
+                }
+
+                let total = self.video_total + self.audio_total;
+                let downloaded = self.video_downloaded + self.audio_downloaded;
+                data.overall_percent = if total > 0 {
+                    (downloaded * 100 / total) as i32
+                } else {
+                    0
+                };
+                data.total_segments = total as i32;
+                data.downloaded_segments = downloaded as i32;
+                data.current_action = format!("下载中 {downloaded}/{total}");
+
+                EngineEvent::Progress { data }
+            }
+        }
+    }
+}
+
 impl EngineSession for Nm3u8dlSession {
     fn parse_chunk(&mut self, chunk: &str) -> Vec<EngineEvent> {
         self.buffer.push_str(chunk);
@@ -124,35 +159,21 @@ impl EngineSession for Nm3u8dlSession {
         self.parser
             .parse_stream(&complete)
             .into_iter()
-            .map(|ev| match ev {
-                RawEvent::Log { level, message } => EngineEvent::Log { level, message },
-                RawEvent::Status { action } => EngineEvent::Status { action },
-                RawEvent::Progress { kind, mut data } => {
-                    match kind {
-                        StreamKind::Video => {
-                            self.video_total = data.total_segments as u32;
-                            self.video_downloaded = data.downloaded_segments as u32;
-                        }
-                        StreamKind::Audio => {
-                            self.audio_total = data.total_segments as u32;
-                            self.audio_downloaded = data.downloaded_segments as u32;
-                        }
-                    }
+            .map(|ev| self.map_event(ev))
+            .collect()
+    }
 
-                    let total = self.video_total + self.audio_total;
-                    let downloaded = self.video_downloaded + self.audio_downloaded;
-                    data.overall_percent = if total > 0 {
-                        (downloaded * 100 / total) as i32
-                    } else {
-                        0
-                    };
-                    data.total_segments = total as i32;
-                    data.downloaded_segments = downloaded as i32;
-                    data.current_action = format!("下载中 {downloaded}/{total}");
-
-                    EngineEvent::Progress { data }
-                }
-            })
+    fn finalize(&mut self) -> Vec<EngineEvent> {
+        // N_m3u8DL-RE 非 TTY 下的退出倾泻是无换行粘连块：
+        // parse_chunk 的按行排水永远等不到 `\n`，这里整体冲刷
+        let rest = std::mem::take(&mut self.buffer);
+        if rest.trim().is_empty() {
+            return Vec::new();
+        }
+        self.parser
+            .parse_stream(&rest)
+            .into_iter()
+            .map(|ev| self.map_event(ev))
             .collect()
     }
 }
@@ -238,6 +259,39 @@ mod tests {
             _ => false,
         });
         assert!(vid40, "应提取到 Vid 2/5 40% 进度");
+    }
+
+    #[test]
+    fn finalize_drains_newline_less_exit_dump() {
+        // 真实行为（实测 20260628 二进制）：N_m3u8DL-RE 非 TTY 下将全部
+        // 进度帧积压到进程退出瞬间一次性输出，且经 NonAnsiWriter 剥离换行后
+        // 是无 `\n` 的单个粘连块。parse_chunk 按行排水解析不到，finalize 必须兜住。
+        let engine = Nm3u8dlEngine::new();
+        let mut session = engine.new_session();
+
+        let dump = "\
+23:24:43.000 INFO : 开始下载...Vid 1264x528 | 2233 Kbps ------------------------------ 0/8 0.00% -0.00Bps --:--:--\
+Vid 1264x528 | 2233 Kbps ------------------------------ 3/8 37.50% 2.26MB/18.09MB 1.37MBps 00:00:03\
+Vid 1264x528 | 2233 Kbps ------------------------------ 8/8 100.00% 13.12MB - 00:00:00\
+23:24:45.442 INFO : Done";
+
+        // 无 `\n` → parse_chunk 全部缓冲，零事件
+        assert!(session.parse_chunk(dump).is_empty());
+
+        // finalize 冲刷：应得到进度事件且聚合到 100%，并保留日志/状态
+        let events = session.finalize();
+        let data = last_progress(&events);
+        assert_eq!(data.overall_percent, 100);
+        assert_eq!(data.downloaded_segments, 8);
+        assert_eq!(data.total_segments, 8);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, EngineEvent::Status { action } if action == "downloading")),
+            "开始下载状态标记应被解析"
+        );
+        // 再次 finalize 应为空（缓冲已排空）
+        assert!(session.finalize().is_empty());
     }
 
     #[test]

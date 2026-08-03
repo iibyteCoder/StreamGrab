@@ -174,9 +174,7 @@ fn check_rate_limit() -> Result<(), String> {
         if let Some(until) = cache.rate_limited_until {
             if Instant::now() < until {
                 let secs = (until - Instant::now()).as_secs();
-                return Err(format!(
-                    "GitHub API 请求频率限制，请 {secs} 秒后重试"
-                ));
+                return Err(format!("GitHub API 请求频率限制，请 {secs} 秒后重试"));
             }
         }
     }

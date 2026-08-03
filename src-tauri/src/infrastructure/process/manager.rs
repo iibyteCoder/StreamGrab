@@ -84,6 +84,10 @@ impl ProcessManager {
     /// `program` 和 `working_dir` 均为已验证的 [`ResolvedPath`]（非空+绝对+存在），
     /// 由命令层构造一次往下传递，编译期保证不会收到空/相对/不存在的路径。
     /// `on_output` 逐行回调（已解码去尾换行），`on_complete(success, error)` 退出时回调。
+    ///
+    /// **排序保证**：`on_complete` 在进程退出且两个输出读取线程 EOF 排空
+    /// （含退出瞬间倾泻的输出）之后才触发，调用方可在其开头安全地冲刷
+    /// [`EngineSession::finalize`] 残余缓冲。
     pub fn start_process<F, G>(
         &mut self,
         task_id: String,
@@ -144,14 +148,14 @@ impl ProcessManager {
             Arc::new(on_complete);
 
         // stdout/stderr 读取线程（子进程被杀后管道关闭，线程随 EOF 退出）
-        Self::spawn_reader(
+        let stdout_reader = Self::spawn_reader(
             task_id.clone(),
             "stdout",
             stdout,
             Arc::clone(&output_callback),
             Arc::clone(&stop_flag),
         );
-        Self::spawn_reader(
+        let stderr_reader = Self::spawn_reader(
             task_id.clone(),
             "stderr",
             stderr,
@@ -160,25 +164,34 @@ impl ProcessManager {
         );
 
         // 等待线程
-        thread::spawn(move || match child.wait() {
-            Ok(status) => {
-                let success = status.success();
-                let code = status.code().unwrap_or(-1);
-                log::info!(
-                    "Process {task_id} (PID: {pid}) exited with code {code}, success: {success}"
-                );
-                if success {
-                    complete_callback(true, None);
-                } else {
-                    complete_callback(false, Some(format!("进程退出码: {code}")));
+        thread::spawn(move || {
+            let result = child.wait();
+            // 先等两个输出读取线程退出（进程退出 → 管道关闭 → EOF 排空），
+            // 保证 on_output 收齐全部输出——N_m3u8DL-RE 非 TTY 下将进度帧
+            // 积压到进程退出瞬间一次性倾泻，若在 join 之前触发 on_complete，
+            // 完成事件会抢跑在进度数据之前，前端订阅读者已注销、进度缓冲无人冲刷。
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            match result {
+                Ok(status) => {
+                    let success = status.success();
+                    let code = status.code().unwrap_or(-1);
+                    log::info!(
+                        "Process {task_id} (PID: {pid}) exited with code {code}, success: {success}"
+                    );
+                    if success {
+                        complete_callback(true, None);
+                    } else {
+                        complete_callback(false, Some(format!("进程退出码: {code}")));
+                    }
                 }
-            }
-            Err(e) => {
-                log::error!("Failed to wait for process {task_id}: {e}");
-                if read_stop_flag(&stop_flag) {
-                    complete_callback(false, Some("下载已取消".into()));
-                } else {
-                    complete_callback(false, Some(format!("进程错误: {e}")));
+                Err(e) => {
+                    log::error!("Failed to wait for process {task_id}: {e}");
+                    if read_stop_flag(&stop_flag) {
+                        complete_callback(false, Some("下载已取消".into()));
+                    } else {
+                        complete_callback(false, Some(format!("进程错误: {e}")));
+                    }
                 }
             }
         });
@@ -191,13 +204,16 @@ impl ProcessManager {
     /// 回调接收**含行尾 `\n`** 的原始文本（不裁剪）。这是为了让
     /// [`EngineSession`] 能按 `\n` 排水内部缓冲——N_m3u8DL-RE 在非 TTY
     /// 下会把多条进度更新粘连在一行内，会话需保留 `\n` 作为完整块边界。
+    ///
+    /// 返回 [`JoinHandle`]：等待线程必须在触发完成回调前 join 本线程，
+    /// 保证进程退出瞬间倾泻的输出（可能整块不含 `\n`）全部到达回调。
     fn spawn_reader(
         task_id: String,
         stream: &'static str,
         reader: impl Read + Send + 'static,
         callback: Arc<dyn Fn(String) + Send + Sync>,
         stop_flag: Arc<Mutex<bool>>,
-    ) {
+    ) -> thread::JoinHandle<()> {
         thread::spawn(move || {
             let mut reader = BufReader::new(reader);
             let mut buf = Vec::new();
@@ -226,7 +242,7 @@ impl ProcessManager {
                 }
             }
             log::debug!("{stream} reader thread exited for task {task_id}");
-        });
+        })
     }
 
     /// 停止指定任务的进程

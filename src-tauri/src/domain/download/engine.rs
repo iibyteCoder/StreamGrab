@@ -117,6 +117,18 @@ pub trait EngineSession: Send {
     /// 接收任意大小的输出块（可能跨多行，或 N_m3u8DL-RE 非 TTY 下
     /// 零分隔粘连的进度块），返回 0..N 个事件。会话内部自行缓冲跨块状态。
     fn parse_chunk(&mut self, chunk: &str) -> Vec<EngineEvent>;
+
+    /// EOF 冲刷：解析缓冲区中的全部残余并返回事件（即使不以 `\n` 结尾）
+    ///
+    /// 进程退出、输出读取完毕后调用一次。N_m3u8DL-RE 在非 TTY 下会把
+    /// 全部进度帧积压到进程退出瞬间一次性输出，且经其 `NonAnsiWriter`
+    /// 剥离换行后是**没有 `\n` 的单个粘连块**——`parse_chunk` 的按行排水
+    /// 永远等不到换行，这里是这些数据的最后解析机会。
+    ///
+    /// 默认实现返回空（FFmpeg 的 `-progress` 块以标记行终结，无有意义的残余）。
+    fn finalize(&mut self) -> Vec<EngineEvent> {
+        Vec::new()
+    }
 }
 
 /// 引擎注册表：按 URL 类型分派策略
