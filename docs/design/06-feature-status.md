@@ -229,6 +229,7 @@
 | 多语言支持 | P3 | `[x]` | `src/locales/` | vue-i18n，简体中文/繁体中文/英文三语 |
 | 主页布局 | P0 | `[x]` | `src/views/HomeView.vue` | 基本布局完成 |
 | 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情） |
+| 任务卡片右键菜单 | P2 | `[x]` | `src/components/task/TaskContextMenu.vue` | 右键菜单收纳复制链接/文件名/路径、以此链接重新下载（预填添加对话框）、打开详情 |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
 | 详情链接复制 | P2 | `[x]` | `src/components/task/TaskDetailPanel.vue` + `src/services/clipboardService.ts` | 标题行复制按钮：图标态切换 + toast 反馈；同期补齐 clipboard 读/写权限（修复剪贴板监控静默失败） |
 | 设置页面 | P0 | `[x]` | `src/views/SettingsView.vue` | 2026-07 重设计：左侧导航栏 + 右侧单列内容（4 分区），SettingsGroup 单卡片 + divide-y 行模型，内联样式全量替换为语义化 token（浅色主题修复） |
