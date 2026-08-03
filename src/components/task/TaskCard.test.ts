@@ -137,4 +137,14 @@ describe("TaskCard 右键菜单接线", () => {
     await wrapper.find(".task-card").trigger("click");
     expect(wrapper.emitted("click")?.[0]).toEqual([task]);
   });
+
+  it("根节点为单一真实元素（TransitionGroup 列表动画前提，回归）", () => {
+    const wrapper = mountCard(mkTask());
+    const root = wrapper.element;
+    expect(root.tagName).toBe("DIV");
+    // 根节点是包裹 div（非卡片本体），卡片位于其内部——
+    // 区分于 ContextMenu Fragment 根导致的「无法动画」运行时警告
+    expect(root.classList.contains("task-card")).toBe(false);
+    expect(root.querySelector(".task-card")).not.toBeNull();
+  });
 });
