@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1] - 2026-08-04
+
+### 修复
+
+- 下载失败时展示工具的详细错误（如 CDN 返回 `403 (Forbidden)`、`Download init file failed`），替代笼统的「进程退出码: 1」，便于自诊断
+
 ## [0.6.0] - 2026-08-04
 
 ### 新增
@@ -122,6 +128,7 @@
 - 使用 Tauri 2.0 + Vue 3 + TypeScript 构建
 - 跨平台支持（Windows、macOS、Linux）
 
+[0.6.1]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.1
 [0.6.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.0
 [0.5.2]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.5.2
 [0.5.1]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.5.1
