@@ -26,6 +26,7 @@ withDefaults(defineProps<Props>(), {
 
 defineEmits<{
   (e: "taskClick", task: DownloadTask): void;
+  (e: "taskRedownload", task: DownloadTask): void;
 }>();
 </script>
 
@@ -44,6 +45,7 @@ defineEmits<{
         :task="task"
         :active="activeTaskId === task.id"
         @click="$emit('taskClick', $event)"
+        @redownload="$emit('taskRedownload', $event)"
       />
     </TransitionGroup>
 

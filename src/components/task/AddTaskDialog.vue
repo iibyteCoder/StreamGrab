@@ -18,6 +18,8 @@ import LinkConfigCard from "./LinkConfigCard.vue";
 
 interface Props {
   open: boolean;
+  /** 预填链接并自动推进到配置步（来自右键菜单「以此链接重新下载」） */
+  initialUrl?: string | null;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: "update:open", value: boolean): void }>();
@@ -59,12 +61,18 @@ const isDragging = ref(false);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
 watch(isOpen, async (open) => {
-  if (open) {
-    reset();
+  if (!open) return;
+  reset();
+  if (props.initialUrl) {
+    // 右键菜单「以此链接重新下载」：预填并自动提交解析，
+    // 复用既有 submitPaste 链路（resolveLinkToTask / 重复检测）直达配置步
+    pasteText.value = props.initialUrl;
+    void submitPaste(props.initialUrl);
+  } else {
     pasteText.value = "";
-    await nextTick();
-    textareaRef.value?.focus();
   }
+  await nextTick();
+  textareaRef.value?.focus();
 });
 
 // 向导进入 done → 关闭弹窗

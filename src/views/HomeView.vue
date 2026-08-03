@@ -32,6 +32,8 @@ useClipboardWatcher();
 
 // 添加任务弹窗
 const showAddDialog = ref(false);
+// 右键菜单「重新下载」→ 预填添加对话框的 URL（一次性交接）
+const prefillUrl = ref<string | null>(null);
 
 // 详情面板
 const showDetailPanel = ref(false);
@@ -67,6 +69,11 @@ watch(showDetailPanel, (open) => {
     selectedTaskId.value = null;
   }
 });
+
+// 添加对话框关闭时清空预填 URL，防止污染下一次普通「添加任务」
+watch(showAddDialog, (open) => {
+  if (!open) prefillUrl.value = null;
+});
 onMounted(() => {
   updateSlider();
 });
@@ -92,6 +99,12 @@ const handleStartAll = async () => await startPendingTasks();
 const handleTaskClick = (task: DownloadTask) => {
   selectedTaskId.value = task.id;
   showDetailPanel.value = true;
+};
+
+// 右键菜单「以此链接重新下载」：预填 URL 并打开添加对话框
+const handleRedownload = (task: DownloadTask) => {
+  prefillUrl.value = task.url;
+  showAddDialog.value = true;
 };
 </script>
 
@@ -172,6 +185,7 @@ const handleTaskClick = (task: DownloadTask) => {
           :active-task-id="selectedTaskId"
           empty-type="active"
           @task-click="handleTaskClick"
+          @task-redownload="handleRedownload"
         />
         <TaskList
           v-else
@@ -179,6 +193,7 @@ const handleTaskClick = (task: DownloadTask) => {
           :active-task-id="selectedTaskId"
           empty-type="completed"
           @task-click="handleTaskClick"
+          @task-redownload="handleRedownload"
         />
       </div>
 
@@ -215,7 +230,7 @@ const handleTaskClick = (task: DownloadTask) => {
     </div>
 
     <!-- 添加任务弹窗 -->
-    <AddTaskDialog v-model:open="showAddDialog" />
+    <AddTaskDialog v-model:open="showAddDialog" :initial-url="prefillUrl" />
   </div>
 </template>
 
