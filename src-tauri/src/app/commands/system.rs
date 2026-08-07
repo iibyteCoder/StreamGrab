@@ -23,7 +23,9 @@ pub struct FileFilter {
 
 /// 选择目录
 #[tauri::command]
-pub async fn select_directory(app: AppHandle) -> Result<Option<String>, String> {
+pub async fn select_directory<R: tauri::Runtime>(
+    app: AppHandle<R>,
+) -> Result<Option<String>, String> {
     Ok(app
         .dialog()
         .file()
@@ -33,8 +35,8 @@ pub async fn select_directory(app: AppHandle) -> Result<Option<String>, String> 
 
 /// 选择文件
 #[tauri::command]
-pub async fn select_file(
-    app: AppHandle,
+pub async fn select_file<R: tauri::Runtime>(
+    app: AppHandle<R>,
     filters: Option<Vec<FileFilter>>,
 ) -> Result<Option<String>, String> {
     let mut dialog = app.dialog().file();
@@ -125,7 +127,10 @@ pub async fn open_file_in_explorer(file_path: String) -> Result<(), String> {
 
 /// 使用系统默认程序打开文件（如播放视频、查看文档）
 #[tauri::command]
-pub async fn open_file_with_default(app: AppHandle, path: String) -> Result<(), String> {
+pub async fn open_file_with_default<R: tauri::Runtime>(
+    app: AppHandle<R>,
+    path: String,
+) -> Result<(), String> {
     log::info!("Opening file with default app: {path}");
 
     if !PathBuf::from(&path).exists() {
@@ -161,7 +166,7 @@ pub async fn delete_file_or_folder(path: String) -> Result<(), String> {
 
 /// 获取数据库文件路径
 #[tauri::command]
-pub async fn get_db_path(app: AppHandle) -> Result<String, String> {
+pub async fn get_db_path<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, String> {
     let config_dir = app
         .path()
         .app_config_dir()
@@ -170,6 +175,16 @@ pub async fn get_db_path(app: AppHandle) -> Result<String, String> {
         .join("streamgrab.db")
         .to_string_lossy()
         .to_string())
+}
+
+/// 获取系统托盘状态
+///
+/// 托盘创建失败时前端应提示用户：关闭窗口若最小化到托盘将无图标可恢复。
+#[tauri::command]
+pub fn get_tray_status(
+    state: tauri::State<crate::app::TrayStatus>,
+) -> Result<crate::app::TrayStatus, String> {
+    Ok(state.inner().clone())
 }
 
 // ========================================
@@ -188,10 +203,10 @@ pub struct AppDownloadProgress {
 
 /// 下载应用更新安装包
 #[tauri::command(rename_all = "camelCase")]
-pub async fn download_app_update(
+pub async fn download_app_update<R: tauri::Runtime>(
     download_url: String,
     save_path: String,
-    app: AppHandle,
+    app: AppHandle<R>,
 ) -> Result<String, String> {
     let save_path = PathBuf::from(&save_path);
     log::info!("[Update] 开始下载应用更新到: {:?}", save_path);

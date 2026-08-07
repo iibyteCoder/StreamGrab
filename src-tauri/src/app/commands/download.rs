@@ -37,16 +37,29 @@ fn none_if_empty(s: Option<&str>) -> Option<&str> {
 }
 
 /// 解析 ffprobe 二进制路径（ffprobe_path 优先，回退到 ffmpeg 目录）
-fn resolve_ffprobe_bin(ffmpeg: &FfmpegConfig) -> Option<PathBuf> {
+pub fn resolve_ffprobe_bin(ffmpeg: &FfmpegConfig) -> Option<PathBuf> {
     get_ffprobe_exe_path(none_if_empty(Some(ffmpeg.ffprobe_path.as_str())))
         .or_else(|| get_ffprobe_exe_path(none_if_empty(Some(ffmpeg.ffmpeg_path.as_str()))))
+}
+
+/// 保存目录三级兜底：任务指定 > 全局默认 > 系统下载目录
+///
+/// 纯函数可单测；`system_default` 由调用方惰性求值（避免系统默认目录被提前创建）。
+pub fn resolve_save_dir(save_dir: &str, global_default: &str, system_default: &str) -> String {
+    if !save_dir.trim().is_empty() {
+        save_dir.to_string()
+    } else if !global_default.trim().is_empty() {
+        global_default.to_string()
+    } else {
+        system_default.to_string()
+    }
 }
 
 /// 解析默认保存目录（用户既无任务覆盖也无全局默认时使用），并确保目录存在。
 ///
 /// 优先系统「下载」目录下的 `StreamGrab` 子目录，失败则回退应用数据目录。
 /// 返回绝对路径，避免 N_m3u8DL-RE 以自身 CWD 解释空/相对路径而把文件落到工程目录。
-fn default_save_dir(app: &AppHandle) -> AppResult<String> {
+fn default_save_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> AppResult<String> {
     let dir = app
         .path()
         .download_dir()
@@ -90,22 +103,22 @@ fn run_command_capture(
 
 /// 开始下载（引擎自动分派）
 #[tauri::command(rename_all = "camelCase")]
-pub async fn start_download(
+pub async fn start_download<R: tauri::Runtime>(
     task_id: String,
     db: State<'_, Database>,
     manager: State<'_, Arc<TokioMutex<ProcessManager>>>,
     engines: State<'_, EngineRegistry>,
-    app: AppHandle,
+    app: AppHandle<R>,
 ) -> Result<(), String> {
     api(start_download_inner(task_id, &db, &manager, &engines, app).await)
 }
 
-async fn start_download_inner(
+async fn start_download_inner<R: tauri::Runtime>(
     task_id: String,
     db: &Database,
     manager: &Arc<TokioMutex<ProcessManager>>,
     engines: &EngineRegistry,
-    app: AppHandle,
+    app: AppHandle<R>,
 ) -> AppResult<()> {
     let task = db
         .tasks
@@ -118,9 +131,8 @@ async fn start_download_inner(
 
     // 保存目录解析：任务覆盖 > 全局默认 > 系统下载目录。
     // 空目录会让 N_m3u8DL-RE 落到自身 CWD，且完成回调 find_output_file 找不到输出文件。
-    if spec.save_dir.trim().is_empty() {
-        spec.save_dir = app_settings.default_save_dir.clone();
-    }
+    // 系统默认目录惰性求值——前两级非空时不创建。
+    spec.save_dir = resolve_save_dir(&spec.save_dir, &app_settings.default_save_dir, "");
     if spec.save_dir.trim().is_empty() {
         spec.save_dir = default_save_dir(&app)?;
     }
@@ -304,12 +316,12 @@ pub async fn pause_download(
 
 /// 恢复下载（任务级覆盖已持久化，引擎重新构建参数）
 #[tauri::command(rename_all = "camelCase")]
-pub async fn resume_download(
+pub async fn resume_download<R: tauri::Runtime>(
     task_id: String,
     db: State<'_, Database>,
     manager: State<'_, Arc<TokioMutex<ProcessManager>>>,
     engines: State<'_, EngineRegistry>,
-    app: AppHandle,
+    app: AppHandle<R>,
 ) -> Result<(), String> {
     log::info!("Resuming download: {task_id}");
     api(start_download_inner(task_id, &db, &manager, &engines, app).await)
@@ -434,4 +446,45 @@ pub async fn analyze_media_file(
         log::info!("Analyzing media file: {file_path}");
         ffprobe::FfprobeAnalyzer::new(bin.to_string_lossy().to_string()).analyze(&file_path)
     })())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::config::FfmpegConfig;
+
+    #[test]
+    fn resolve_save_dir_three_level_fallback() {
+        // 任务指定 > 全局默认 > 系统默认
+        assert_eq!(resolve_save_dir("task", "global", "system"), "task");
+        assert_eq!(resolve_save_dir("", "global", "system"), "global");
+        assert_eq!(resolve_save_dir("", "", "system"), "system");
+        // 空白视为未配置
+        assert_eq!(resolve_save_dir("  ", "global", "system"), "global");
+        assert_eq!(resolve_save_dir("  ", "  ", "system"), "system");
+    }
+
+    #[test]
+    fn resolve_ffprobe_prefers_configured_path_then_falls_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffprobe = dir.path().join("ffprobe.exe");
+        std::fs::write(&ffprobe, b"dummy").unwrap();
+        let ffmpeg = dir.path().join("ffmpeg.exe");
+        std::fs::write(&ffmpeg, b"dummy").unwrap();
+
+        let mut cfg = FfmpegConfig::default();
+        cfg.ffprobe_path = ffprobe.to_string_lossy().into_owned();
+        cfg.ffmpeg_path = ffmpeg.to_string_lossy().into_owned();
+
+        // ffprobe_path 优先
+        assert_eq!(resolve_ffprobe_bin(&cfg), Some(ffprobe.clone()));
+
+        // ffprobe_path 为空 → 回退 ffmpeg 路径
+        cfg.ffprobe_path.clear();
+        assert_eq!(resolve_ffprobe_bin(&cfg), Some(ffmpeg.clone()));
+
+        // 两者为空 → None
+        cfg.ffmpeg_path.clear();
+        assert_eq!(resolve_ffprobe_bin(&cfg), None);
+    }
 }

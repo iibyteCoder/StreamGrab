@@ -18,7 +18,6 @@ import {
 import { useToast } from "./useToast";
 import { useNotification } from "./useNotification";
 import type { DownloadTask, ProgressData, StreamInfo } from "@/domain";
-import { MAX_CONCURRENT_TASKS } from "@/utils/constants";
 import { i18n } from "@/locales";
 
 /** 定时调度器轮询间隔（30 秒） */
@@ -65,7 +64,12 @@ export function useDownloader() {
     isProcessingQueue = true;
 
     try {
-      while (taskStore.activeTasks.length < MAX_CONCURRENT_TASKS) {
+      // 最大并发数配置化（AppSettings.max_concurrent_tasks），至少为 1
+      const maxConcurrent = Math.max(
+        1,
+        settingsStore.appSettings.max_concurrent_tasks,
+      );
+      while (taskStore.activeTasks.length < maxConcurrent) {
         const nextTask = taskStore.pendingTasks.find(
           (t) => !isScheduledForLater(t) && !startingTasks.value.has(t.id),
         );
@@ -85,7 +89,10 @@ export function useDownloader() {
   const startDownload = async (task: DownloadTask): Promise<void> => {
     if (startingTasks.value.has(task.id)) return;
 
-    if (taskStore.activeTasks.length >= MAX_CONCURRENT_TASKS) {
+    if (
+      taskStore.activeTasks.length >=
+      Math.max(1, settingsStore.appSettings.max_concurrent_tasks)
+    ) {
       await taskStore.setTaskStatus(task.id, "pending");
       return;
     }

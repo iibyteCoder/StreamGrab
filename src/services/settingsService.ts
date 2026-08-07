@@ -24,10 +24,6 @@ class SettingsService {
     return invokeTauri<AppSettings>("get_app_settings");
   }
 
-  saveAppSettings(settings: AppSettings): Promise<void> {
-    return invokeTauri("save_app_settings", { settings });
-  }
-
   /** 部分更新应用设置，返回合并后的完整配置 */
   patchAppSettings(partial: DeepPartial<AppSettings>): Promise<AppSettings> {
     return invokeTauri<AppSettings>("patch_app_settings", { partial });
@@ -38,13 +34,6 @@ class SettingsService {
   getNm3u8dlConfig(): Promise<Nm3u8dlConfig> {
     return invokeTauri<Nm3u8dlConfig>("get_tool_settings", {
       toolId: "nm3u8dl",
-    });
-  }
-
-  saveNm3u8dlConfig(config: Nm3u8dlConfig): Promise<void> {
-    return invokeTauri("save_tool_settings", {
-      toolId: "nm3u8dl",
-      config,
     });
   }
 
@@ -64,10 +53,6 @@ class SettingsService {
     return invokeTauri<FfmpegConfig>("get_tool_settings", {
       toolId: "ffmpeg",
     });
-  }
-
-  saveFfmpegConfig(config: FfmpegConfig): Promise<void> {
-    return invokeTauri("save_tool_settings", { toolId: "ffmpeg", config });
   }
 
   /** 部分更新，返回合并后的完整配置 */

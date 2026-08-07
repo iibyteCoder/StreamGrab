@@ -15,9 +15,9 @@ import type {
   MediaInfo,
 } from "@/domain";
 import { extractFileName, generateTimestampedFilename } from "@/utils/format";
-import { MAX_CONCURRENT_TASKS } from "@/utils/constants";
 import { generateId } from "@/utils/id";
 import { taskService } from "@/services";
+import { useSettingsStore } from "./settingsStore";
 
 // 最大日志条目数（每个任务）
 const MAX_LOG_ENTRIES = 500;
@@ -79,8 +79,12 @@ export const useTaskStore = defineStore("task", () => {
     tasks.value.filter((t) => t.status === "failed"),
   );
 
+  // 最大并发数来自 AppSettings（默认 5，设置页可调）
+  const settingsStore = useSettingsStore();
   const canStartMore = computed(
-    () => activeTasks.value.length < MAX_CONCURRENT_TASKS,
+    () =>
+      activeTasks.value.length <
+      Math.max(1, settingsStore.appSettings.max_concurrent_tasks),
   );
 
   const hasTasks = computed(() => tasks.value.length > 0);

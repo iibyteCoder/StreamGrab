@@ -154,6 +154,26 @@ pub struct AppSettings {
     pub log_file_path: String,
     /// 禁用日志
     pub no_log: bool,
+    /// 最大并发下载任务数
+    pub max_concurrent_tasks: u32,
+}
+
+/// 关闭窗口时的行为
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseBehavior {
+    /// 隐藏到系统托盘（应用继续运行）
+    Minimize,
+    /// 正常退出
+    Exit,
+}
+
+/// 从应用设置解析关闭窗口行为（纯函数，可单测）
+pub fn resolve_close_behavior(settings: &AppSettings) -> CloseBehavior {
+    if settings.minimize_to_tray {
+        CloseBehavior::Minimize
+    } else {
+        CloseBehavior::Exit
+    }
 }
 
 impl Default for AppSettings {
@@ -171,6 +191,7 @@ impl Default for AppSettings {
             log_level: LogLevel::default(),
             log_file_path: String::new(),
             no_log: false,
+            max_concurrent_tasks: 5,
         }
     }
 }
@@ -213,6 +234,30 @@ pub struct NetworkHeader {
     pub id: i64,
     pub name: String,
     pub value: String,
+    pub enabled: bool,
+    pub sort_order: i32,
+}
+
+/// 广告关键词过滤（`--ad-keyword`，正则）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AdKeyword {
+    pub id: i64,
+    /// 分片 URL 匹配正则
+    pub keyword: String,
+    pub enabled: bool,
+    pub sort_order: i32,
+}
+
+/// 混流导入的外部媒体文件（`--mux-import`）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MuxImport {
+    pub id: i64,
+    /// 文件路径
+    pub path: String,
+    /// 语言代码（可选，如 `chi`/`eng`）
+    pub lang: Option<String>,
+    /// 描述（可选，如「中文 (简体)」）
+    pub name: Option<String>,
     pub enabled: bool,
     pub sort_order: i32,
 }
@@ -338,6 +383,12 @@ pub struct Nm3u8dlConfig {
     pub no_date_info: bool,
     /// 使用 FFmpeg concat 解复用器
     pub use_ffmpeg_concat_demuxer: bool,
+    /// 保存文件名模板（--save-pattern，如 `<SaveName>_<Resolution>_<Bandwidth>`）
+    pub save_pattern: Option<String>,
+    /// 广告关键词过滤列表（--ad-keyword）
+    pub ad_keywords: Vec<AdKeyword>,
+    /// 混流导入的外部媒体文件（--mux-import）
+    pub mux_imports: Vec<MuxImport>,
     /// 网络子配置
     pub network: NetworkConfig,
     /// 解密子配置
@@ -380,6 +431,9 @@ impl Default for Nm3u8dlConfig {
             url_processor_args: None,
             no_date_info: false,
             use_ffmpeg_concat_demuxer: false,
+            save_pattern: None,
+            ad_keywords: Vec::new(),
+            mux_imports: Vec::new(),
             network: NetworkConfig::default(),
             decryption: DecryptionConfig::default(),
         }
@@ -390,10 +444,27 @@ impl Default for Nm3u8dlConfig {
 // FFmpeg 工具配置（tool_settings["ffmpeg"]）
 // ========================================
 
+/// HTTP basic 认证
+///
+/// ffmpeg 以 `-auth_type basic` + `Authorization: Basic <base64(user:pass)>` 头实现。
+/// username 为空表示不启用认证。
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AuthConfig {
+    pub username: String,
+    pub password: String,
+}
+
 /// FFmpeg 工具配置
 ///
 /// 覆盖三个职责：混流默认值（被 N_m3u8DL-RE 的 `-M` 参数消费）、
 /// 直链视频下载默认值、ffprobe 媒体分析的二进制管理。
+///
+/// 直链下载字段与真实 ffmpeg 参数一一对应（均有实测验证）：
+/// retry_count→`-reconnect_max_retries`、timeout→`-rw_timeout`（µs）、
+/// connection_timeout→`-timeout`（µs）、preserve_timestamps→`-copyts`、
+/// reconnect_attempts→`-reconnect 1 -reconnect_streamed 1`、
+/// 以及 http_proxy/max_redirects/cookies/auth/reconnect_on_http_error 等。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct FfmpegConfig {
@@ -413,26 +484,38 @@ pub struct FfmpegConfig {
     /// 混流后保留原始文件
     pub mux_keep_original: bool,
     // —— 直链下载默认值 ——
-    /// 重试次数
-    pub retry_count: u32,
-    /// 超时（秒）
-    pub timeout: u32,
-    /// 限速（如 "10M"，空 = 不限速）
-    pub max_speed: String,
-    /// 连接超时（秒）
-    pub connection_timeout: u32,
-    /// 断线重连次数
+    /// 断线重连开关（0 = 关闭；>0 输出 -reconnect 系列）
     pub reconnect_attempts: u32,
-    /// 重连延迟（秒）
+    /// 重连延迟上限（秒，→ -reconnect_delay_max）
     pub reconnect_delay: u32,
-    /// 覆盖已存在文件
+    /// 重试次数（→ -reconnect_max_retries）
+    pub retry_count: u32,
+    /// 网络 IO 超时（秒 → -rw_timeout 微秒）
+    pub timeout: u32,
+    /// 连接超时（秒 → -timeout 微秒）
+    pub connection_timeout: u32,
+    /// 覆盖已存在文件（-y / -n）
     pub overwrite_existing: bool,
-    /// 保留文件时间戳
+    /// 保留输入时间戳（-copyts）
     pub preserve_timestamps: bool,
-    /// 自定义 User-Agent
+    /// 自定义 User-Agent（-user_agent）
     pub user_agent: Option<String>,
-    /// 自定义 Referer
+    /// 自定义 Referer（-headers Referer）
     pub referer: Option<String>,
+    /// 直链代理（-http_proxy）
+    pub http_proxy: Option<String>,
+    /// Cookie（-cookies，换行分隔 Set-Cookie 语法）
+    pub cookies: Option<String>,
+    /// HTTP basic 认证（-auth_type basic + Authorization 头）
+    pub auth: AuthConfig,
+    /// 最大重定向次数（-max_redirects，ffmpeg 默认 8）
+    pub max_redirects: u32,
+    /// 对指定 HTTP 状态码重连（-reconnect_on_http_error，如 "404,429"）
+    pub reconnect_on_http_error: Option<String>,
+    /// 重连总时长上限（-reconnect_delay_total_max，ffmpeg 默认 256）
+    pub reconnect_delay_total_max: u32,
+    /// 尊重 Retry-After 头（-respect_retry_after，ffmpeg 默认 true）
+    pub respect_retry_after: bool,
 }
 
 impl Default for FfmpegConfig {
@@ -445,16 +528,22 @@ impl Default for FfmpegConfig {
             mux_bin_path: None,
             mux_skip_subtitles: false,
             mux_keep_original: false,
-            retry_count: 3,
-            timeout: 60,
-            max_speed: String::new(),
-            connection_timeout: 30,
             reconnect_attempts: 3,
             reconnect_delay: 5,
+            retry_count: 3,
+            timeout: 60,
+            connection_timeout: 30,
             overwrite_existing: false,
             preserve_timestamps: true,
             user_agent: None,
             referer: None,
+            http_proxy: None,
+            cookies: None,
+            auth: AuthConfig::default(),
+            max_redirects: 8,
+            reconnect_on_http_error: None,
+            reconnect_delay_total_max: 256,
+            respect_retry_after: true,
         }
     }
 }
@@ -489,6 +578,7 @@ mod tests {
         assert_eq!(s.log_level, LogLevel::Info);
         assert_eq!(s.theme, Theme::Dark);
         assert_eq!(serde_json::to_value(s.language).unwrap(), "zh-CN");
+        assert_eq!(s.max_concurrent_tasks, 5);
     }
 
     #[test]
@@ -517,6 +607,10 @@ mod tests {
         assert_eq!(c.reconnect_delay, 5);
         assert!(!c.overwrite_existing);
         assert!(c.preserve_timestamps);
+        assert_eq!(c.max_redirects, 8);
+        assert_eq!(c.reconnect_delay_total_max, 256);
+        assert!(c.respect_retry_after);
+        assert!(c.auth.username.is_empty());
         assert_eq!(c.mux_format, MuxFormat::Mp4);
         assert_eq!(c.muxer, Muxer::Ffmpeg);
     }
@@ -528,6 +622,16 @@ mod tests {
         assert_eq!(c.thread_count, 16);
         assert_eq!(c.retry_count, 3);
         assert!(c.auto_select);
+    }
+
+    #[test]
+    fn resolve_close_behavior_maps_minimize_to_tray() {
+        let mut s = AppSettings::default();
+        s.minimize_to_tray = true;
+        assert_eq!(resolve_close_behavior(&s), CloseBehavior::Minimize);
+
+        s.minimize_to_tray = false;
+        assert_eq!(resolve_close_behavior(&s), CloseBehavior::Exit);
     }
 
     #[test]

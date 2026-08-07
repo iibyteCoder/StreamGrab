@@ -9,7 +9,7 @@ export { useDownloader } from "./useDownloader";
 export { useStreamSelector } from "./useStreamSelector";
 export { usePresetManager } from "./usePresetManager";
 export { useClipboardWatcher } from "./useClipboardWatcher";
-export { useUpdateChecker } from "./useUpdateChecker";
+export { useUpdateChecker, autoCheckUpdateAtStartup } from "./useUpdateChecker";
 export { useNotification } from "./useNotification";
 export {
   useTaskFilter,

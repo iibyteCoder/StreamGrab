@@ -35,6 +35,9 @@ jobs:
       - name: 代码检查
         run: npm run lint
 
+      - name: 运行单元测试
+        run: npm test
+
       - name: 构建前端
         run: npm run build
 
@@ -67,6 +70,10 @@ jobs:
       - name: Clippy 静态分析
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
+
+      - name: 运行单元测试
+        working-directory: src-tauri
+        run: cargo test
 
       - name: 构建后端
         working-directory: src-tauri

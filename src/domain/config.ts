@@ -68,6 +68,8 @@ export interface AppSettings {
   log_level: LogLevel;
   log_file_path: string;
   no_log: boolean;
+  /** 最大并发下载任务数 */
+  max_concurrent_tasks: number;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -83,6 +85,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   log_level: "INFO",
   log_file_path: "",
   no_log: false,
+  max_concurrent_tasks: 5,
 };
 
 // ========================================
@@ -165,6 +168,24 @@ export const DEFAULT_DECRYPTION_CONFIG: DecryptionConfig = {
  *
  * 流媒体下载引擎（HLS/DASH/MSS）的全部默认行为，含网络与解密子配置
  */
+/** 广告关键词过滤（--ad-keyword，正则） */
+export interface AdKeyword {
+  id: number;
+  keyword: string;
+  enabled: boolean;
+  sort_order: number;
+}
+
+/** 混流导入的外部媒体文件（--mux-import） */
+export interface MuxImport {
+  id: number;
+  path: string;
+  lang: string | null;
+  name: string | null;
+  enabled: boolean;
+  sort_order: number;
+}
+
 export interface Nm3u8dlConfig {
   /** 工具二进制路径（空 = 自动检测） */
   path: string;
@@ -202,6 +223,12 @@ export interface Nm3u8dlConfig {
   url_processor_args: string | null;
   no_date_info: boolean;
   use_ffmpeg_concat_demuxer: boolean;
+  /** 保存文件名模板（--save-pattern） */
+  save_pattern: string | null;
+  /** 广告关键词过滤列表（--ad-keyword） */
+  ad_keywords: AdKeyword[];
+  /** 混流导入的外部媒体文件（--mux-import） */
+  mux_imports: MuxImport[];
   network: NetworkConfig;
   decryption: DecryptionConfig;
 }
@@ -240,6 +267,9 @@ export const DEFAULT_NM3U8DL_CONFIG: Nm3u8dlConfig = {
   url_processor_args: null,
   no_date_info: false,
   use_ffmpeg_concat_demuxer: false,
+  save_pattern: null,
+  ad_keywords: [],
+  mux_imports: [],
   network: DEFAULT_NETWORK_CONFIG,
   decryption: DEFAULT_DECRYPTION_CONFIG,
 };
@@ -254,6 +284,12 @@ export const DEFAULT_NM3U8DL_CONFIG: Nm3u8dlConfig = {
  * 覆盖三个职责：混流默认值（被 N_m3u8DL-RE 的 -M 参数消费）、
  * 直链视频下载默认值、ffprobe 媒体分析的二进制管理
  */
+/** HTTP basic 认证（ffmpeg -auth_type basic + Authorization 头） */
+export interface AuthConfig {
+  username: string;
+  password: string;
+}
+
 export interface FfmpegConfig {
   ffmpeg_path: string;
   ffprobe_path: string;
@@ -264,16 +300,22 @@ export interface FfmpegConfig {
   mux_skip_subtitles: boolean;
   mux_keep_original: boolean;
   // —— 直链下载默认值 ——
-  retry_count: number;
-  timeout: number;
-  max_speed: string;
-  connection_timeout: number;
   reconnect_attempts: number;
   reconnect_delay: number;
+  retry_count: number;
+  timeout: number;
+  connection_timeout: number;
   overwrite_existing: boolean;
   preserve_timestamps: boolean;
   user_agent: string | null;
   referer: string | null;
+  http_proxy: string | null;
+  cookies: string | null;
+  auth: AuthConfig;
+  max_redirects: number;
+  reconnect_on_http_error: string | null;
+  reconnect_delay_total_max: number;
+  respect_retry_after: boolean;
 }
 
 export const DEFAULT_FFMPEG_CONFIG: FfmpegConfig = {
@@ -284,16 +326,22 @@ export const DEFAULT_FFMPEG_CONFIG: FfmpegConfig = {
   mux_bin_path: null,
   mux_skip_subtitles: false,
   mux_keep_original: false,
-  retry_count: 3,
-  timeout: 60,
-  max_speed: "",
-  connection_timeout: 30,
   reconnect_attempts: 3,
   reconnect_delay: 5,
+  retry_count: 3,
+  timeout: 60,
+  connection_timeout: 30,
   overwrite_existing: false,
   preserve_timestamps: true,
   user_agent: null,
   referer: null,
+  http_proxy: null,
+  cookies: null,
+  auth: { username: "", password: "" },
+  max_redirects: 8,
+  reconnect_on_http_error: null,
+  reconnect_delay_total_max: 256,
+  respect_retry_after: true,
 };
 
 /** 全部工具配置 */

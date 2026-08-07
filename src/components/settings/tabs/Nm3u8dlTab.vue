@@ -15,6 +15,8 @@ import NetworkSettings from "../sections/NetworkSettings.vue";
 import DecryptionSettings from "../sections/DecryptionSettings.vue";
 import LiveSettings from "../sections/LiveSettings.vue";
 import type { LiveFields } from "../sections/LiveSettings.vue";
+import AdKeywordManager from "../AdKeywordManager.vue";
+import MuxImportManager from "../MuxImportManager.vue";
 import {
   SettingSwitch,
   SettingInput,
@@ -131,6 +133,18 @@ const threadCountDisplay = computed(() => `${config.value.thread_count} 线程`)
           />
         </div>
       </div>
+
+      <SettingInput
+        :model-value="config.save_pattern || ''"
+        :label="t('settings.download.savePattern', '命名模板')"
+        :placeholder="
+          t(
+            'settings.download.savePatternPlaceholder',
+            '<SaveName>_<Resolution>_<Bandwidth>，留空默认',
+          )
+        "
+        @update:model-value="patch({ save_pattern: String($event) || null })"
+      />
     </SettingsGroup>
 
     <!-- 流选择 -->
@@ -334,6 +348,18 @@ const threadCountDisplay = computed(() => `${config.value.thread_count} 线程`)
         @update:model-value="patch({ sub_only: $event })"
       />
     </SettingsGroup>
+
+    <!-- 广告关键词过滤 -->
+    <AdKeywordManager
+      :keywords="config.ad_keywords"
+      @update="patch({ ad_keywords: $event })"
+    />
+
+    <!-- 混流导入外部文件 -->
+    <MuxImportManager
+      :imports="config.mux_imports"
+      @update="patch({ mux_imports: $event })"
+    />
 
     <!-- 网络设置（复用 rewired 组件） -->
     <NetworkSettings :network="config.network" @update="patch" />

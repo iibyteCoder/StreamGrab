@@ -27,6 +27,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
 
 # 异步运行时
 tokio = { version = "1", features = ["full"] }
@@ -67,6 +68,9 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 
 # SHA-256 完整性校验
 sha2 = "0.10"
+
+# Base64（FFmpeg basic 认证 Authorization 头）
+base64 = "0.22"
 
 # ZIP 解压
 zip = "2"

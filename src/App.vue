@@ -5,7 +5,13 @@ import { Toaster } from "@/components/ui/toast";
 import { RestoreTasksDialog } from "@/components/common";
 import { useSettingsStore, useTaskStore, usePresetStore } from "@/stores";
 import { taskService } from "@/services";
-import { useDownloader } from "@/composables";
+import { subscribeToEvent, type UnlistenFn } from "@/services/tauri";
+import {
+  useDownloader,
+  useToast,
+  autoCheckUpdateAtStartup,
+} from "@/composables";
+import { i18n } from "@/locales";
 import type { DownloadTask, TaskStatus } from "@/domain";
 
 // 初始化 Stores
@@ -13,6 +19,10 @@ const settingsStore = useSettingsStore();
 const taskStore = useTaskStore();
 const presetStore = usePresetStore();
 const { resumeDownload } = useDownloader();
+const toast = useToast();
+
+// 订阅「最小化到托盘」事件，卸载时清理
+let unlistenMinimizedToTray: UnlistenFn | null = null;
 
 // 恢复任务弹窗状态
 const showRestoreDialog = ref(false);
@@ -38,7 +48,18 @@ onMounted(async () => {
   // 2. 应用主题
   settingsStore.initTheme();
 
-  // 3. 检查可恢复任务并弹窗询问
+  // 3. 启动时按设置自动检查更新（24h 节流；静默，发现更新由设置页展示）
+  void autoCheckUpdateAtStartup();
+
+  // 4. 订阅「已最小化到托盘」事件 → toast 提示（图标在通知区域/折叠区）
+  unlistenMinimizedToTray = await subscribeToEvent(
+    "app:minimized-to-tray",
+    () => {
+      toast.info(i18n.global.t("messages.minimizedToTray"));
+    },
+  );
+
+  // 5. 检查可恢复任务并弹窗询问
   try {
     const tasks = await taskService.loadRecoverableTasks();
     const unfinished = tasks.filter((t) =>
@@ -62,6 +83,7 @@ const handleRestore = async () => {
 
 // 应用关闭时标记中断的任务
 onUnmounted(async () => {
+  unlistenMinimizedToTray?.();
   try {
     await taskService.markActiveTasksInterrupted();
   } catch (error) {

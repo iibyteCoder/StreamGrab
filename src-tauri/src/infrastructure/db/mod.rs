@@ -59,6 +59,22 @@ impl Database {
         })
     }
 
+    /// 打开内存数据库并初始化 schema（集成测试用，无磁盘副作用）
+    pub fn in_memory() -> AppResult<Self> {
+        let conn = Connection::open_in_memory()?;
+        schema::initialize(&conn)?;
+        let conn = Arc::new(Mutex::new(conn));
+        Ok(Self {
+            tasks: TaskRepository::new(Arc::clone(&conn)),
+            settings: SettingsRepository::new(Arc::clone(&conn)),
+            presets: PresetRepository::new(Arc::clone(&conn)),
+            history: HistoryRepository::new(Arc::clone(&conn)),
+            progress: ProgressHistoryRepository::new(Arc::clone(&conn)),
+            db_path: PathBuf::from(":memory:"),
+            conn,
+        })
+    }
+
     /// 数据库文件路径
     pub fn path(&self) -> &Path {
         &self.db_path

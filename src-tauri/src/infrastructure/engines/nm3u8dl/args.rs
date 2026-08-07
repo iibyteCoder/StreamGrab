@@ -30,6 +30,9 @@ pub fn build_download_args(
     let ov = &spec.overrides;
     let mut args: Vec<String> = vec![spec.url.clone()];
 
+    // StreamGrab 自管更新检查：禁用工具自身的版本检查，避免每次运行额外网络请求
+    args.push("--disable-update-check".into());
+
     // === 基础参数 ===
     if !spec.save_dir.is_empty() {
         args.extend(["--save-dir".into(), spec.save_dir.clone()]);
@@ -37,6 +40,8 @@ pub fn build_download_args(
     if !spec.file_name.is_empty() {
         args.extend(["--save-name".into(), spec.file_name.clone()]);
     }
+    // 保存文件名模板（如 `<SaveName>_<Resolution>_<Bandwidth>`）
+    push_if_some(&mut args, "--save-pattern", cfg.save_pattern.as_deref());
     // 临时目录：全局 tmp 目录优先，否则跟随保存目录
     let tmp_dir = if !app.default_tmp_dir.is_empty() {
         app.default_tmp_dir.clone()
@@ -99,6 +104,30 @@ pub fn build_download_args(
             "-M".into(),
             build_mux_options(mux_format, tools, ffmpeg_bin),
         ]);
+    }
+    // === 混流导入外部媒体文件（--mux-import，path="...":lang=...:name=...）===
+    let mut imports: Vec<_> = cfg.mux_imports.iter().filter(|i| i.enabled).collect();
+    imports.sort_by_key(|i| i.sort_order);
+    for imp in imports {
+        if imp.path.is_empty() {
+            continue;
+        }
+        let mut parts = vec![format!("path=\"{}\"", imp.path)];
+        if let Some(lang) = imp.lang.as_deref().filter(|s| !s.is_empty()) {
+            parts.push(format!("lang={lang}"));
+        }
+        if let Some(name) = imp.name.as_deref().filter(|s| !s.is_empty()) {
+            parts.push(format!("name=\"{name}\""));
+        }
+        args.extend(["--mux-import".into(), parts.join(":")]);
+    }
+    // === 广告关键词过滤（--ad-keyword）===
+    let mut ad_keywords: Vec<_> = cfg.ad_keywords.iter().filter(|k| k.enabled).collect();
+    ad_keywords.sort_by_key(|k| k.sort_order);
+    for k in ad_keywords {
+        if !k.keyword.is_empty() {
+            args.extend(["--ad-keyword".into(), k.keyword.clone()]);
+        }
     }
     if cfg.no_date_info {
         args.push("--no-date-info".into());
@@ -214,7 +243,12 @@ pub fn build_parse_args(
     app: &AppSettings,
     ffmpeg_bin: Option<&str>,
 ) -> Vec<String> {
-    let mut args: Vec<String> = vec![url.into(), "--skip-download".into(), "--auto-select".into()];
+    let mut args: Vec<String> = vec![
+        url.into(),
+        "--skip-download".into(),
+        "--auto-select".into(),
+        "--disable-update-check".into(),
+    ];
     append_network_args(&mut args, &tools.nm3u8dl.network);
     append_decryption_args(&mut args, &tools.nm3u8dl.decryption, false);
     append_log_args(&mut args, app);
@@ -362,7 +396,9 @@ fn first_non_empty<'a>(a: Option<&'a str>, b: &'a str) -> Option<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::config::{DecryptionKey, NetworkHeader, SubtitleFormat};
+    use crate::domain::config::{
+        AdKeyword, DecryptionKey, MuxImport, NetworkHeader, SubtitleFormat,
+    };
     use crate::domain::download::UrlType;
     use crate::domain::task::{StreamSelection, TaskOverrides};
 
@@ -388,6 +424,7 @@ mod tests {
 
         let expected: Vec<String> = vec![
             "https://example.com/index.m3u8",
+            "--disable-update-check",
             "--save-dir",
             "D:/Videos",
             "--save-name",
@@ -588,6 +625,119 @@ mod tests {
     }
 
     #[test]
+    fn save_pattern_ad_keywords_mux_imports_emit() {
+        let mut tools = ToolConfigs::default();
+        tools.nm3u8dl.save_pattern = Some("<SaveName>_<Resolution>".into());
+        tools.nm3u8dl.ad_keywords = vec![
+            AdKeyword {
+                id: 1,
+                keyword: "ad_iframe".into(),
+                enabled: true,
+                sort_order: 0,
+            },
+            AdKeyword {
+                id: 2,
+                keyword: "disabled_kw".into(),
+                enabled: false,
+                sort_order: 1,
+            },
+        ];
+        tools.nm3u8dl.mux_imports = vec![MuxImport {
+            id: 1,
+            path: "C:/subs/zh-Hans.srt".into(),
+            lang: Some("chi".into()),
+            name: Some("中文 (简体)".into()),
+            enabled: true,
+            sort_order: 0,
+        }];
+        let app = AppSettings::default();
+        let spec = test_spec(TaskOverrides::default());
+        let joined = build_download_args(&spec, &tools, &app, None).join(" ");
+
+        assert!(joined.contains("--save-pattern <SaveName>_<Resolution>"));
+        assert!(joined.contains("--ad-keyword ad_iframe"));
+        assert!(!joined.contains("disabled_kw"), "禁用的关键词不应输出");
+        assert!(joined
+            .contains(r#"--mux-import path="C:/subs/zh-Hans.srt":lang=chi:name="中文 (简体)""#));
+    }
+
+    #[test]
+    fn full_config_produces_bounded_args_without_explosion() {
+        // 全字段非默认：输出有界、关键单值 flag 恰好一次（性能/可预测性）
+        let mut tools = ToolConfigs::default();
+        let nm = &mut tools.nm3u8dl;
+        nm.thread_count = 32;
+        nm.retry_count = 10;
+        nm.timeout = 30;
+        nm.max_speed = "10M".into();
+        nm.auto_select = false;
+        nm.select_video = Some("res:1080".into());
+        nm.select_audio = Some("lang:zh".into());
+        nm.select_subtitle = Some("lang:zh".into());
+        nm.drop_video = Some("codecs:av01".into());
+        nm.drop_audio = Some("lang:ja".into());
+        nm.drop_subtitle = Some("name:forced".into());
+        nm.check_segments_count = false;
+        nm.del_after_done = false;
+        nm.skip_merge = true;
+        nm.write_meta_json = true;
+        nm.binary_merge = true;
+        nm.concurrent_download = true;
+        nm.sub_only = true;
+        nm.sub_format = SubtitleFormat::Vtt;
+        nm.auto_subtitle_fix = false;
+        nm.live_perform_as_vod = true;
+        nm.live_real_time_merge = true;
+        nm.live_keep_segments = false;
+        nm.live_pipe_mux = true;
+        nm.live_fix_vtt_by_audio = true;
+        nm.live_record_limit = Some("01:00:00".into());
+        nm.live_wait_time = 30;
+        nm.live_take_count = 32;
+        nm.allow_hls_multi_ext_map = true;
+        nm.url_processor_args = Some("raw".into());
+        nm.no_date_info = true;
+        nm.use_ffmpeg_concat_demuxer = true;
+        nm.save_pattern = Some("<SaveName>_<Resolution>".into());
+        nm.ad_keywords = vec![AdKeyword {
+            id: 1,
+            keyword: "ad".into(),
+            enabled: true,
+            sort_order: 0,
+        }];
+        nm.mux_imports = vec![MuxImport {
+            id: 1,
+            path: "C:/sub.srt".into(),
+            lang: Some("chi".into()),
+            name: None,
+            enabled: true,
+            sort_order: 0,
+        }];
+
+        let app = AppSettings::default();
+        let spec = test_spec(TaskOverrides::default());
+        let args = build_download_args(&spec, &tools, &app, Some("C:/ffmpeg.exe"));
+
+        // 全字段配置参数数量有界（防御参数爆炸）
+        assert!(args.len() < 100, "全字段参数数量异常膨胀: {}", args.len());
+        // 关键单值 flag 恰好出现一次
+        for flag in [
+            "--save-dir",
+            "--save-name",
+            "--tmp-dir",
+            "--sub-format",
+            "--decryption-engine",
+            "--disable-update-check",
+        ] {
+            assert_eq!(
+                args.iter().filter(|a| a.as_str() == flag).count(),
+                1,
+                "flag {flag} 应恰好出现一次"
+            );
+        }
+    }
+
+    #[test]
     fn log_args_respect_app_settings() {
         let tools = ToolConfigs::default();
         let spec = test_spec(TaskOverrides::default());
@@ -613,6 +763,7 @@ mod tests {
             "https://example.com/index.m3u8",
             "--skip-download",
             "--auto-select",
+            "--disable-update-check",
             "--use-system-proxy",
             "--decryption-engine",
             "MP4DECRYPT",

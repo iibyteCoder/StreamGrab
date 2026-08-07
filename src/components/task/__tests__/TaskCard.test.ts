@@ -148,3 +148,37 @@ describe("TaskCard 右键菜单接线", () => {
     expect(root.querySelector(".task-card")).not.toBeNull();
   });
 });
+
+describe("TaskCard 状态呈现（单一来源）", () => {
+  it("状态图标 aria-label = 对应状态文案（无障碍）", () => {
+    const wrapper = mountCard(mkTask({ status: "downloading" }));
+    const icon = wrapper.find('[role="img"]');
+    expect(icon.exists()).toBe(true);
+    expect(icon.attributes("aria-label")).toBe("下载中");
+  });
+
+  it("状态图标 aria-label 随状态变化", () => {
+    const wrapper = mountCard(mkTask({ status: "failed" }));
+    expect(wrapper.find('[role="img"]').attributes("aria-label")).toBe("失败");
+  });
+
+  it("暂停任务不再重复展示状态文案（去重回归）", () => {
+    const wrapper = mountCard(
+      mkTask({
+        status: "paused",
+        progress: { ...mkTask().progress, downloadedSize: 128 },
+      }),
+    );
+    expect(wrapper.text()).not.toContain("已暂停");
+  });
+
+  it("等待中的定时任务展示定时时间（属数据而非状态）", () => {
+    const wrapper = mountCard(
+      mkTask({
+        status: "pending",
+        overrides: { scheduledStartAt: "2026-08-07T09:30" },
+      }),
+    );
+    expect(wrapper.text()).toContain("定时");
+  });
+});

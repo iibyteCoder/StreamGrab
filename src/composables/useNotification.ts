@@ -1,13 +1,23 @@
 /**
  * 系统通知组合式函数
- * 处理系统通知的发送，并根据设置决定是否显示
+ *
+ * 通过 @tauri-apps/plugin-notification 发送原生系统通知，并根据设置决定是否显示。
+ *
+ * 修复说明：早期版本用浏览器 Notification API，在 Tauri WebView2 中通知权限
+ * 恒为 denied（WebView 无通知权限弹窗），桌面通知实际从不显示。改用 Tauri
+ * notification 插件后走系统通知中心，该配置项才真正生效。
  */
 
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification as pluginSendNotification,
+} from "@tauri-apps/plugin-notification";
 import { useSettingsStore } from "@/stores";
 import { i18n } from "@/locales";
 
-/** 通知权限一旦被拒，缓存该结果，避免每次下载完成都重复请求/打印（webview 中通常恒为 denied） */
-let permissionDenied = false;
+/** 通知权限缓存：插件权限一次请求后永久生效，后续不再重复请求 */
+let permissionCache: boolean | null = null;
 
 /**
  * 通知组合式函数
@@ -16,68 +26,55 @@ export function useNotification() {
   const settingsStore = useSettingsStore();
 
   /**
-   * 检查是否允许显示通知
+   * 检查是否允许显示通知（依据设置项 show_notification）
    */
   const canShowNotification = (): boolean => {
     return settingsStore.appSettings.show_notification;
   };
 
   /**
+   * 获取通知权限（带缓存）：已授权返回 true，未授权尝试请求，失败返回 false
+   */
+  const ensurePermission = async (): Promise<boolean> => {
+    if (permissionCache !== null) return permissionCache;
+    try {
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        const permission = await requestPermission();
+        granted = permission === "granted";
+      }
+      permissionCache = granted;
+      return granted;
+    } catch (e) {
+      console.debug("Failed to check notification permission:", e);
+      return false;
+    }
+  };
+
+  /**
    * 发送系统通知
    * @param title 通知标题
    * @param body 通知内容
-   * @param options 额外选项
+   * @param options 额外选项（icon 等）
    */
   const sendNotification = async (
     title: string,
     body: string,
-    options?: NotificationOptions,
+    options?: { icon?: string },
   ): Promise<boolean> => {
-    // 检查设置是否允许通知
+    // 设置不允许则直接跳过
     if (!canShowNotification()) {
       return false;
     }
-
-    // 检查浏览器是否支持通知
-    if (!("Notification" in window)) {
+    if (!(await ensurePermission())) {
       return false;
     }
 
-    // 一旦被拒绝就缓存，不再重复请求/打印（Tauri webview 中通常恒为 denied）
-    if (permissionDenied) {
-      return false;
-    }
-
-    // 检查通知权限
-    let permission = Notification.permission;
-
-    if (permission === "default") {
-      // 请求权限
-      permission = await Notification.requestPermission();
-    }
-
-    if (permission !== "granted") {
-      permissionDenied = true;
-      return false;
-    }
-
-    // 发送通知
     try {
-      const notification = new Notification(title, {
-        body,
-        icon: "/logo.svg",
-        ...options,
-      });
-
-      // 点击通知时聚焦窗口
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
-
+      pluginSendNotification({ title, body, ...options });
       return true;
     } catch (e) {
-      console.error("Failed to send notification:", e);
+      console.debug("Failed to send notification:", e);
       return false;
     }
   };
@@ -115,32 +112,11 @@ export function useNotification() {
     );
   };
 
-  /**
-   * 请求通知权限
-   */
-  const requestPermission = async (): Promise<NotificationPermission> => {
-    if (!("Notification" in window)) {
-      return "denied";
-    }
-    return await Notification.requestPermission();
-  };
-
-  /**
-   * 获取当前通知权限状态
-   */
-  const getPermissionStatus = (): NotificationPermission => {
-    if (!("Notification" in window)) {
-      return "denied";
-    }
-    return Notification.permission;
-  };
-
   return {
     canShowNotification,
     sendNotification,
     sendDownloadCompleteNotification,
     sendDownloadErrorNotification,
-    requestPermission,
-    getPermissionStatus,
+    ensurePermission,
   };
 }

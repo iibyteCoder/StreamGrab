@@ -20,7 +20,6 @@ import {
 } from "@/utils/format";
 import { TASK_STATUS_CONFIG } from "@/utils/constants";
 import {
-  TaskStatusBadge,
   TaskQuickActions,
   TaskDeleteDialog,
   TaskContextMenu,
@@ -177,6 +176,18 @@ const completedTimeText = computed(() => {
   return "";
 });
 
+// 定时开始时间（仅等待中且有定时任务时展示，属数据而非状态）
+const scheduledTimeText = computed(() => {
+  const scheduled = props.task.overrides?.scheduledStartAt;
+  if (props.task.status !== "pending" || !scheduled) return "";
+  const d = new Date(scheduled);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `定时 ${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())} 开始`;
+});
+
 // 操作处理
 const handleStart = async () => await startDownload(props.task);
 const handlePause = async () => await pauseDownload(props.task.id);
@@ -282,22 +293,19 @@ const handleCopyFilePath = async () => {
           ]"
           @click="handleClick"
         >
-          <!-- 状态标签 -->
-          <TaskStatusBadge
-            :text="statusConfig?.text ?? ''"
-            :color="statusConfig?.color ?? '#888'"
-          />
-
           <!-- 主内容 -->
-          <div class="flex items-start gap-3">
-            <!-- 状态指示器 -->
+          <div class="flex items-center gap-3">
+            <!-- 状态指示器（唯一状态载体） -->
             <div
-              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-0.5"
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+              role="img"
+              :aria-label="statusConfig?.text ?? ''"
+              :title="statusConfig?.text ?? ''"
               :style="{ backgroundColor: `${statusConfig?.color ?? '#888'}20` }"
             >
               <AppIcon
                 :name="statusIcon as any"
-                :size="16"
+                :size="18"
                 :style="{ color: statusConfig?.color ?? '#888' }"
               />
             </div>
@@ -355,46 +363,28 @@ const handleCopyFilePath = async () => {
                     <span v-if="etaText">剩余 {{ etaText }}</span>
                   </template>
 
-                  <!-- 暂停中 -->
-                  <template v-else-if="task.status === 'paused'">
-                    <span v-if="task.progress.downloadedSize">{{
-                      formatFileSize(task.progress.downloadedSize)
-                    }}</span>
-                    <span class="text-amber-500">已暂停</span>
-                  </template>
-
-                  <!-- 失败 -->
-                  <template v-else-if="task.status === 'failed'">
-                    <span v-if="task.progress.downloadedSize">{{
-                      formatFileSize(task.progress.downloadedSize)
-                    }}</span>
-                    <span class="text-destructive">下载失败</span>
-                  </template>
-
-                  <!-- 合并中 -->
+                  <!-- 暂停/失败：只显示已下载大小，状态由左侧图标承载 -->
                   <template
                     v-else-if="
-                      task.status === 'merging' || task.status === 'muxing'
+                      task.status === 'paused' || task.status === 'failed'
                     "
                   >
-                    <span class="text-purple-400">正在合并...</span>
+                    <span v-if="task.progress.downloadedSize">{{
+                      formatFileSize(task.progress.downloadedSize)
+                    }}</span>
                   </template>
+
+                  <!-- 合并/混流：无进度数据行，状态由左侧图标承载 -->
                 </div>
               </div>
 
-              <!-- 非进度状态：显示简单信息 -->
+              <!-- 非进度状态：只显示数据，不复述状态 -->
               <div
                 v-else
                 class="flex items-center gap-3 mt-1.5 h-4 text-xs text-muted-foreground"
               >
-                <template v-if="task.status === 'analyzing'">
-                  <span class="text-primary">正在解析...</span>
-                </template>
-                <template v-else-if="task.status === 'pending'">
-                  <span>等待中</span>
-                </template>
-                <template v-else-if="task.status === 'cancelled'">
-                  <span>已取消</span>
+                <template v-if="task.status === 'pending' && scheduledTimeText">
+                  <span>{{ scheduledTimeText }}</span>
                 </template>
                 <template v-else-if="task.status === 'completed'">
                   <span v-if="task.progress.totalSize">{{
@@ -473,9 +463,9 @@ const handleCopyFilePath = async () => {
 
 /* 进度条轨道 */
 .progress-track {
-  height: 6px;
+  height: 4px;
   background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
 }
 

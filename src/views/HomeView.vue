@@ -114,19 +114,18 @@ const handleRedownload = (task: DownloadTask) => {
     <div
       class="border-b px-6 py-3 shrink-0 bg-card/50 flex items-center justify-between"
     >
-      <!-- Tab 切换 -->
+      <!-- 状态 Tab（胶囊式，与应用全局风格一致） -->
       <div class="relative flex items-center p-1 bg-muted/50 rounded-lg">
-        <!-- 滑动背景块 -->
+        <!-- 选中背景块 -->
         <div
           class="absolute top-1 bottom-1 bg-background rounded-md shadow-sm transition-all duration-300 ease-out"
           :style="sliderStyle"
         />
 
-        <!-- Tab 按钮 -->
         <button
           :ref="(el) => (tabRefs.active = el as HTMLElement)"
           :class="[
-            'relative z-10 px-4 py-1.5 text-sm rounded-md transition-colors',
+            'relative z-10 flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-md transition-colors',
             activeTab === 'active'
               ? 'text-foreground'
               : 'text-muted-foreground hover:text-foreground',
@@ -136,7 +135,7 @@ const handleRedownload = (task: DownloadTask) => {
           进行中
           <span
             v-if="activeCount > 0"
-            class="ml-1.5 px-1.5 py-0.5 rounded-full bg-primary/15 text-primary text-xs font-medium"
+            class="px-1.5 py-0.5 rounded-full bg-primary/15 text-primary text-xs font-medium leading-none"
           >
             {{ activeCount }}
           </span>
@@ -144,7 +143,7 @@ const handleRedownload = (task: DownloadTask) => {
         <button
           :ref="(el) => (tabRefs.completed = el as HTMLElement)"
           :class="[
-            'relative z-10 px-4 py-1.5 text-sm rounded-md transition-colors',
+            'relative z-10 flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-md transition-colors',
             activeTab === 'completed'
               ? 'text-foreground'
               : 'text-muted-foreground hover:text-foreground',
@@ -154,7 +153,7 @@ const handleRedownload = (task: DownloadTask) => {
           已完成
           <span
             v-if="completedCount > 0"
-            class="ml-1.5 px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 text-xs font-medium"
+            class="px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 text-xs font-medium leading-none"
           >
             {{ completedCount }}
           </span>

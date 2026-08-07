@@ -78,7 +78,7 @@
 | 正则匹配选择 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 选择器输入框 |
 | 预设模板 | P1 | `[x]` | `src/stores/presetStore.ts` + `src/components/settings/tabs/PresetsTab.vue` | DB 持久化预设（取代旧 localStorage 模板） |
 | 流排除 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` | 流排除配置 |
-| 广告过滤 | P1 | `[-]` | — | 旧实现未接入参数构建（空壳），重构中移除；可用 `--urlprocessor-args` 实现 |
+| 广告过滤 | P1 | `[x]` | `src/components/settings/AdKeywordManager.vue` → `--ad-keyword` | 正则列表增删启停，过滤分片 URL 匹配的广告 |
 
 ---
 
@@ -102,7 +102,8 @@
 | N_m3u8DL-RE 路径配置 | P1 | `[x]` | `src/components/settings/ToolManagerCard.vue` | 参数化共用，支持自定义路径/下载更新 |
 | 双引擎自动分派 | P0 | `[x]` | `infrastructure/engines/` (EngineRegistry) | 按 URL 类型分派，Unknown 回退 N_m3u8DL-RE |
 | TaskOverrides 任务级覆盖 | P0 | `[x]` | `src/domain/task.ts` (TaskOverrides) + `tasks.overrides_json` | 全字段可选，null=沿用全局默认 |
-| 命名模板 | P1 | `[-]` | — | 旧实现未接入参数构建（空壳），重构中移除 |
+| 命名模板 | P1 | `[x]` | `src/components/settings/tabs/Nm3u8dlTab.vue` → `--save-pattern` | 支持 `<SaveName>/<Resolution>/<Bandwidth>...` 变量 |
+| 混流导入外部文件 | P2 | `[x]` | `src/components/settings/MuxImportManager.vue` → `--mux-import` | 混流时导入外部音视频/字幕，path/lang/name |
 
 ---
 
@@ -212,10 +213,12 @@
 
 | 功能 | 优先级 | 状态 | 文件/位置 | 备注 |
 | --- | --- | --- | --- | --- |
-| 系统托盘 | P2 | `[x]` | `src-tauri/src/app/tray.rs` | 最小化到托盘，托盘菜单 |
-| 下载完成通知 | P2 | `[x]` | `src/composables/useNotification.ts` | 系统通知 |
-| 剪贴板监控 | P2 | `[x]` | `src/composables/useClipboardWatcher.ts` | 选项开关 |
-| 自动更新 | P3 | `[x]` | `src/composables/useUpdateChecker.ts` + `src/services/updateService.ts` | GitHub API 版本检查，自动下载安装 |
+| 系统托盘 | P2 | `[x]` | `src-tauri/src/app/tray.rs` | 最小化到托盘，托盘菜单；创建失败浮出 UI 警告（`get_tray_status`） |
+| 最小化到托盘 | P2 | `[x]` | `src-tauri/src/lib.rs` + `resolve_close_behavior` | 关闭决策抽纯函数 + 关闭日志；DB 空表回默认（旧版升级被重置） |
+| 下载完成通知 | P2 | `[x]` | `src/composables/useNotification.ts` + `tauri-plugin-notification` | **改用 Tauri 通知插件**（修复 WebView2 浏览器 Notification 恒 denied） |
+| 剪贴板监控 | P2 | `[x]` | `src/composables/useClipboardWatcher.ts` | 选项开关；读权限已补 |
+| 自动更新 | P3 | `[x]` | `src/composables/useUpdateChecker.ts` + `src/services/updateService.ts` | GitHub API 版本检查，自动下载安装；**App.vue 启动时检查**（原仅设置页挂载触发） |
+| 最大并发任务数 | P0 | `[x]` | `src/composables/useDownloader.ts` + `AppSettings.max_concurrent_tasks` | 替代硬编码 `MAX_CONCURRENT_TASKS=5`，设置页可调 |
 
 ---
 
@@ -228,7 +231,7 @@
 | 主题切换 | P3 | `[x]` | `src/components/settings/tabs/GeneralTab.vue` | 主题选择器 UI |
 | 多语言支持 | P3 | `[x]` | `src/locales/` | vue-i18n，简体中文/繁体中文/英文三语 |
 | 主页布局 | P0 | `[x]` | `src/views/HomeView.vue` | 基本布局完成 |
-| 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情） |
+| 任务卡片 | P0 | `[x]` | `src/components/task/TaskCard.vue` | 渐进式披露（紧凑→悬停→点击详情）；状态单一来源（左侧圆形图标，已移除徽章与信息区重复文案） |
 | 任务卡片右键菜单 | P2 | `[x]` | `src/components/task/TaskContextMenu.vue` | 右键菜单收纳复制链接/文件名/路径、以此链接重新下载（预填添加对话框）、打开详情 |
 | 任务列表 | P0 | `[x]` | `src/components/task/TaskList.vue` | 组件完成 |
 | 详情链接复制 | P2 | `[x]` | `src/components/task/TaskDetailPanel.vue` + `src/services/clipboardService.ts` | 标题行复制按钮：图标态切换 + toast 反馈；同期补齐 clipboard 读/写权限（修复剪贴板监控静默失败） |
@@ -259,8 +262,8 @@
 
 | 状态 | 数量 | 说明 |
 | --- | --- | --- |
-| `[x]` 已完成 | 111 | 基础设施（含引擎策略/测试体系/错误处理）+ 输入（含 URL 重复检测）+ 解析（含 ffprobe）+ 流选择 + 下载（含双引擎分派/TaskOverrides）+ 处理 + 直播 + 网络 + 管理（含历史后端/预设 DB/定时调度）+ 系统集成 + UI/UX（设置页双栏导航/添加任务三段式向导/进度图表/任务筛选）+ 通用组件 |
-| `[-]` 暂不实现 | 5 | 广告过滤、外部媒体导入、命名模板（旧空壳 UI）；历史列表/记录保存前端（2026-07 移除，与首页分类冗余） |
+| `[x]` 已完成 | 115 | 基础设施（含引擎策略/测试体系/错误处理）+ 输入（含 URL 重复检测）+ 解析（含 ffprobe）+ 流选择（含广告过滤 `--ad-keyword`）+ 下载（含双引擎分派/TaskOverrides/命名模板 `--save-pattern`/混流导入 `--mux-import`）+ 处理 + 直播 + 网络 + 管理（含历史后端/预设 DB/定时调度）+ 系统集成（含通知插件修复/托盘状态浮出/启动检查更新/最大并发数配置化）+ UI/UX + 通用组件 |
+| `[-]` 暂不实现 | 1 | 历史列表/记录保存前端（2026-07 移除，与首页分类冗余） |
 | `[/]` 进行中 | 0 | - |
 | `[ ]` 计划中 | 0 | - |
 | **总计** | **116** | |
@@ -294,8 +297,10 @@
 | 2026-02-20 | **自动更新下载安装功能** |
 | 2026-07-21 | **完全重构**——引擎策略架构（DownloadEngine + EngineRegistry 自动分派）、三层配置模型（全局默认 + TaskOverrides + 引擎 args）、schema v4 单表聚合（tasks JSON 列 + tool_settings 通用表 + history 快照）、设置中心 9→4 标签页（常规·界面 / N_m3u8DL-RE / FFmpeg / 任务预设）+ ToolManagerCard 参数化共用、添加任务闭环（URL 类型徽章 / 流选择 / 预设选择器 / 定时开始 / 高级折叠）、历史记录与定时开始真实实现、移除 3 个空壳功能（广告过滤 / 外部媒体导入 / 命名模板）、前端 commandBuilder 删除（参数构建移入后端引擎 `infrastructure/engines/*/args.rs`）、测试体系建立（Rust 96 + vitest 47）；schema v4 全量重建不保留旧数据。详见 `07-tool-config-architecture.md` |
 | 2026-07-21 | **UI 整修**——移除下载历史前端（HistoryView/historyStore/historyService 删除，与首页「进行中/已完成」分类冗余；后端历史快照保留）；设置页重设计（双栏导航栏 + 单卡片 SettingsGroup + divide-y 行模型 + 语义化 token，修复 tailwind alpha token 缺失与 `--accent-*` 变量未定义导致的浅色主题破图）；添加任务弹窗两层化（一级仅 URL，二级「更多选项」折叠，grid-rows 过渡，checkbox→Switch，宽度钳制 + 焦点环裁切修复） |
+| 2026-08-05 | **工具能力最大化 + 设置生效性 + 全面测试**——① FFmpeg 直链 5 个死设置全部修复：`retry_count→-reconnect_max_retries`、`timeout→-rw_timeout`、`connection_timeout→-timeout`、`preserve_timestamps→-copyts` 真实接线，`max_speed` 移除（ffmpeg 无原生限速）；新增直链能力（`-http_proxy`/`-max_redirects`/`-cookies`/basic 认证/`-reconnect_on_http_error`/`-reconnect_delay_total_max`）；② N_m3u8DL-RE 补齐 4 项缺失功能（命名模板 `--save-pattern`、广告过滤 `--ad-keyword` 复活 AdKeywordManager、混流导入 `--mux-import`、恒定 `--disable-update-check`）；③ 应用配置项修复：桌面通知改用 `tauri-plugin-notification`（修复 WebView2 浏览器 Notification 恒 denied）、启动时检查更新（原仅设置页触发）、应用日志级别由 `log_level` 驱动、`max_concurrent_tasks` 配置化替代硬编码；④ 最小化到托盘可观测性（关闭决策抽 `resolve_close_behavior` 纯函数 + 关闭日志 + 托盘创建失败浮出 UI + `get_tray_status`）；⑤ 测试：Rust 139（args 契约矩阵全覆盖 + 纯命令 + 纯函数）、vitest 106（settingsStore/useUpdateChecker/useNotification/GeneralTab/SettingSwitch + 原 93）、CI 门禁补 `npm test`/`cargo test`。详见 `02a-cli-mapping.md` |
 | 2026-08-01 | **进度解析修复**——N_m3u8DL-RE 20260628 在非 TTY（piped stdout）下进度块零分隔粘连且单条格式与旧正则不符，导致 `EngineEvent::Progress` 从不产出（DB `progress_history` 0 行、任务 `progress_json` 全 0、进度条/速度/图表全空）。`EngineSession` 由逐行 `parse_line→Option` 改为流式 `parse_chunk→Vec`；`OutputParser::parse_stream` 在累积文本上扫描核心进度块 + 手动定位尾部边界（标准 regex 不支持前瞻）；`Nm3u8dlSession` 改为缓冲 + 流式 + 双流聚合；`spawn_reader` 传原始行（含 `\n`）便于会话按 `\n` 排水。附带修复 `useDownloader` 多实例化导致任一消费者卸载（关闭弹窗/切标签页）会 `unsubscribeFromAll()` 全局清订阅的潜在缺陷——状态提升为模块级单例、移除 `onUnmounted(cleanup)`。真实捕获格式补 5 个后端单测，全量 116 后端 + 52 前端测试通过 |
 | 2026-08-03 | **进度数据抢救（退出倾泻冲刷）**——实测定位上一轮修复后进度仍为 0 的根因：N_m3u8DL-RE 重定向下强制 Spectre 交互模式 + live Progress 显示，`StartAsync` 后全部输出（Markup 日志 + 100ms 进度帧）被 Spectre RenderHook 管线积压在进程内，仅进程退出瞬间一次性倾泻；且 `NonAnsiWriter` 的 `[\r\n] +` 正则把整块倾泻内容的换行剥光 → `parse_chunk` 按 `\n` 排水永远等不到边界，数据滞留会话缓冲直至丢弃。修复：`EngineSession` 新增 `finalize()`（`Nm3u8dlSession` 冲刷残余缓冲）；`ProcessManager` 等待线程先 join 两个读取线程再触发 `on_complete`（排序保证）；`download.rs` 在完成回调开头分派 finalize 事件、随后再 `flush_progress` + 发 `download:complete`。实测集成测试（真实二进制 + 管道 + GBK 解码）从 0 事件 → 53 个进度事件、0→100% 完整。局限：下载**过程中**进度条仍不动（工具输出机制决定，根治需工具侧改造——方案已评估：去 Interactive 强制 + 节流日志行输出；暂缓）。补 `finalize_drains_newline_less_exit_dump` 单测 + `tests/nm3u8dl_live_pipeline.rs` 实跑集成测试（#[ignore]）。全量 117 后端 + 77 前端测试、clippy、type-check 通过 |
 | 2026-08-02 | **添加任务弹窗重设计**——主从详情式暂存层重写为三段式向导（粘贴→逐条配置→完成）：`AddTaskDialog` 降为薄壳，编排逻辑迁入 `useAddTaskWizard`（状态机+导航+提交调度）；新增 `LinkConfigCard`（L1 字段 + 最近保存目录记忆下拉）与 `LinkAdvancedSection`（引擎驱动动态项 + 内联流选择 + 解析重试）；纯函数 `parseLinks`（分类+剔除无效）/ `resolveLinkToTask`（两层映射，移除预设播种）/ `addTaskTypes`（类型徽章集中映射）；最近保存目录记忆（`useRecentDirs`/`recentDirs`，useStorage 上限 5、去重、最新在前）；键盘流（粘贴框 Enter 提交 / Shift+Enter 换行，配置步 Enter 添加/完成，Esc 关闭）；删除旧外壳 `TaskStagingList` / `LinkConfigPanel` / `staging-types`；前端门禁全绿（type-check / lint / vitest 77，9 文件）；后端契约零改动（`src-tauri/` diff 为空） |
 | 2026-08-04 | **v0.6.0 发布**——完全重构 + 添加向导三段式 + 进度修复 + 右键菜单/复制链接汇总为 0.5.2 后的首个发布版；门禁全绿（Rust 117 + 前端 93 + clippy + type-check），发行说明见 `docs/releases/v0.6.0.md` |
 | 2026-08-04 | **v0.6.1 发布**——下载失败时透传工具详细错误（403/exception/failed 等）替代笼统的「进程退出码」，`ProcessManager` 输出行环形缓冲 + `extract_error_hint` 纯函数（6 单测，Rust 共 123）；发行说明见 `docs/releases/v0.6.1.md` |
+| 2026-08-07 | **最小化到托盘恢复路径修复**——根因：`tray-icon` crate 的 `menu_on_left_click` 默认即为 `true`，加上 `tray.rs` 显式 `.show_menu_on_left_click(true)`，Windows 上左键点击托盘图标只弹出菜单，`on_tray_icon_event` 的「单击显示窗口」逻辑永远不触发，最小化到托盘后无法单击恢复。修复：改 `.show_menu_on_left_click(false)`（左键单击触发 Click 事件→显示窗口；右键仍弹菜单）；补充缺失的窗口权限 `core:window:allow-hide` / `allow-show` / `allow-unminimize`。实测：关闭→隐藏到托盘、`show()` 恢复均正常 |

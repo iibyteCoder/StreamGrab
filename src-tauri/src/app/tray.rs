@@ -2,11 +2,25 @@
 //!
 //! 提供最小化到托盘功能
 
+use serde::Serialize;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIcon, TrayIconBuilder},
     AppHandle, Manager, Runtime,
 };
+
+/// 系统托盘状态
+///
+/// 托盘创建失败时前端应提示用户——否则「关闭时最小化到托盘」会把窗口隐藏，
+/// 却没有图标可供恢复，应用像「消失」一样。managed state 注入，供 `get_tray_status` 命令读取。
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrayStatus {
+    /// 托盘是否创建成功
+    pub created: bool,
+    /// 创建失败原因（成功时为 None）
+    pub error: Option<String>,
+}
 
 /// 创建系统托盘
 pub fn create_tray<R: Runtime>(
@@ -23,10 +37,13 @@ pub fn create_tray<R: Runtime>(
     let icon = load_tray_icon()?;
 
     // 创建托盘
+    // 注意：`show_menu_on_left_click(false)` 让「左键单击托盘图标」触发 Click 事件（on_tray_icon_event → 显示窗口）。
+    // 若设为 true（也是 tray-icon crate 的默认值），Windows 上左键只会弹出菜单，
+    // 单击显示窗口的逻辑永远不触发，最小化到托盘后无法单击恢复。
     let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
-        .show_menu_on_left_click(true)
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
             match event.id.as_ref() {
                 "show" => {

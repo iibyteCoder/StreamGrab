@@ -75,14 +75,8 @@ export const URL_PATTERNS = {
   http: /^https?:\/\//i,
 };
 
-// 最大并发任务数
-export const MAX_CONCURRENT_TASKS = 5;
-
 // 默认文件名长度限制
 export const MAX_FILENAME_LENGTH = 200;
-
-// 进度更新间隔（毫秒）
-export const PROGRESS_UPDATE_INTERVAL = 500;
 
 // Toast 默认持续时间（毫秒）
 export const TOAST_DEFAULT_DURATION = 3000;

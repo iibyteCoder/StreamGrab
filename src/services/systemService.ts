@@ -31,6 +31,12 @@ export interface AppDownloadProgress {
   percent: number;
 }
 
+/** 系统托盘状态 */
+export interface TrayStatus {
+  created: boolean;
+  error: string | null;
+}
+
 class SystemService {
   // ===== 对话框 =====
 
@@ -74,6 +80,11 @@ class SystemService {
 
   getDbPath(): Promise<string> {
     return invokeTauri<string>("get_db_path");
+  }
+
+  /** 获取系统托盘状态（托盘创建失败时前端提示，避免"隐藏后无恢复入口"） */
+  getTrayStatus(): Promise<TrayStatus> {
+    return invokeTauri<TrayStatus>("get_tray_status");
   }
 
   // ===== 应用更新 =====

@@ -5,4 +5,4 @@
 pub mod commands;
 pub mod tray;
 
-pub use tray::create_tray;
+pub use tray::{create_tray, TrayStatus};

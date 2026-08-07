@@ -114,6 +114,8 @@ export default {
       language: "Language",
       autoStartDownload: "Auto Start Download",
       autoStartDownloadDesc: "Start download automatically after adding task",
+      maxConcurrentTasks: "Max concurrent tasks",
+      maxConcurrentTasksDesc: "Maximum number of downloads running at once",
       minimizeToTray: "Minimize to Tray",
       minimizeToTrayDesc: "Minimize to system tray when closing window",
       checkUpdate: "Check for Updates",
@@ -128,7 +130,8 @@ export default {
       startupCheckUpdate: "Check Updates on Startup",
       logSettings: "Log Settings",
       disableLog: "Disable Logging",
-      logSettingsDesc: "Configure log level and output",
+      logSettingsDesc:
+        "Configure log level and output for the app and the download tool",
       logLevel: "Log Level",
       logFilePath: "Log File Path",
       logFilePathPlaceholder: "Leave empty to disable file logging",
@@ -268,6 +271,20 @@ export default {
 
       adFilter: "Ad Filtering",
       adFilterDesc: "Filter segments containing specified keywords",
+      savePattern: "Name pattern",
+      savePatternPlaceholder:
+        "<SaveName>_<Resolution>_<Bandwidth>, empty for default",
+      noAdKeywords: "No ad keywords yet. Add one with the button below",
+      adKeywordPlaceholder: "e.g. ad_iframe|dummy\\.ts",
+      addAdKeyword: "Add keyword",
+      muxImport: "Mux imports",
+      muxImportDesc: "Import external audio/video/subtitle files when muxing",
+      noMuxImport:
+        "No import files yet. Add external subtitles or audio tracks with the button below",
+      muxImportPath: "File path",
+      muxImportLang: "Language code (chi)",
+      muxImportName: "Description",
+      addMuxImport: "Add import file",
 
       subtitle: "Subtitle Settings",
       subtitleSettings: "Subtitle Settings",
@@ -388,6 +405,20 @@ export default {
       overwriteExisting: "Overwrite Existing",
       preserveTimestamps: "Preserve Timestamps",
       leaveEmptyDefault: "Leave empty for default",
+      maxRedirects: "Max redirects",
+      reconnectDelayTotalMax: "Max total reconnect delay",
+      reconnectOnHttpError: "Reconnect on HTTP status",
+      httpErrorPlaceholder: "e.g. 404,429, empty to disable",
+      httpProxy: "Proxy URL",
+      httpProxyPlaceholder: "http://127.0.0.1:7890, empty to disable",
+      cookies: "Cookies",
+      cookiesPlaceholder: "sid=abc, empty to disable",
+      authUsername: "Auth username",
+      authPassword: "Auth password",
+      respectRetryAfter: "Respect Retry-After",
+      probePathGroup: "ffprobe path",
+      probePath: "ffprobe path",
+      probePathPlaceholder: "Empty to auto-detect next to ffmpeg",
     },
 
     ui: {
@@ -506,6 +537,10 @@ export default {
     copiedFileName: "File name copied",
     copiedFilePath: "File path copied",
     urlCopied: "Link copied",
+    trayWarning:
+      "System tray creation failed; minimizing to tray on close may be unavailable ({error}). Please allow the app to show a notification-area icon in taskbar settings.",
+    minimizedToTray:
+      "Minimized to system tray. Restore from the notification-area icon",
     updateAvailable:
       "New version {version} available, please download from GitHub",
     noUpdate: "You are using the latest version",

@@ -6,9 +6,10 @@
 
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettingsStore } from "@/stores";
-import { toolsService } from "@/services";
+import { toolsService, systemService } from "@/services";
 
 // 应用版本号（由 Vite 从 package.json 注入）
 declare const __APP_VERSION__: string;
@@ -27,10 +28,14 @@ type ResizeDirection =
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 // 窗口控制
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
+
+// 系统托盘状态（创建失败时提示，避免"关闭最小化到托盘"却无图标可恢复）
+const trayWarning = ref<string | null>(null);
 
 // 下载器版本（真实检测，替代旧版硬编码桩）
 const downloaderVersion = ref("");
@@ -53,6 +58,18 @@ onMounted(async () => {
   // 检查窗口最大化状态
   try {
     isMaximized.value = await appWindow.isMaximized();
+  } catch {
+    // 非 Tauri 环境忽略
+  }
+  // 检查系统托盘状态：托盘创建失败时提示，避免关闭窗口后无法从托盘恢复
+  try {
+    const tray = await systemService.getTrayStatus();
+    if (!tray.created) {
+      trayWarning.value = t("messages.trayWarning", "系统托盘创建失败").replace(
+        "{error}",
+        tray.error || "unknown",
+      );
+    }
   } catch {
     // 非 Tauri 环境忽略
   }
@@ -322,6 +339,15 @@ const toggleTheme = () => {
         </div>
       </div>
     </header>
+
+    <!-- 托盘创建失败警告条 -->
+    <div
+      v-if="trayWarning"
+      class="shrink-0 border-b border-destructive/30 bg-destructive/10 px-4 py-1.5 text-xs text-destructive"
+      role="alert"
+    >
+      {{ trayWarning }}
+    </div>
 
     <!-- 主内容区：子路由出口 -->
     <main class="flex-1 min-h-0 overflow-hidden">

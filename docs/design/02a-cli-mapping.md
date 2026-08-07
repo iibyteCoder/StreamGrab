@@ -285,9 +285,70 @@ socks5://127.0.0.1:1080
 
 ---
 
+## N_m3u8DL-RE 新增功能（2026-08 补齐）
+
+此前映射文档中设计过 UI、后端却未实现的参数，本期已全部接线：
+
+| CLI 参数 | UI 位置 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `--save-pattern` | 设置 > N_m3u8DL-RE > 下载参数 > 命名模板 | 文本 | 支持 `<SaveName>/<Id>/<Resolution>/<Bandwidth>...` 变量，留空默认 |
+| `--ad-keyword` | 设置 > N_m3u8DL-RE > 广告过滤 | 正则列表 | 过滤分片 URL 匹配的广告；列表项可启停 |
+| `--mux-import` | 设置 > N_m3u8DL-RE > 混流导入 | 文件列表 | 混流时导入外部音视频/字幕，`path="..."` / `lang=` / `name=` |
+| `--disable-update-check` | （恒定传入） | 布尔 | StreamGrab 自管更新，禁用工具自身的版本检查 |
+
+---
+
+## FFmpeg 直链映射表（全部为真实 ffmpeg 参数，master 构建实测）
+
+直链引擎所有配置字段均映射到真实 ffmpeg 参数（`-h protocol=http` / 通用选项实测）：
+
+| 字段 | 类型 | CLI 映射 | 说明 |
+| --- | --- | --- | --- |
+| `reconnect_attempts` | 数字 | `-reconnect 1 -reconnect_streamed 1` | 断线重连开关（>0 启用） |
+| `retry_count` | 数字 | `-reconnect_max_retries N` | 重试次数 |
+| `reconnect_delay` | 数字 | `-reconnect_delay_max N` | 重连延迟上限（秒） |
+| `timeout` | 数字 | `-rw_timeout N`（秒→µs） | IO 超时 |
+| `connection_timeout` | 数字 | `-timeout N`（秒→µs） | socket 超时 |
+| `overwrite_existing` | 布尔 | `-y` / `-n` | 覆盖已存在文件 |
+| `preserve_timestamps` | 布尔 | `-copyts` | 保留输入时间戳 |
+| `user_agent` | 文本 | `-user_agent` | 自定义 UA |
+| `referer` | 文本 | `-headers Referer:` | 自定义 Referer |
+| `http_proxy` | 文本 | `-http_proxy URL` | 直链代理 |
+| `cookies` | 文本 | `-cookies` | Cookie（换行分隔 Set-Cookie 语法） |
+| `auth` | 对象 | `-auth_type basic` + `Authorization: Basic <base64>` | HTTP basic 认证 |
+| `max_redirects` | 数字 | `-max_redirects N` | 最大重定向（默认 8） |
+| `reconnect_on_http_error` | 文本 | `-reconnect_on_http_error` | 对指定状态码重连（如 `404,429`） |
+| `reconnect_delay_total_max` | 数字 | `-reconnect_delay_total_max N` | 重连总时长上限（默认 256） |
+| `respect_retry_after` | 布尔 | `-respect_retry_after 0` | 尊重 Retry-After（false 时输出） |
+
+> **已移除**：`max_speed`（限速）。ffmpeg 原生不支持下载限速（`-limit_rate` 不被当前 master 构建识别），保留即死功能。
+> **ffprobe_path**：媒体分析用，`resolve_ffprobe_bin` 读取（ffprobe_path 优先，回退 ffmpeg 目录）。
+
+---
+
+## 应用自身配置项行为矩阵（AppSettings）
+
+| 配置项 | 消费方 | 生效 | 修复（2026-08） |
+| --- | --- | --- | --- |
+| `language` | settingsStore.applyLanguage | ✅ | — |
+| `theme` | initTheme + applyTheme | ✅ | — |
+| `default_save_dir` | download.rs 三级兜底 + useRecentDirs | ✅ | `resolve_save_dir` 抽纯函数 |
+| `default_tmp_dir` | nm3u8dl `--tmp-dir` | ✅ | — |
+| `show_notification` | useNotification | ❌→✅ | **改用 tauri-plugin-notification**（浏览器 Notification API 在 WebView2 恒 denied） |
+| `clipboard_watch` | useClipboardWatcher | ✅ | 权限已补 |
+| `minimize_to_tray` | lib.rs 关闭拦截 | ✅ | 决策抽 `resolve_close_behavior` + 关闭日志 + 托盘失败浮出 UI |
+| `check_update` | useUpdateChecker | ❌→✅ | **App.vue 启动时调用 autoCheckUpdateAtStartup**（原仅设置页挂载触发） |
+| `auto_start_download` | useDownloader.addAndStartTask | ✅ | — |
+| `log_level` | 应用 tauri_plugin_log + nm3u8dl `--log-level` | ❌→✅ | **接入应用自身日志级别** |
+| `log_file_path` | 应用日志文件输出 + nm3u8dl `--log-file-path` | ✅ | — |
+| `no_log` | nm3u8dl `--no-log` | ✅ | — |
+| `max_concurrent_tasks`（新增） | useDownloader 队列 + taskStore.canStartMore | ✅ | 替代硬编码 `MAX_CONCURRENT_TASKS=5` |
+
+---
+
 ## 统计信息
 
-- **总 CLI 参数**: 约 60+
+- **总 CLI 参数**: 约 70+（N_m3u8DL-RE 60+ + FFmpeg 直链 16）
 - **P0 核心参数**: 约 15 个
 - **P1 重要参数**: 约 20 个
-- **P2/P3 高级参数**: 约 25 个
+- **P2/P3 高级参数**: 约 30 个

@@ -256,11 +256,11 @@ async fn fetch_release(
 
 /// 下载工具（ZIP 整包下载 → 完整性校验 → 解压 → 返回可执行文件目录）
 #[tauri::command(rename_all = "camelCase")]
-pub async fn download_tool(
+pub async fn download_tool<R: tauri::Runtime>(
     tool: String,
     download_url: String,
     target_dir: String,
-    app: AppHandle,
+    app: AppHandle<R>,
 ) -> Result<String, String> {
     // 目标目录为空（工具未安装且未配置路径时，前端会传空串）→ 回退到应用数据目录下的
     // tools/<tool> 子目录，使各工具路径组织一致。ResolvedPath 保证最终路径非空+绝对+存在。

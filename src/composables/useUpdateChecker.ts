@@ -38,6 +38,29 @@ function saveLastCheck(d: Date): void {
   }
 }
 
+/**
+ * 启动时自动检查更新（App.vue 挂载时调用，无组件生命周期依赖）
+ *
+ * 受设置项 check_update 与 24h 节流双重控制；与 useUpdateChecker 共用
+ * localStorage 节流键（streamgrab:lastUpdateCheck），重复触发安全。
+ * 静默检查：不弹 toast，发现更新由 useUpdateChecker 在设置页展示。
+ */
+export async function autoCheckUpdateAtStartup(): Promise<void> {
+  try {
+    const settingsStore = useSettingsStore();
+    if (!settingsStore.appSettings.check_update) return;
+
+    const lastCheck = loadLastCheck();
+    if (lastCheck && Date.now() - lastCheck.getTime() < CHECK_INTERVAL) return;
+
+    // 先记录节流时间（含失败），避免网络异常时反复重试
+    saveLastCheck(new Date());
+    await updateService.fetchLatestVersion();
+  } catch (e) {
+    console.debug("[UpdateChecker] 启动自动检查失败:", e);
+  }
+}
+
 export function useUpdateChecker() {
   const settingsStore = useSettingsStore();
   const toast = useToast();

@@ -16,6 +16,7 @@ import {
   SettingSelect,
   SettingInput,
   SettingPath,
+  SettingSlider,
   SettingsGroup,
 } from "..";
 import { Button } from "@/components/ui/button";
@@ -265,6 +266,20 @@ function handleCancelDownload() {
         :description="t('settings.general.autoStartDownloadDesc')"
         @update:model-value="
           settingsStore.updateAppSettings({ auto_start_download: $event })
+        "
+      />
+
+      <SettingSlider
+        :model-value="settingsStore.appSettings.max_concurrent_tasks"
+        :label="t('settings.general.maxConcurrentTasks', '最大并发任务数')"
+        :description="
+          t('settings.general.maxConcurrentTasksDesc', '同时进行的下载任务上限')
+        "
+        :min="1"
+        :max="20"
+        :step="1"
+        @update:model-value="
+          settingsStore.updateAppSettings({ max_concurrent_tasks: $event })
         "
       />
     </SettingsGroup>
