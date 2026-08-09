@@ -65,9 +65,10 @@ onMounted(async () => {
   try {
     const tray = await systemService.getTrayStatus();
     if (!tray.created) {
-      trayWarning.value = t("messages.trayWarning", "系统托盘创建失败").replace(
-        "{error}",
-        tray.error || "unknown",
+      trayWarning.value = t(
+        "messages.trayWarning",
+        { error: tray.error || "unknown" },
+        "系统托盘创建失败",
       );
     }
   } catch {

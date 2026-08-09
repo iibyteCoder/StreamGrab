@@ -34,6 +34,7 @@
 | 错误处理体系 | `[x]` | `src-tauri/src/shared/error.rs` | AppError (thiserror) + AppResult\<T\>，命令层边界转 String |
 | 前端测试设施 | `[x]` | vitest (src/domain/url.test.ts, src/utils/*.test.ts, src/components/task/*.test.ts, src/composables/recentDirs.test.ts) | 77 个测试：url 检测、format、validate、id + 添加任务向导（parseLinks / resolveLinkToTask / linkOptionVisibility / recentDirs） |
 | 后端测试设施 | `[x]` | cargo test (src-tauri/src/) | 117 个测试：引擎参数/解析器（含 N_m3u8DL-RE 真实粘连进度流/退出倾泻冲刷）、状态机、仓储 CRUD；另有 `tests/nm3u8dl_live_pipeline.rs` 实跑集成测试（#[ignore]，需本地工具+网络） |
+| E2E 测试体系 | `[x]` | `e2e/`（chrome-devtools-mcp 驱动 + `tauri-mock.js` 假后端 + Vite 注入） | 48 个 E2E 用例：真实 Chrome 内跑全前端流程（启动/托盘/恢复、添加向导、任务管理、下载生命周期、设置/i18n/主题、预设、剪贴板）；`npm run test:e2e`，CI 已接入；期间修复 reka Switch 事件绑定（7 处 `@update:checked`→`@update:model-value`）与托盘警告 i18n 占位符 |
 
 ---
 
@@ -278,6 +279,7 @@
 
 | 日期 | 更新内容 |
 | --- | --- |
+| 2026-08-08 | **E2E 测试体系**——chrome-devtools-mcp 驱动真实 Chrome 跑 48 个端到端用例（启动/托盘/中断恢复、添加任务向导、任务管理、下载生命周期、设置/i18n/主题/工具管理、预设、剪贴板监控），`npm run test:e2e` + CI 接入；期间修复 3 个真实缺陷：① reka Switch 7 处 `@update:checked`→`@update:model-value`（此前所有设置开关/定时开始/仅字幕等点击不生效）② 托盘创建失败提示的 `{error}` 占位符被 vue-i18n 剥离、改用命名参数传参 ③ toast `TOAST_LIMIT=1` 覆盖语义在用例中显式处理 |
 | 2025-02-13 | 初始化功能状态文档 |
 | 2025-02-13 | 完成基础设施、类型系统、Store、组件框架 |
 | 2025-02-13 | 清理 Rust 警告，修复前端类型错误 |

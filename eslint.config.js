@@ -43,5 +43,50 @@ export default [
     },
   },
 
+  {
+    name: "e2e/scripts",
+    files: ["e2e/**/*.mjs", "e2e/support/tauri-mock.js"],
+    languageOptions: {
+      globals: {
+        // Node
+        process: "readonly",
+        Buffer: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        // Browser（tauri-mock.js 运行在页面内）
+        window: "readonly",
+        document: "readonly",
+        location: "readonly",
+        navigator: "readonly",
+        sessionStorage: "readonly",
+        localStorage: "readonly",
+        atob: "readonly",
+        TextDecoder: "readonly",
+        DataTransfer: "readonly",
+        DragEvent: "readonly",
+        PointerEvent: "readonly",
+        MouseEvent: "readonly",
+        CustomEvent: "readonly",
+        Event: "readonly",
+        HTMLInputElement: "readonly",
+        HTMLTextAreaElement: "readonly",
+        MutationObserver: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+
   prettierConfig,
 ];

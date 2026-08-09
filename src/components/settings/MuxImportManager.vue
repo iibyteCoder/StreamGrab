@@ -124,8 +124,8 @@ function patchImport(index: number, patch: Partial<MuxImport>) {
           "
         />
         <Switch
-          :checked="imp.enabled"
-          @update:checked="patchImport(index, { enabled: $event })"
+          :model-value="imp.enabled"
+          @update:model-value="patchImport(index, { enabled: $event })"
         />
         <Button
           variant="ghost"

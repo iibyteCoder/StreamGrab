@@ -2,7 +2,7 @@
 /**
  * SettingSwitch 原语测试
  *
- * 所有设置开关的构建块：内部 Switch 触发 update:checked → 转发为 update:modelValue。
+ * 所有设置开关的构建块：内部 Switch（reka）触发 update:modelValue → 转发为 update:modelValue。
  */
 
 import { describe, it, expect } from "vitest";
@@ -16,7 +16,7 @@ describe("SettingSwitch", () => {
       props: { modelValue: false, label: "测试开关" },
     });
     const inner = wrapper.findComponent(Switch);
-    await inner.vm.$emit("update:checked", true);
+    await inner.vm.$emit("update:modelValue", true);
     expect(wrapper.emitted("update:modelValue")?.[0]).toEqual([true]);
   });
 
@@ -25,7 +25,7 @@ describe("SettingSwitch", () => {
       props: { modelValue: true, label: "测试开关" },
     });
     const inner = wrapper.findComponent(Switch);
-    await inner.vm.$emit("update:checked", false);
+    await inner.vm.$emit("update:modelValue", false);
     expect(wrapper.emitted("update:modelValue")?.[0]).toEqual([false]);
   });
 

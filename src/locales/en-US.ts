@@ -540,7 +540,7 @@ export default {
     trayWarning:
       "System tray creation failed; minimizing to tray on close may be unavailable ({error}). Please allow the app to show a notification-area icon in taskbar settings.",
     minimizedToTray:
-      "Minimized to system tray. Restore from the notification-area icon",
+      "Minimized to system tray. If the icon is not visible, click the ^ (show hidden icons) in the notification area and drag the StreamGrab icon out to the tray to restore it anytime",
     updateAvailable:
       "New version {version} available, please download from GitHub",
     noUpdate: "You are using the latest version",

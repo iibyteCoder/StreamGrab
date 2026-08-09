@@ -1,10 +1,46 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
+import { readFileSync } from "fs";
+import type { Plugin } from "vite";
+
+/**
+ * e2e 专用开发插件（仅 VITE_E2E_MOCK=1 时启用）
+ *
+ * 在 index.html 头部注入 Tauri bridge mock（e2e/support/tauri-mock.js），
+ * 让前端在真实浏览器中以真实交互跑完整流程；seed 通过 URL ?e2e_seed=<base64> 传入。
+ * 正常 `npm run dev` / 打包完全不受影响。
+ */
+function e2eMockPlugin(): Plugin {
+  const enabled = process.env.VITE_E2E_MOCK === "1";
+  if (!enabled) {
+    return { name: "streamgrab-e2e-mock" };
+  }
+  const mockSource = readFileSync(
+    resolve(process.cwd(), "e2e/support/tauri-mock.js"),
+    "utf8",
+  );
+  return {
+    name: "streamgrab-e2e-mock",
+    transformIndexHtml(html: string) {
+      return {
+        html,
+        tags: [
+          {
+            tag: "script",
+            attrs: { type: "text/javascript" },
+            children: mockSource,
+            injectTo: "head-prepend",
+          },
+        ],
+      };
+    },
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), e2eMockPlugin()],
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),

@@ -468,10 +468,12 @@ function handleSave() {
               <div class="flex items-end gap-3 pb-1">
                 <div class="flex items-center gap-2">
                   <Switch
-                    :checked="
+                    :model-value="
                       manager.editForm.value.overrides.subtitlesOnly || false
                     "
-                    @update:checked="updateOverride('subtitlesOnly', $event)"
+                    @update:model-value="
+                      updateOverride('subtitlesOnly', $event)
+                    "
                   />
                   <Label class="text-xs">{{
                     t("settings.download.downloadSubtitleOnly")

@@ -42,6 +42,10 @@ pub fn create_tray<R: Runtime>(
     // 单击显示窗口的逻辑永远不触发，最小化到托盘后无法单击恢复。
     let tray = TrayIconBuilder::new()
         .icon(icon)
+        // 托盘 tooltip：Windows 把新图标默认收进「隐藏的图标」折叠区，
+        // 没有 tooltip 时溢出区里的图标连名字都没有，用户无法辨认/恢复。
+        // 设上名字后，悬停与 UIA 都能识别，也便于用户把它拖到主托盘。
+        .tooltip("StreamGrab")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {

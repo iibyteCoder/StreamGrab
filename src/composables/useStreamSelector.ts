@@ -26,6 +26,18 @@ export const formatBandwidth = formatBitrate;
 export const formatDuration = formatDurationHMS;
 
 /**
+ * 选择最高画质视频流：带宽优先，其次分辨率面积（避免依赖流列表排序）
+ */
+export function pickBestVideo(videos: VideoStream[]): VideoStream | undefined {
+  if (videos.length === 0) return undefined;
+  return [...videos].sort((a, b) => {
+    const byBandwidth = b.bandwidth - a.bandwidth;
+    if (byBandwidth !== 0) return byBandwidth;
+    return b.width * b.height - a.width * a.height;
+  })[0];
+}
+
+/**
  * 获取流名称
  */
 export function getStreamName(
@@ -88,9 +100,9 @@ export function useStreamSelector(streamInfo: Ref<StreamInfo | null>) {
     (info) => {
       if (!info) return;
 
-      // 默认选择第一个视频流
-      const firstVideo = info.videos[0];
-      selectedVideos.value = firstVideo ? new Set([firstVideo.id]) : new Set();
+      // 默认选择最高画质视频流（带宽优先，不依赖列表顺序）
+      const bestVideo = pickBestVideo(info.videos);
+      selectedVideos.value = bestVideo ? new Set([bestVideo.id]) : new Set();
 
       // 默认选择默认音频流或第一个
       const defaultAudio = info.audios.find((a) => a.isDefault);

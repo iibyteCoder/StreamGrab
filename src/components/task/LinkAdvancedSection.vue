@@ -58,8 +58,8 @@ function handleStreamConfirm(sel: StreamSelection) {
           >定时开始</Label
         >
         <Switch
-          :checked="!!scheduleTime"
-          @update:checked="
+          :model-value="!!scheduleTime"
+          @update:model-value="
             (v: boolean) => (scheduleTime = v ? minScheduleTime : '')
           "
         />
@@ -235,8 +235,10 @@ function handleStreamConfirm(sel: StreamSelection) {
             >仅下载字幕</Label
           >
           <Switch
-            :checked="!!link.overrides.subtitlesOnly"
-            @update:checked="(v: boolean) => (link.overrides.subtitlesOnly = v)"
+            :model-value="!!link.overrides.subtitlesOnly"
+            @update:model-value="
+              (v: boolean) => (link.overrides.subtitlesOnly = v)
+            "
           />
         </div>
 

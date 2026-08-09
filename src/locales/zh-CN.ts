@@ -546,7 +546,8 @@ export default {
     urlCopied: "链接已复制",
     trayWarning:
       "系统托盘创建失败，关闭窗口时将无法最小化到托盘（{error}）。请在任务栏设置中允许应用显示通知区域图标。",
-    minimizedToTray: "已最小化到系统托盘，可从通知区域图标恢复",
+    minimizedToTray:
+      "已最小化到系统托盘。若任务栏看不到图标，请点击通知区域的「^」展开隐藏图标，把 StreamGrab 图标拖到托盘区即可随时恢复",
     updateAvailable: "发现新版本 {version}，请前往 GitHub 下载",
     noUpdate: "当前已是最新版本",
     updateCheckFailed: "检查更新失败",

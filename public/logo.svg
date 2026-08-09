@@ -6,9 +6,8 @@
       <stop offset="1" stop-color="#0A0D12"/>
     </linearGradient>
   </defs>
-  <!-- 深色石板地砖 -->
-  <rect width="1024" height="1024" fill="url(#sg-tile)"/>
-  <!-- 三段收敛的流（蓝色级联）汇入下载箭头 -->
+  <!-- 原版三段收敛流 + 下载箭头，底板为圆角方块 -->
+  <rect x="72" y="72" width="880" height="880" rx="192" fill="url(#sg-tile)"/>
   <g stroke-linecap="round" stroke-linejoin="round">
     <rect x="292" y="175" width="440" height="72" rx="36" fill="#93C5FD"/>
     <rect x="347" y="305" width="330" height="72" rx="36" fill="#60A5FA"/>

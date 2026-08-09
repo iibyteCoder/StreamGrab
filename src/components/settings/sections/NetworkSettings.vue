@@ -178,8 +178,8 @@ function toggleHeader(index: number, enabled: boolean) {
         />
         <!-- 启用开关 -->
         <Switch
-          :checked="header.enabled"
-          @update:checked="toggleHeader(index, $event)"
+          :model-value="header.enabled"
+          @update:model-value="toggleHeader(index, $event)"
         />
         <!-- 删除按钮 -->
         <Button

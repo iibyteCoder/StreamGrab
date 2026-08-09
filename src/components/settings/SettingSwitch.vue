@@ -44,9 +44,9 @@ const emit = defineEmits<{
     </div>
     <Switch
       class="shrink-0"
-      :checked="modelValue"
+      :model-value="modelValue"
       :disabled="disabled"
-      @update:checked="emit('update:modelValue', $event)"
+      @update:model-value="emit('update:modelValue', $event)"
     />
   </div>
 </template>

@@ -78,3 +78,25 @@ jobs:
       - name: 构建后端
         working-directory: src-tauri
         run: cargo build --release
+
+  # ============ E2E 检查（chrome-devtools-mcp 驱动） ============
+  e2e-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 安装 Chrome（chrome-devtools-mcp 使用）
+        run: npx @puppeteer/browsers install chrome@stable
+
+      - name: 运行 E2E 测试
+        run: npm run test:e2e

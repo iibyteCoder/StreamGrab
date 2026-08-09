@@ -110,8 +110,8 @@ function toggleKeyword(index: number, enabled: boolean) {
           "
         />
         <Switch
-          :checked="kw.enabled"
-          @update:checked="toggleKeyword(index, $event)"
+          :model-value="kw.enabled"
+          @update:model-value="toggleKeyword(index, $event)"
         />
         <Button
           variant="ghost"

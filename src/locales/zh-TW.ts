@@ -530,7 +530,8 @@ export default {
     urlCopied: "連結已複製",
     trayWarning:
       "系統托盤建立失敗，關閉視窗時將無法最小化到托盤（{error}）。請在工作列設定中允許應用程式顯示通知區域圖示。",
-    minimizedToTray: "已最小化到系統托盤，可從通知區域圖示恢復",
+    minimizedToTray:
+      "已最小化到系統托盤。若工作列看不到圖示，請點選通知區域的「^」展開隱藏圖示，將 StreamGrab 圖示拖到托盤區即可隨時恢復",
     updateAvailable: "發現新版本 {version}，請前往 GitHub 下載",
     noUpdate: "目前已是最新版本",
     updateCheckFailed: "檢查更新失敗",
