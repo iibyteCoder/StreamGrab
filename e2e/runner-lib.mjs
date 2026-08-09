@@ -311,24 +311,34 @@ export class Driver {
   // ============ 交互 ============
 
   async clickText(text, opts = {}) {
-    const { exact = true, last = false } = opts;
+    const { exact = true, last = false, timeout = 8000 } = opts;
     const tag =
       opts.tag ||
       'button, [role="button"], a, label, [role="option"], [role="menuitem"], [role="switch"], [role="tab"], [role="checkbox"], [role="menuitemcheckbox"], [role="radio"]';
-    const v = await this.eval(`() => {
-      const text = ${JSON.stringify(text)};
-      const nodes = Array.from(document.querySelectorAll(${JSON.stringify(tag)}));
-      const matches = nodes.filter(n => {
-        const t = (n.textContent || '').trim();
-        return ${exact ? "t === text" : "t.includes(text)"};
-      });
-      const el = ${last ? "matches[matches.length - 1]" : "matches[0]"};
-      if (!el) return 'NOT_FOUND:' + text;
-      ${POINTER_CLICK_JS}
-      dispatchClick(el);
-      return 'ok';
-    }`);
-    if (v !== "ok") throw new Error(`clickText 失败：${v}`);
+    const start = Date.now();
+    while (true) {
+      const v = await this.eval(`() => {
+        const text = ${JSON.stringify(text)};
+        const nodes = Array.from(document.querySelectorAll(${JSON.stringify(tag)}));
+        const matches = nodes.filter(n => {
+          const t = (n.textContent || '').trim();
+          return ${exact ? "t === text" : "t.includes(text)"};
+        });
+        const el = ${last ? "matches[matches.length - 1]" : "matches[0]"};
+        if (!el) return 'NOT_FOUND:' + text;
+        ${POINTER_CLICK_JS}
+        dispatchClick(el);
+        return 'ok';
+      }`);
+      if (v === "ok") return;
+      if (!String(v).startsWith("NOT_FOUND")) {
+        throw new Error(`clickText 失败：${v}`);
+      }
+      if (Date.now() - start >= timeout) {
+        throw new Error(`clickText 失败：${v}`);
+      }
+      await sleep(150);
+    }
   }
 
   async clickTitle(title) {
