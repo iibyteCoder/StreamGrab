@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.0] - 2026-08-09
+
+### 新增
+
+- E2E 测试体系：chrome-devtools-mcp 驱动真实 Chrome 跑 49 个端到端用例（启动/托盘/恢复、添加向导、任务管理、下载生命周期、设置/i18n/主题、预设、剪贴板），`npm run test:e2e` + CI 接入
+- 流选择默认勾选最高画质视频流（带宽优先，其次分辨率，与列表顺序无关）
+- 应用图标更新为圆角方块样式，全套平台图标（ico/icns/Android/iOS）重新生成
+
+### 优化
+
+- 托盘图标增加 tooltip「StreamGrab」，Windows 隐藏图标折叠区可辨识并恢复
+- 最小化到托盘提示语补充隐藏图标展开操作指引（中/英/繁）
+
+### 修复
+
+- 修复设置开关（reka Switch）事件绑定错误导致点击不生效——7 处 `@update:checked` → `@update:model-value`（影响设置页开关、定时开始、仅下载字幕等）
+- 修复托盘创建失败提示 `{error}` 占位符被 vue-i18n 剥离的问题，改用命名参数传参
+
 ## [0.6.1] - 2026-08-04
 
 ### 修复
@@ -128,6 +146,7 @@
 - 使用 Tauri 2.0 + Vue 3 + TypeScript 构建
 - 跨平台支持（Windows、macOS、Linux）
 
+[0.7.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.7.0
 [0.6.1]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.1
 [0.6.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.0
 [0.5.2]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.5.2
