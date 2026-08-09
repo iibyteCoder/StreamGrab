@@ -131,19 +131,28 @@ impl ExeNames {
         Self { main, extras }
     }
 
-    /// 获取带平台扩展名的主可执行文件名
-    pub fn main_exe(&self) -> String {
-        format!("{}{}", self.main, Platform::current().exe_extension())
+    /// 获取指定平台下带扩展名的主可执行文件名
+    pub fn main_exe_for(&self, platform: Platform) -> String {
+        format!("{}{}", self.main, platform.exe_extension())
     }
 
-    /// 获取所有带平台扩展名的可执行文件名
-    pub fn all_exe(&self) -> Vec<String> {
-        let platform = Platform::current();
-        let mut names = vec![format!("{}{}", self.main, platform.exe_extension())];
+    /// 获取指定平台下所有带扩展名的可执行文件名
+    pub fn all_exe_for(&self, platform: Platform) -> Vec<String> {
+        let mut names = vec![self.main_exe_for(platform)];
         for extra in self.extras {
             names.push(format!("{}{}", extra, platform.exe_extension()));
         }
         names
+    }
+
+    /// 获取带平台扩展名的主可执行文件名
+    pub fn main_exe(&self) -> String {
+        self.main_exe_for(Platform::current())
+    }
+
+    /// 获取所有带平台扩展名的可执行文件名
+    pub fn all_exe(&self) -> Vec<String> {
+        self.all_exe_for(Platform::current())
     }
 
     /// 在指定目录中查找主可执行文件
@@ -172,21 +181,23 @@ mod tests {
 
     #[test]
     fn test_is_platform_asset() {
-        let platform = Platform::current();
-
         // 测试 FFmpeg 资源名
         assert!(
-            platform.is_platform_asset("ffmpeg-master-latest-win64-gpl-shared.zip"),
+            Platform::Windows.is_platform_asset("ffmpeg-master-latest-win64-gpl-shared.zip"),
             "Should match FFmpeg win64 asset"
         );
         assert!(
-            platform.is_platform_asset("ffmpeg-n8.0-latest-win64-gpl-shared-8.0.zip"),
+            Platform::Windows.is_platform_asset("ffmpeg-n8.0-latest-win64-gpl-shared-8.0.zip"),
             "Should match FFmpeg n8.0 win64 asset"
+        );
+        assert!(
+            Platform::Linux.is_platform_asset("ffmpeg-n8.0-latest-linux-x64-gpl-shared-8.0.zip"),
+            "Should match FFmpeg linux-x64 asset"
         );
 
         // 测试 N_m3u8DL-RE 资源名
         assert!(
-            platform.is_platform_asset("N_m3u8DL-RE_v0.5.1-beta_win-x64_20251029.zip"),
+            Platform::Windows.is_platform_asset("N_m3u8DL-RE_v0.5.1-beta_win-x64_20251029.zip"),
             "Should match N_m3u8DL-RE win-x64 asset"
         );
     }
@@ -194,7 +205,17 @@ mod tests {
     #[test]
     fn test_exe_names() {
         let ffmpeg = ExeNames::new("ffmpeg", &["ffprobe"]);
-        assert_eq!(ffmpeg.main_exe(), "ffmpeg.exe");
-        assert_eq!(ffmpeg.all_exe(), vec!["ffmpeg.exe", "ffprobe.exe"]);
+        assert_eq!(ffmpeg.main_exe_for(Platform::Windows), "ffmpeg.exe");
+        assert_eq!(
+            ffmpeg.all_exe_for(Platform::Windows),
+            vec!["ffmpeg.exe", "ffprobe.exe"]
+        );
+        assert_eq!(ffmpeg.main_exe_for(Platform::Linux), "ffmpeg");
+        assert_eq!(
+            ffmpeg.all_exe_for(Platform::Linux),
+            vec!["ffmpeg", "ffprobe"]
+        );
+        assert_eq!(ffmpeg.main_exe(), ffmpeg.main_exe_for(Platform::current()));
+        assert_eq!(ffmpeg.all_exe(), ffmpeg.all_exe_for(Platform::current()));
     }
 }
