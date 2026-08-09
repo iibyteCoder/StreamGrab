@@ -53,6 +53,21 @@ jobs:
       - name: 安装前端依赖
         run: npm ci
 
+      - name: 读取发行说明
+        id: release_notes
+        shell: bash
+        run: |
+          NOTES_FILE="docs/releases/${{ github.ref_name }}.md"
+          if [[ ! -f "$NOTES_FILE" ]]; then
+            echo "发行说明不存在: $NOTES_FILE" >&2
+            exit 1
+          fi
+          {
+            echo 'body<<EOF'
+            cat "$NOTES_FILE"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: 构建 Tauri 应用
         uses: tauri-apps/tauri-action@v0
         env:
@@ -60,7 +75,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'StreamGrab ${{ github.ref_name }}'
-          releaseBody: '查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) 了解详情。'
+          releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
