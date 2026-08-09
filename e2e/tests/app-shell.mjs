@@ -1,4 +1,10 @@
-import { assert, assertEqual, test } from "../runner-lib.mjs";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { assert, assertEqual, ROOT, test } from "../runner-lib.mjs";
+
+const appVersion = JSON.parse(
+  readFileSync(resolve(ROOT, "package.json"), "utf8"),
+).version;
 
 function makeTask(overrides) {
   return {
@@ -33,7 +39,7 @@ test("启动：加载后端数据并渲染首页空状态与页脚", async (d) =
 
   await d.assertText("没有下载任务");
   await d.assertText("输入链接开始下载");
-  await d.assertText(/v0\.6\.1/);
+  await d.assertText(new RegExp(`v${appVersion.replace(/\./g, "\\.")}`));
   await d.assertText("by iibyteCoder");
 
   const calls = await d.mockCallsOf("load_all_tasks");
