@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [0.7.0] - 2026-08-09
+## [0.6.3] - 2026-08-09
 
 ### 新增
 
@@ -146,7 +146,7 @@
 - 使用 Tauri 2.0 + Vue 3 + TypeScript 构建
 - 跨平台支持（Windows、macOS、Linux）
 
-[0.7.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.7.0
+[0.6.3]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.3
 [0.6.1]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.1
 [0.6.0]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.6.0
 [0.5.2]: https://github.com/iibyteCoder/StreamGrab/releases/tag/v0.5.2
