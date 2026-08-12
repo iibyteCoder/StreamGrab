@@ -355,48 +355,72 @@ export class Driver {
     if (v !== "ok") throw new Error(`clickTitle 失败：${v}`);
   }
 
-  /** 在指定任务卡片内点按 title 的快速操作按钮 */
-  async clickTaskAction(title, fileName) {
-    const v = await this.eval(`() => {
-      const name = ${JSON.stringify(fileName)};
-      const t = ${JSON.stringify(title)};
-      const cards = Array.from(document.querySelectorAll('.task-card'));
-      const card = cards.find(c => (c.textContent || '').includes(name));
-      if (!card) return 'NOT_FOUND_CARD:' + name;
-      const el = card.querySelector('[title="' + t + '"]');
-      if (!el) return 'NOT_FOUND_TITLE:' + t;
-      ${POINTER_CLICK_JS}
-      dispatchClick(el);
-      return 'ok';
-    }`);
-    if (v !== "ok") throw new Error(`clickTaskAction 失败：${v}`);
+  /** 在指定任务卡片内点按 title 的快速操作按钮（等待卡片渲染，消除导航后立即操作的偶发失败） */
+  async clickTaskAction(title, fileName, { timeout = 8000 } = {}) {
+    const start = Date.now();
+    while (true) {
+      const v = await this.eval(`() => {
+        const name = ${JSON.stringify(fileName)};
+        const t = ${JSON.stringify(title)};
+        const cards = Array.from(document.querySelectorAll('.task-card'));
+        const card = cards.find(c => (c.textContent || '').includes(name));
+        if (!card) return 'NOT_FOUND_CARD:' + name;
+        const el = card.querySelector('[title="' + t + '"]');
+        if (!el) return 'NOT_FOUND_TITLE:' + t;
+        ${POINTER_CLICK_JS}
+        dispatchClick(el);
+        return 'ok';
+      }`);
+      if (v === "ok") return;
+      if (!String(v).startsWith("NOT_FOUND_CARD")) {
+        throw new Error(`clickTaskAction 失败：${v}`);
+      }
+      if (Date.now() - start >= timeout) {
+        throw new Error(`clickTaskAction 失败（等待 ${timeout}ms）：${v}`);
+      }
+      await sleep(200);
+    }
   }
 
-  /** 在任务卡片上触发右键菜单 */
-  async contextMenuOnCard(fileName) {
-    const v = await this.eval(`() => {
-      const name = ${JSON.stringify(fileName)};
-      const cards = Array.from(document.querySelectorAll('.task-card'));
-      const card = cards.find(c => (c.textContent || '').includes(name));
-      if (!card) return 'NOT_FOUND_CARD:' + name;
-      card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-      return 'ok';
-    }`);
-    if (v !== "ok") throw new Error(`contextMenuOnCard 失败：${v}`);
+  /** 在任务卡片上触发右键菜单（等待卡片渲染，消除导航后立即操作的偶发失败） */
+  async contextMenuOnCard(fileName, { timeout = 8000 } = {}) {
+    const start = Date.now();
+    while (true) {
+      const v = await this.eval(`() => {
+        const name = ${JSON.stringify(fileName)};
+        const cards = Array.from(document.querySelectorAll('.task-card'));
+        const card = cards.find(c => (c.textContent || '').includes(name));
+        if (!card) return 'NOT_FOUND_CARD:' + name;
+        card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+        return 'ok';
+      }`);
+      if (v === "ok") return;
+      if (Date.now() - start >= timeout) {
+        throw new Error(`contextMenuOnCard 失败（等待 ${timeout}ms）：${v}`);
+      }
+      await sleep(200);
+    }
   }
 
-  /** 点击任务卡片（打开详情面板） */
-  async clickCard(fileName) {
-    const v = await this.eval(`() => {
-      const name = ${JSON.stringify(fileName)};
-      const cards = Array.from(document.querySelectorAll('.task-card'));
-      const card = cards.find(c => (c.textContent || '').includes(name));
-      if (!card) return 'NOT_FOUND_CARD:' + name;
-      ${POINTER_CLICK_JS}
-      dispatchClick(card);
-      return 'ok';
-    }`);
-    if (v !== "ok") throw new Error(`clickCard 失败：${v}`);
+  /** 点击任务卡片（打开详情面板；等待卡片渲染，消除导航后立即操作的偶发失败） */
+  async clickCard(fileName, { timeout = 8000 } = {}) {
+    const start = Date.now();
+    while (true) {
+      const v = await this.eval(`() => {
+        const name = ${JSON.stringify(fileName)};
+        const cards = Array.from(document.querySelectorAll('.task-card'));
+        const card = cards.find(c => (c.textContent || '').includes(name));
+        if (!card) return 'NOT_FOUND_CARD:' + name;
+        ${POINTER_CLICK_JS}
+        dispatchClick(card);
+        return 'ok';
+      }`);
+      if (v === "ok") return;
+      if (Date.now() - start >= timeout) {
+        throw new Error(`clickCard 失败（等待 ${timeout}ms）：${v}`);
+      }
+      await sleep(200);
+    }
   }
 
   async clickFirstCheckbox() {
