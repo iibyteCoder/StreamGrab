@@ -1,6 +1,6 @@
 [package]
 name = "streamgrab"
-version = "0.6.3"
+version = "0.6.4"
 description = "M3U8 Video Stream Downloader"
 authors = ["StreamGrab Team"]
 license = "MIT"

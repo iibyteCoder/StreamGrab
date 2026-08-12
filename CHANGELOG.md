@@ -5,6 +5,30 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.4] - 2026-08-12
+
+### 新增
+
+- 工具下载按平台选择资产与下载源，macOS/Linux 首次可用：
+  - N_m3u8DL-RE：Windows `.zip`，macOS/Linux `.tar.gz`，按 `win-x64`/`osx-arm64`/`linux-x64` 等平台+架构关键字精确匹配
+  - FFmpeg：Windows/Linux 走 BtbN Builds（`gpl-shared`，优先 `master-latest` 滚动构建），macOS 改走 evermeet.cx（ffmpeg 与 ffprobe 双 zip 随附下载、解压到同一目录）
+  - 新增 `.tar.gz`（flate2）/ `.tar.xz`（lzma-rs）解压与魔数校验；Unix 平台恢复可执行权限
+- 工具管理卡新增绿色「已是最新版本」徽章（已安装且无更新时显示，下载按钮隐藏）
+
+### 优化
+
+- FFmpeg 滚动构建版本号归一化为日期（如 `2026-08-12`），与本地检测版本可直接比较，更新提示准确
+- 版本比较重写：兼容 `v0.6.0-beta` / `latest-2026-08-09` / `0.6.0+hash` 等格式，预发布标识（`-beta` 等）视为更旧版本
+
+### 修复
+
+- 修复 macOS 平台关键字可能误匹配 Android 包的问题（`arm64` 曾被归为平台关键字）
+- 修复 FFmpeg 资产过滤可能命中 lgpl 构建的问题（`"lgpl"` 包含 `"gpl"` 子串）
+- 修复工具已是最新版本时下载按钮仍可点击、误导重复下载的问题
+- 修复版本比较对带预发布后缀的版本产生 NaN 误判、漏报更新的问题（如 `v0.6.1-beta` vs `0.6.0`）
+- 修复 FFmpeg/FFprobe 在 BtbN 滚动构建下本地版本无法解析（正则遗漏 git describe 的 `g` 前缀，版本恒为空、无法判断是否最新）
+- 修复 FFmpeg 重复更新导致安装目录逐层嵌套（解压目标回溯到既有安装目录原地覆盖）
+
 ## [0.6.3] - 2026-08-09
 
 ### 新增
