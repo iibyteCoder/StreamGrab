@@ -89,6 +89,43 @@ impl ToolDefinition for Nm3u8dlReConfig {
 // FFmpeg 主程序
 // ========================================
 
+/// 解析 FFmpeg/FFprobe 的 `-version` 输出
+///
+/// 三种格式：
+/// - 标准发行版：`ffmpeg version 8.0` / `ffmpeg version n8.1.1` → `"8.0"` / `"8.1.1"`
+/// - BtbN 滚动构建：`ffmpeg version N-125953-gd3ad8a7fee-20260803` → `"2026-08-03"`
+///   （`g` 前缀是 git describe 惯例，早期构建可能没有）
+/// - 回退：首行中任意 `YYYY-MM-DD` 日期
+fn parse_ffmpeg_family_version(stdout: &str, binary: &str) -> Option<String> {
+    let first_line = stdout.lines().next()?;
+
+    // 标准版本号（n 前缀为 git tag 构建的命名惯例）
+    let std_re = Regex::new(&format!(r"{binary}\s+version\s+n?(\d+\.\d+(?:\.\d+)?)")).ok()?;
+    if let Some(cap) = std_re.captures(first_line) {
+        return cap.get(1).map(|m| m.as_str().to_string());
+    }
+
+    // BtbN 滚动构建：N-<rev>-g<hash>-<date>，提取日期并格式化为 YYYY-MM-DD
+    let btbm_re = Regex::new(&format!(
+        r"{binary}\s+version\s+N-\d+-g?[a-f0-9]+-(\d{{8}})"
+    ))
+    .ok()?;
+    if let Some(cap) = btbm_re.captures(first_line) {
+        if let Some(date_match) = cap.get(1) {
+            let date = date_match.as_str();
+            return Some(format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..8]));
+        }
+    }
+
+    // 回退：提取任何日期样式
+    let fallback_re = Regex::new(r"(\d{4}-\d{2}-\d{2})").ok()?;
+    if let Some(cap) = fallback_re.captures(first_line) {
+        return cap.get(1).map(|m| m.as_str().to_string());
+    }
+
+    None
+}
+
 /// FFmpeg 工具定义
 pub struct FfmpegConfig;
 
@@ -106,36 +143,7 @@ impl ToolDefinition for FfmpegConfig {
     }
 
     fn parse_version(&self, stdout: &str, _stderr: &str) -> Option<String> {
-        // FFmpeg 版本输出格式示例：
-        // 标准版本: "ffmpeg version 8.0"
-        // BtbN 构建: "ffmpeg version N-118800-gbe4c3c2859-20260219"
-
-        let first_line = stdout.lines().next()?;
-
-        // 尝试匹配标准版本号格式
-        let std_re = Regex::new(r"ffmpeg\s+version\s+(\d+\.\d+(?:\.\d+)?)").ok()?;
-        if let Some(cap) = std_re.captures(first_line) {
-            return cap.get(1).map(|m| m.as_str().to_string());
-        }
-
-        // 尝试匹配 BtbN 构建格式：N-118800-gbe4c3c2859-20260219
-        // 提取日期部分作为版本标识
-        let btbm_re = Regex::new(r"ffmpeg\s+version\s+N-\d+-[a-f0-9]+-(\d{8})").ok()?;
-        if let Some(cap) = btbm_re.captures(first_line) {
-            if let Some(date_match) = cap.get(1) {
-                let date = date_match.as_str();
-                // 格式化为 YYYY-MM-DD
-                return Some(format!("{}-{}-{}", &date[0..4], &date[4..6], &date[6..8]));
-            }
-        }
-
-        // 回退：提取任何类似版本号的模式
-        let fallback_re = Regex::new(r"(\d{4}-\d{2}-\d{2})").ok()?;
-        if let Some(cap) = fallback_re.captures(first_line) {
-            return cap.get(1).map(|m| m.as_str().to_string());
-        }
-
-        None
+        parse_ffmpeg_family_version(stdout, "ffmpeg")
     }
 
     fn github_repo(&self) -> Option<&'static str> {
@@ -205,10 +213,7 @@ impl ToolDefinition for FfprobeConfig {
     }
 
     fn parse_version(&self, stdout: &str, _stderr: &str) -> Option<String> {
-        let first_line = stdout.lines().next()?;
-        let re = Regex::new(r"ffprobe\s+version\s+(\d+\.\d+(?:\.\d+)?)").ok()?;
-        re.captures(first_line)
-            .and_then(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+        parse_ffmpeg_family_version(stdout, "ffprobe")
     }
 
     // FFprobe 不单独下载，随 FFmpeg 套件一起
@@ -408,6 +413,41 @@ mod tests {
         // 旧版格式
         let v = config.parse_version("N_m3u8DL-RE version 0.3.0.0", "");
         assert_eq!(v.as_deref(), Some("0.3.0.0"));
+    }
+
+    #[test]
+    fn ffmpeg_parse_version_btbm_master_build() {
+        // 实测输出（BtbN master 滚动构建，hash 带 git describe 的 g 前缀）
+        let stdout = "ffmpeg version N-125953-gd3ad8a7fee-20260803 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with gcc 15.2.0 (crosstool-NG 1.28.0.23_185f348)";
+        assert_eq!(
+            FfmpegConfig.parse_version(stdout, "").as_deref(),
+            Some("2026-08-03")
+        );
+    }
+
+    #[test]
+    fn ffmpeg_parse_version_standard_and_tagged() {
+        // evermeet / 标准发行版
+        let stdout = "ffmpeg version 9.0 Copyright (c) 2000-2026 the FFmpeg developers";
+        assert_eq!(
+            FfmpegConfig.parse_version(stdout, "").as_deref(),
+            Some("9.0")
+        );
+        // git tag 构建（n 前缀）
+        let stdout = "ffmpeg version n8.1.1 Copyright (c) 2000-2026 the FFmpeg developers";
+        assert_eq!(
+            FfmpegConfig.parse_version(stdout, "").as_deref(),
+            Some("8.1.1")
+        );
+    }
+
+    #[test]
+    fn ffprobe_parse_version_btbm_master_build() {
+        let stdout = "ffprobe version N-125953-gd3ad8a7fee-20260803 Copyright (c) 2007-2026 the FFmpeg developers";
+        assert_eq!(
+            FfprobeConfig.parse_version(stdout, "").as_deref(),
+            Some("2026-08-03")
+        );
     }
 
     #[test]

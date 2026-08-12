@@ -512,7 +512,10 @@ fn verify_archive_magic(filename: &str, bytes: &[u8]) -> Result<(), String> {
 /// 解压压缩包，返回可执行文件所在目录
 ///
 /// 支持 .zip（Windows 工具包）、.tar.gz（N_m3u8DL-RE 的 macOS/Linux 包）、
-/// .tar.xz（BtbN FFmpeg 的 Linux 包）
+/// .tar.xz（BtbN FFmpeg 的 Linux 包）。
+///
+/// 防更新嵌套：带单一顶层目录的压缩包（如 BtbN zip），若祖先目录中已存在
+/// 同名安装目录，则回溯到该目录原地覆盖，避免「bin 里再套一层安装目录」。
 fn extract_archive(archive_path: &Path, target_dir: &Path, tool: &str) -> Result<String, String> {
     let registry = ToolRegistry::global();
     let exe_names = if tool.to_lowercase().contains("ffmpeg") {
@@ -528,21 +531,35 @@ fn extract_archive(archive_path: &Path, target_dir: &Path, tool: &str) -> Result
         .unwrap_or("")
         .to_string();
     let name_lower = name.to_lowercase();
+
+    // 先探测压缩包顶层结构，决定实际解压目标（防更新嵌套）
+    let (top_dirs, has_root_files) = archive_top_level(archive_path, &name_lower)?;
+    let extract_dir = resolve_target_from_top(&top_dirs, has_root_files, target_dir);
+    if extract_dir != target_dir {
+        log::info!(
+            "[Tools] 检测到既有安装目录，原地覆盖更新: {}",
+            extract_dir.display()
+        );
+    }
+    if !extract_dir.exists() {
+        std::fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {e}"))?;
+    }
+
     let file = std::fs::File::open(archive_path).map_err(|e| format!("打开压缩包失败: {e}"))?;
 
     let (found_exe_dir, all_files) = if name_lower.ends_with(".zip") {
         let archive = zip::ZipArchive::new(file).map_err(|e| format!("读取 ZIP 失败: {e}"))?;
-        extract_zip_entries(archive, target_dir, &exe_names_lower)?
+        extract_zip_entries(archive, &extract_dir, &exe_names_lower)?
     } else if name_lower.ends_with(".tar.gz") || name_lower.ends_with(".tgz") {
         let gz = flate2::read::GzDecoder::new(file);
-        extract_tar_entries(gz, target_dir, &exe_names_lower)?
+        extract_tar_entries(gz, &extract_dir, &exe_names_lower)?
     } else if name_lower.ends_with(".tar.xz") {
         let mut decompressed: Vec<u8> = Vec::new();
         lzma_rs::xz_decompress(&mut std::io::BufReader::new(file), &mut decompressed)
             .map_err(|e| format!("解压 XZ 失败: {e}"))?;
         extract_tar_entries(
             std::io::Cursor::new(decompressed),
-            target_dir,
+            &extract_dir,
             &exe_names_lower,
         )?
     } else {
@@ -554,6 +571,132 @@ fn extract_archive(archive_path: &Path, target_dir: &Path, tool: &str) -> Result
         .ok_or_else(|| {
             format!("未找到可执行文件。期望: {exe_names:?}, 压缩包内实际文件: {all_files:?}")
         })
+}
+
+/// 读取压缩包的顶层目录名列表与是否存在根级文件
+fn archive_top_level(archive_path: &Path, name_lower: &str) -> Result<(Vec<String>, bool), String> {
+    let file = std::fs::File::open(archive_path).map_err(|e| format!("打开压缩包失败: {e}"))?;
+    if name_lower.ends_with(".zip") {
+        let archive = zip::ZipArchive::new(file).map_err(|e| format!("读取 ZIP 失败: {e}"))?;
+        zip_top_level(archive)
+    } else if name_lower.ends_with(".tar.gz") || name_lower.ends_with(".tgz") {
+        tar_top_level(flate2::read::GzDecoder::new(file))
+    } else if name_lower.ends_with(".tar.xz") {
+        let mut decompressed: Vec<u8> = Vec::new();
+        lzma_rs::xz_decompress(&mut std::io::BufReader::new(file), &mut decompressed)
+            .map_err(|e| format!("解压 XZ 失败: {e}"))?;
+        tar_top_level(std::io::Cursor::new(decompressed))
+    } else {
+        // 未知格式按根级文件处理，后续解压环节会给出明确错误
+        Ok((Vec::new(), true))
+    }
+}
+
+/// ZIP 顶层结构探测
+fn zip_top_level(
+    mut archive: zip::ZipArchive<std::fs::File>,
+) -> Result<(Vec<String>, bool), String> {
+    let mut top_dirs: Vec<String> = Vec::new();
+    let mut has_root_files = false;
+    for i in 0..archive.len() {
+        let file = archive
+            .by_index(i)
+            .map_err(|e| format!("读取条目 {i} 失败: {e}"))?;
+        let Some(rel) = file.enclosed_name() else {
+            continue;
+        };
+        classify_entry(
+            &rel,
+            file.name().ends_with('/'),
+            &mut top_dirs,
+            &mut has_root_files,
+        );
+        if has_root_files {
+            break;
+        }
+    }
+    Ok((top_dirs, has_root_files))
+}
+
+/// tar 流顶层结构探测
+fn tar_top_level<R: std::io::Read>(reader: R) -> Result<(Vec<String>, bool), String> {
+    let mut archive = tar::Archive::new(reader);
+    let mut top_dirs: Vec<String> = Vec::new();
+    let mut has_root_files = false;
+    for entry in archive
+        .entries()
+        .map_err(|e| format!("读取压缩包条目失败: {e}"))?
+    {
+        let entry = entry.map_err(|e| format!("读取条目失败: {e}"))?;
+        let rel = entry
+            .path()
+            .map_err(|e| format!("条目路径无效: {e}"))?
+            .into_owned();
+        let is_dir = entry.header().entry_type().is_dir();
+        classify_entry(&rel, is_dir, &mut top_dirs, &mut has_root_files);
+        if has_root_files {
+            break;
+        }
+    }
+    Ok((top_dirs, has_root_files))
+}
+
+/// 条目归类：顶层目录 or 根级文件
+fn classify_entry(rel: &Path, is_dir: bool, top_dirs: &mut Vec<String>, has_root_files: &mut bool) {
+    let mut comps = rel.components();
+    let Some(first) = comps.next() else {
+        return;
+    };
+    let name = first.as_os_str().to_string_lossy().to_string();
+    if comps.next().is_some() || is_dir {
+        if !top_dirs.iter().any(|d| d.eq_ignore_ascii_case(&name)) {
+            top_dirs.push(name);
+        }
+    } else {
+        *has_root_files = true;
+    }
+}
+
+/// 依据顶层结构决定实际解压目标目录（防更新嵌套）
+///
+/// 单一顶层目录 `T` 且无根级文件时：自 `target_dir` 向上查找，遇到第一个
+/// 含名为 `T` 子目录的祖先目录即在其中解压（原地覆盖既有安装）；
+/// 查至文件系统根仍未找到则就地解压（全新安装）。
+/// 平铺压缩包（N_m3u8DL-RE / evermeet）直接解压到 `target_dir`。
+fn resolve_target_from_top(
+    top_dirs: &[String],
+    has_root_files: bool,
+    target_dir: &Path,
+) -> PathBuf {
+    if has_root_files || top_dirs.len() != 1 {
+        return target_dir.to_path_buf();
+    }
+    let top = &top_dirs[0];
+    let mut cur = target_dir.to_path_buf();
+    loop {
+        if contains_dir(&cur, top) {
+            return cur;
+        }
+        match cur.parent() {
+            Some(parent) => cur = parent.to_path_buf(),
+            None => return target_dir.to_path_buf(),
+        }
+    }
+}
+
+/// dir 中是否包含指定名称的子目录（不区分大小写）
+fn contains_dir(dir: &Path, name: &str) -> bool {
+    std::fs::read_dir(dir)
+        .map(|entries| {
+            entries.flatten().any(|e| {
+                e.path().is_dir()
+                    && e.file_name()
+                        .to_str()
+                        .map(|n| n.eq_ignore_ascii_case(name))
+                        .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
 }
 
 /// 解压 ZIP 条目，返回 (可执行文件目录, 全部文件名列表)
@@ -695,6 +838,57 @@ fn set_executable(path: &Path, archive_mode: Option<u32>) {
     use std::os::unix::fs::PermissionsExt;
     let mode = archive_mode.unwrap_or(0o755);
     let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
+}
+
+// ========================================
+// 解压目标决策测试（防更新嵌套）
+// ========================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TOP: &str = "ffmpeg-master-latest-win64-gpl-shared";
+
+    #[test]
+    fn update_extracts_into_existing_install_root() {
+        // 更新场景：配置目录是安装目录内的 bin/ → 应回溯到安装根目录原地覆盖
+        let root = tempfile::tempdir().unwrap();
+        let bin = root.path().join(TOP).join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let target = resolve_target_from_top(&[TOP.to_string()], false, &bin);
+        assert_eq!(target, root.path());
+    }
+
+    #[test]
+    fn fresh_install_keeps_target_dir() {
+        // 全新安装：空目录中不存在顶层同名目录 → 就地解压
+        let root = tempfile::tempdir().unwrap();
+        let target = resolve_target_from_top(&[TOP.to_string()], false, root.path());
+        assert_eq!(target, root.path());
+    }
+
+    #[test]
+    fn flat_or_multi_top_archives_keep_target_dir() {
+        let root = tempfile::tempdir().unwrap();
+        // 含根级文件（平铺包）→ 就地解压
+        let target = resolve_target_from_top(&[TOP.to_string()], true, root.path());
+        assert_eq!(target, root.path());
+        // 多个顶层目录 → 就地解压
+        let target =
+            resolve_target_from_top(&["a".to_string(), "b".to_string()], false, root.path());
+        assert_eq!(target, root.path());
+    }
+
+    #[test]
+    fn corrupted_nested_dir_resolves_to_nearest_install() {
+        // 历史损坏形态：bin 内又嵌了一层完整安装目录 → 就近回溯
+        let root = tempfile::tempdir().unwrap();
+        let corrupted_bin = root.path().join(TOP).join("bin").join(TOP).join("bin");
+        std::fs::create_dir_all(&corrupted_bin).unwrap();
+        let target = resolve_target_from_top(&[TOP.to_string()], false, &corrupted_bin);
+        assert_eq!(target, root.path().join(TOP).join("bin"));
+    }
 }
 
 // ========================================
