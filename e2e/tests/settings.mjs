@@ -72,13 +72,16 @@ test("剪贴板监控开关：开启后持久化", async (d) => {
 });
 
 test("重置设置：确认后恢复默认并持久化", async (d) => {
-  await d.resetAndGo({
-    appSettings: {
-      theme: "light",
-      max_concurrent_tasks: 9,
-      default_save_dir: "D:\\Custom",
+  await d.resetAndGo(
+    {
+      appSettings: {
+        theme: "light",
+        max_concurrent_tasks: 9,
+        default_save_dir: "D:\\Custom",
+      },
     },
-  }, "/settings");
+    "/settings",
+  );
 
   await d.clickText("恢复默认设置");
   await d.assertText("确认恢复默认配置？");
@@ -110,12 +113,15 @@ test("N_m3u8DL-RE 工具卡：检测、检查最新版并下载更新", async (d
   await d.clickText("N_m3u8DL-RE");
 
   await d.assertText("已安装");
-  await d.assertText("v20260628");
+  await d.assertText("v0.5.0");
 
   await d.clickText("检查最新版本");
   await d.assertText("最新版本: 9.9.9");
-  await d.clickText("下载");
+  // 有新版本 → 按钮文案为「更新」
+  await d.clickText("更新");
   await d.assertText("N_m3u8DL-RE 下载完成");
+  // 下载后重新检测，版本与最新版一致 → 显示「已是最新版本」
+  await d.assertText("已是最新版本");
 
   const calls = await d.mockCallsOf("download_tool");
   assertEqual(calls.length, 1);

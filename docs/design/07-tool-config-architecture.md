@@ -53,6 +53,21 @@ pub trait DownloadEngine: Send + Sync {
 
 刻意不引入插件框架——静态注册 + trait 对象对此规模已足够。
 
+### 工具下载与平台适配（实测结论，2026-08）
+
+- **按平台选择资产**：`Platform::is_platform_asset_for` 以「排除其他平台关键字 → 组合关键字（如 `win-x64`/`osx-arm64`/`linux64`）→ 平台关键字+架构关键字」三级匹配；`Arch` 枚举区分 x64/arm64，防止 `android-bionic-x64`、`linuxarm64` 等资产被误选。
+- **按平台选择下载源**：
+
+  | 工具 | Windows | macOS | Linux |
+  | --- | --- | --- | --- |
+  | N_m3u8DL-RE（GitHub nilaoda） | `win-x64.zip` | `osx-*.tar.gz` | `linux-*.tar.gz` |
+  | FFmpeg | BtbN `win64-gpl-shared.zip` | evermeet.cx（ffmpeg+ffprobe 为两个独立 zip，ffprobe 经 `extraAssets` 随附下载） | BtbN `linux64-gpl-shared.tar.xz` |
+
+  BtbN 不提供 macOS 构建，故 macOS 改走 evermeet.cx（`fetch_ffmpeg_evermeet`）。
+- **压缩格式**：`extract_archive` 统一分派 `.zip`（zip crate）/ `.tar.gz`（flate2+tar）/ `.tar.xz`（lzma-rs+tar）；魔数校验防错误页；Unix 平台恢复可执行权限。
+- **版本比较**（前端 `utils/version.ts`）：提取全部数字段逐位比较 + 预发布标识（`-beta` 等视为更旧），兼容 `v0.6.0-beta` vs `0.6.0`、日期版本 `latest-2026-08-09`、`0.6.0+hash` 构建元数据；BtbN 滚动 tag `latest` 在后端归一化为发布名中的日期（`2026-08-09`）。
+- **「已是最新」状态**：`ToolManagerCard` 在已安装且检查最新版本后无更新时隐藏下载按钮、显示绿色徽章——修复旧实现中按钮常驻导致「已下载最新仍可重复下载」的误导。
+
 ## 三、数据层（schema v4，单表聚合）
 
 | 表 | 设计 |

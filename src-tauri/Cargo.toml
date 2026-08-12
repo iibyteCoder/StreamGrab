@@ -75,6 +75,11 @@ base64 = "0.22"
 # ZIP 解压
 zip = "2"
 
+# tar.gz / tar.xz 解压（macOS/Linux 工具下载包）
+tar = "0.4"
+flate2 = "1"
+lzma-rs = "0.3"
+
 # 查找可执行文件
 which = "7"
 

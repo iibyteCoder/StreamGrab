@@ -193,6 +193,7 @@ export default {
       refresh: "Re-detect",
       selectDirFailed: "Failed to select directory",
       toolManagement: "Tool Management",
+      upToDate: "Up to date",
       update: "Update",
     },
 

@@ -97,9 +97,7 @@ async function main() {
 
     const totalMs = Date.now() - overallStart;
     console.log("");
-    console.log(
-      `结果：${passed}/${tests.length} 通过（${totalMs}ms）`,
-    );
+    console.log(`结果：${passed}/${tests.length} 通过（${totalMs}ms）`);
     if (failures.length > 0) {
       console.log("失败用例：");
       for (const f of failures) {

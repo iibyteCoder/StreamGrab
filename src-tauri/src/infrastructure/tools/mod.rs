@@ -22,7 +22,7 @@ pub use detector::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use super::platform::ExeNames;
+use super::platform::{ExeNames, Platform};
 
 /// 工具名称常量
 pub mod tool_names {
@@ -87,10 +87,14 @@ pub trait ToolDefinition: Send + Sync {
         None
     }
 
-    /// 在 GitHub releases 中查找适合当前平台的资源
+    /// 在 GitHub releases 中查找适合指定平台的资源
     /// 返回 (下载URL, 文件名)
-    fn find_release_asset(&self, assets: &[serde_json::Value]) -> Option<(String, String)> {
-        let _ = assets;
+    fn find_release_asset(
+        &self,
+        assets: &[serde_json::Value],
+        platform: Platform,
+    ) -> Option<(String, String)> {
+        let _ = (assets, platform);
         None
     }
 }

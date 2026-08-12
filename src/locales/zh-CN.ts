@@ -193,6 +193,7 @@ export default {
       refresh: "重新检测",
       selectDirFailed: "选择目录失败",
       toolManagement: "工具管理",
+      upToDate: "已是最新版本",
       update: "更新",
     },
 

@@ -17,12 +17,14 @@ export interface ToolInfo {
   error: string | null;
 }
 
-/** 工具发布信息（GitHub 最新 release） */
+/** 工具发布信息（GitHub 最新 release / macOS evermeet 源） */
 export interface ToolReleaseInfo {
   version: string;
   downloadUrl: string;
   filename: string;
   publishedAt: string;
+  /** 随附的额外压缩包（如 macOS 的 ffprobe），与主包解压到同一目录 */
+  extraAssets?: string[];
 }
 
 /** 工具下载进度事件 */
@@ -63,18 +65,21 @@ class ToolsService {
   }
 
   /**
-   * 下载并解压工具
+   * 下载并解压工具（支持 .zip / .tar.gz / .tar.xz，按当前平台选择资产）
+   * @param extraUrls 随附的额外压缩包（如 macOS 的 ffprobe），解压到同一目录
    * @returns 解压后的可执行文件目录
    */
   downloadTool(
     tool: string,
     downloadUrl: string,
     targetDir: string,
+    extraUrls: string[] = [],
   ): Promise<string> {
     return invokeTauri<string>("download_tool", {
       tool,
       downloadUrl,
       targetDir,
+      extraUrls,
     });
   }
 

@@ -60,9 +60,10 @@ test("开始 → 进度 → 日志 → 完成（含媒体分析）", async (d) =
   await d.assertText("1920x1080");
 
   const analyzeCalls = await d.mockCallsOf("analyze_media_file");
-  assertEqual(analyzeCalls.map((c) => c.args.filePath), [
-    "C:\\Downloads\\StreamGrab\\电影.mp4",
-  ]);
+  assertEqual(
+    analyzeCalls.map((c) => c.args.filePath),
+    ["C:\\Downloads\\StreamGrab\\电影.mp4"],
+  );
 });
 
 test("暂停 / 继续 / 停止 状态流转", async (d) => {
@@ -114,7 +115,10 @@ test("下载出错：展示错误并可重试", async (d) => {
     ),
     "重试应先置为 pending",
   );
-  assert((await d.mockCallsOf("start_download")).length >= 1, "重试应重新启动下载");
+  assert(
+    (await d.mockCallsOf("start_download")).length >= 1,
+    "重试应重新启动下载",
+  );
   state = await d.mockState();
   assertEqual(state.tasks[0].status, "downloading");
 });

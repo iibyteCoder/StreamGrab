@@ -55,7 +55,11 @@ function resolveChrome() {
       for (const dir of readdirSync(cacheRoot)) {
         candidates.push(
           resolve(cacheRoot, dir, "chrome-linux64/chrome"),
-          resolve(cacheRoot, dir, "chrome-headless-shell-linux64/chrome-headless-shell"),
+          resolve(
+            cacheRoot,
+            dir,
+            "chrome-headless-shell-linux64/chrome-headless-shell",
+          ),
         );
       }
     } catch {
@@ -134,14 +138,10 @@ export class McpClient {
     if (chrome) {
       args.push(`--executablePath=${chrome}`);
     }
-    this.proc = spawn(
-      process.execPath,
-      args,
-      {
-        env: { ...process.env, CI: "true" },
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    );
+    this.proc = spawn(process.execPath, args, {
+      env: { ...process.env, CI: "true" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     this.proc.stdout.setEncoding("utf8");
     this.proc.stderr.setEncoding("utf8");
     this.proc.stdout.on("data", (d) => this._onData(d));
@@ -214,14 +214,18 @@ export class McpClient {
       if (msg.id !== undefined && this.pending.has(msg.id)) {
         const p = this.pending.get(msg.id);
         this.pending.delete(msg.id);
-        if (msg.error) p.reject(new Error(msg.error.message || JSON.stringify(msg.error)));
+        if (msg.error)
+          p.reject(new Error(msg.error.message || JSON.stringify(msg.error)));
         else p.resolve(msg.result || {});
       }
     }
   }
 
   async call(tool, args = {}) {
-    const res = await this.request("tools/call", { name: tool, arguments: args });
+    const res = await this.request("tools/call", {
+      name: tool,
+      arguments: args,
+    });
     if (res.isError) {
       throw new Error(`[${tool}] ${extractText(res)}`);
     }
@@ -275,9 +279,7 @@ export class Driver {
     while (Date.now() - start < timeout) {
       const body = await this.bodyText();
       const hit =
-        text instanceof RegExp
-          ? text.test(body)
-          : body.includes(String(text));
+        text instanceof RegExp ? text.test(body) : body.includes(String(text));
       if (hit) return;
       await sleep(200);
     }
@@ -519,7 +521,9 @@ export class Driver {
   }
 
   async mockClearCalls() {
-    return this.evalOk(`() => { window.__STREAMGRAB_MOCK__.clearCalls(); return 'ok'; }`);
+    return this.evalOk(
+      `() => { window.__STREAMGRAB_MOCK__.clearCalls(); return 'ok'; }`,
+    );
   }
 
   async mockEmit(event, payload = null) {

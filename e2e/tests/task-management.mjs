@@ -165,7 +165,10 @@ test("删除失败任务：确认后移除并调用 delete_task", async (d) => {
   const state = await d.mockState();
   assertEqual(state.tasks.length, 0);
   const deleteCalls = await d.mockCallsOf("delete_task");
-  assertEqual(deleteCalls.map((c) => c.args.taskId), ["t-fail"]);
+  assertEqual(
+    deleteCalls.map((c) => c.args.taskId),
+    ["t-fail"],
+  );
 });
 
 test("删除已完成任务：可勾选同时删除文件", async (d) => {
@@ -179,9 +182,10 @@ test("删除已完成任务：可勾选同时删除文件", async (d) => {
 
   await d.assertNoText("演唱会C.mp4");
   const deleteFileCalls = await d.mockCallsOf("delete_file_or_folder");
-  assertEqual(deleteFileCalls.map((c) => c.args.path), [
-    "C:\\Downloads\\StreamGrab\\演唱会C.mp4",
-  ]);
+  assertEqual(
+    deleteFileCalls.map((c) => c.args.path),
+    ["C:\\Downloads\\StreamGrab\\演唱会C.mp4"],
+  );
 });
 
 test("完成文件缺失时卡片提示「文件已移除」", async (d) => {
@@ -234,8 +238,5 @@ test("开始全部：逐个启动待下载任务", async (d) => {
   );
 
   const startCalls = await d.mockCallsOf("start_download");
-  assertEqual(
-    startCalls.map((c) => c.args.taskId).sort(),
-    ["p1", "p2"],
-  );
+  assertEqual(startCalls.map((c) => c.args.taskId).sort(), ["p1", "p2"]);
 });

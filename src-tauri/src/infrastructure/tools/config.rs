@@ -32,8 +32,8 @@ impl ToolDefinition for Nm3u8dlReConfig {
 
     fn parse_version(&self, stdout: &str, stderr: &str) -> Option<String> {
         // N_m3u8DL-RE 版本输出格式示例：
-        // "N_m3u8DL-RE version 0.3.0.0"
-        // 或直接输出版本号
+        // "0.6.0+df70f0b3da0c..."（v0.6.0+：纯版本号+构建哈希）
+        // "N_m3u8DL-RE version 0.3.0.0"（旧版本）
 
         let combined = format!("{}\n{}", stdout, stderr);
 
@@ -41,7 +41,7 @@ impl ToolDefinition for Nm3u8dlReConfig {
         let patterns = [
             r"version\s+(\d+\.\d+\.\d+(?:\.\d+)?)", // version 0.3.0.0
             r"v(\d+\.\d+\.\d+(?:\.\d+)?)",          // v0.3.0.0
-            r"(\d+\.\d+\.\d+(?:\.\d+)?)",           // 直接版本号 0.3.0.0
+            r"(\d+\.\d+\.\d+(?:\.\d+)?)",           // 直接版本号 0.6.0
         ];
 
         for pattern in &patterns {
@@ -61,15 +61,21 @@ impl ToolDefinition for Nm3u8dlReConfig {
         Some("nilaoda/N_m3u8DL-RE")
     }
 
-    fn find_release_asset(&self, assets: &[Value]) -> Option<(String, String)> {
-        let platform = Platform::current();
-
+    fn find_release_asset(&self, assets: &[Value], platform: Platform) -> Option<(String, String)> {
+        // 官方发布格式：Windows 为 .zip，macOS/Linux 自 v0.6.0 起为 .tar.gz
         for asset in assets {
             let name = asset["name"].as_str().unwrap_or("");
             let download_url = asset["browser_download_url"].as_str().unwrap_or("");
+            let name_lower = name.to_lowercase();
 
-            // 查找 ZIP 格式的平台匹配版本
-            if name.ends_with(".zip") && platform.is_platform_asset(name) {
+            let format_ok = match platform {
+                Platform::Windows => name_lower.ends_with(".zip"),
+                Platform::MacOS | Platform::Linux => {
+                    name_lower.ends_with(".tar.gz") || name_lower.ends_with(".zip")
+                }
+            };
+
+            if format_ok && platform.is_platform_asset(name) {
                 let filename = name.rsplit('/').next().unwrap_or(name);
                 return Some((download_url.to_string(), filename.to_string()));
             }
@@ -133,24 +139,42 @@ impl ToolDefinition for FfmpegConfig {
     }
 
     fn github_repo(&self) -> Option<&'static str> {
+        // 注意：BtbN 不提供 macOS 构建，macOS 由 fetch_release 改走 evermeet.cx 源
         Some("BtbN/FFmpeg-Builds")
     }
 
-    fn find_release_asset(&self, assets: &[Value]) -> Option<(String, String)> {
-        let platform = Platform::current();
+    fn find_release_asset(&self, assets: &[Value], platform: Platform) -> Option<(String, String)> {
+        // BtbN 命名示例：
+        //   ffmpeg-master-latest-win64-gpl-shared.zip（Windows x64）
+        //   ffmpeg-master-latest-winarm64-gpl-shared.zip（Windows arm64）
+        //   ffmpeg-master-latest-linux64-gpl-shared.tar.xz（Linux x64）
+        let format_ok = |name_lower: &str| match platform {
+            Platform::Windows => name_lower.ends_with(".zip"),
+            Platform::Linux => name_lower.ends_with(".tar.xz") || name_lower.ends_with(".zip"),
+            // macOS 走 evermeet.cx 源，理论上不会到达这里
+            Platform::MacOS => false,
+        };
 
-        for asset in assets {
-            let name = asset["name"].as_str().unwrap_or("");
-            let download_url = asset["browser_download_url"].as_str().unwrap_or("");
+        // 两轮匹配：优先 master-latest 滚动构建，其次回退固定版本（如 n7.1/n8.1）
+        for prefer_master in [true, false] {
+            for asset in assets {
+                let name = asset["name"].as_str().unwrap_or("");
+                let name_lower = name.to_lowercase();
 
-            // 查找 shared 版本（包含 ffprobe）
-            // 命名格式: ffmpeg-master-latest-win64-gpl-shared.zip
-            let name_lower = name.to_lowercase();
-            if name.ends_with(".zip")
-                && platform.is_platform_asset(name)
-                && name_lower.contains("gpl")
-                && name_lower.contains("shared")
-            {
+                // shared 版本包含 ffprobe；排除 lgpl（"lgpl" 包含子串 "gpl"，须显式排除）
+                if !format_ok(&name_lower)
+                    || !platform.is_platform_asset(name)
+                    || !name_lower.contains("gpl")
+                    || name_lower.contains("lgpl")
+                    || !name_lower.contains("shared")
+                {
+                    continue;
+                }
+                if name_lower.contains("master-latest") != prefer_master {
+                    continue;
+                }
+
+                let download_url = asset["browser_download_url"].as_str().unwrap_or("");
                 let filename = name.rsplit('/').next().unwrap_or(name);
                 return Some((download_url.to_string(), filename.to_string()));
             }
@@ -239,5 +263,166 @@ impl ToolRegistry {
     /// 获取 FFprobe 配置
     pub fn ffprobe(&self) -> &dyn ToolDefinition {
         self.get(tool_names::FFPROBE).unwrap()
+    }
+}
+
+// ========================================
+// 测试
+// ========================================
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::platform::Arch;
+    use super::*;
+    use serde_json::json;
+
+    /// 构造 GitHub release 资产（真实字段：name + browser_download_url）
+    fn asset(name: &str) -> Value {
+        json!({
+            "name": name,
+            "browser_download_url": format!("https://example.com/{name}"),
+        })
+    }
+
+    /// N_m3u8DL-RE v0.6.0-beta 的真实资产列表（官方 release）
+    fn nm3u8dl_assets() -> Vec<Value> {
+        [
+            "N_m3u8DL-RE_v0.6.0-beta_android-bionic-arm64_20260629.tar.gz",
+            "N_m3u8DL-RE_v0.6.0-beta_android-bionic-x64_20260629.tar.gz",
+            "N_m3u8DL-RE_v0.6.0-beta_linux-arm64_20260629.tar.gz",
+            "N_m3u8DL-RE_v0.6.0-beta_linux-x64_20260629.tar.gz",
+            "N_m3u8DL-RE_v0.6.0-beta_osx-arm64_20260629.tar.gz",
+            "N_m3u8DL-RE_v0.6.0-beta_osx-x64_20260629.tar.gz",
+            "N_m3u8DL-RE_v0.6.0-beta_win-arm64_20260629.zip",
+            "N_m3u8DL-RE_v0.6.0-beta_win-NT6.0-x86_20260629.zip",
+            "N_m3u8DL-RE_v0.6.0-beta_win-x64_20260629.zip",
+        ]
+        .iter()
+        .map(|n| asset(n))
+        .collect()
+    }
+
+    #[test]
+    fn nm3u8dl_picks_win_x64_zip_on_windows() {
+        let config = Nm3u8dlReConfig;
+        let (url, filename) = config
+            .find_release_asset(&nm3u8dl_assets(), Platform::Windows)
+            .expect("Windows x64 应匹配 win-x64.zip");
+        assert_eq!(filename, "N_m3u8DL-RE_v0.6.0-beta_win-x64_20260629.zip");
+        assert!(url.ends_with(&filename));
+    }
+
+    #[test]
+    fn nm3u8dl_picks_osx_asset_on_macos() {
+        // find_release_asset 使用运行期架构；逐架构匹配矩阵见 platform.rs 测试
+        let config = Nm3u8dlReConfig;
+        let (_url, filename) = config
+            .find_release_asset(&nm3u8dl_assets(), Platform::MacOS)
+            .expect("macOS 应匹配当前架构的 osx tar.gz");
+        let expected = match Arch::current() {
+            Arch::Arm64 => "N_m3u8DL-RE_v0.6.0-beta_osx-arm64_20260629.tar.gz",
+            Arch::X64 => "N_m3u8DL-RE_v0.6.0-beta_osx-x64_20260629.tar.gz",
+        };
+        assert_eq!(filename, expected);
+    }
+
+    #[test]
+    fn nm3u8dl_picks_linux_x64_tar_gz_on_linux() {
+        let config = Nm3u8dlReConfig;
+        let (_url, filename) = config
+            .find_release_asset(&nm3u8dl_assets(), Platform::Linux)
+            .expect("Linux 应匹配 linux-x64.tar.gz");
+        assert_eq!(
+            filename,
+            "N_m3u8DL-RE_v0.6.0-beta_linux-x64_20260629.tar.gz"
+        );
+    }
+
+    /// BtbN FFmpeg-Builds latest 的真实资产列表（节选）
+    fn ffmpeg_assets() -> Vec<Value> {
+        [
+            "checksums.sha256",
+            "ffmpeg-master-latest-linux64-gpl-shared.tar.xz",
+            "ffmpeg-master-latest-linux64-gpl.tar.xz",
+            "ffmpeg-master-latest-linux64-lgpl-shared.tar.xz",
+            "ffmpeg-master-latest-linuxarm64-gpl-shared.tar.xz",
+            "ffmpeg-master-latest-win64-gpl-shared.zip",
+            "ffmpeg-master-latest-win64-gpl.zip",
+            "ffmpeg-master-latest-win64-lgpl-shared.zip",
+            "ffmpeg-master-latest-winarm64-gpl-shared.zip",
+            "ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip",
+            "ffmpeg-n8.1-latest-linux64-gpl-shared-8.1.tar.xz",
+        ]
+        .iter()
+        .map(|n| asset(n))
+        .collect()
+    }
+
+    #[test]
+    fn ffmpeg_picks_master_win64_gpl_shared_zip_on_windows() {
+        let config = FfmpegConfig;
+        let (_url, filename) = config
+            .find_release_asset(&ffmpeg_assets(), Platform::Windows)
+            .expect("Windows 应匹配 win64 gpl shared zip");
+        // 必须是 master-latest 的 gpl-shared，而非 lgpl-shared 或固定版本
+        assert_eq!(filename, "ffmpeg-master-latest-win64-gpl-shared.zip");
+    }
+
+    #[test]
+    fn ffmpeg_picks_linux64_tar_xz_on_linux() {
+        let config = FfmpegConfig;
+        let (_url, filename) = config
+            .find_release_asset(&ffmpeg_assets(), Platform::Linux)
+            .expect("Linux 应匹配 linux64 gpl shared tar.xz");
+        assert_eq!(filename, "ffmpeg-master-latest-linux64-gpl-shared.tar.xz");
+    }
+
+    #[test]
+    fn ffmpeg_returns_none_on_macos() {
+        // BtbN 无 macOS 构建；macOS 由 fetch_release 改走 evermeet.cx
+        let config = FfmpegConfig;
+        assert!(config
+            .find_release_asset(&ffmpeg_assets(), Platform::MacOS)
+            .is_none());
+    }
+
+    #[test]
+    fn ffmpeg_falls_back_to_pinned_version_without_master() {
+        let config = FfmpegConfig;
+        let assets = vec![
+            asset("ffmpeg-n7.1-latest-win64-lgpl-shared-7.1.zip"),
+            asset("ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip"),
+        ];
+        let (_url, filename) = config
+            .find_release_asset(&assets, Platform::Windows)
+            .expect("无 master 构建时应回退固定版本");
+        assert_eq!(filename, "ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip");
+    }
+
+    #[test]
+    fn nm3u8dl_parse_version_handles_hash_suffix() {
+        let config = Nm3u8dlReConfig;
+        // v0.6.0+ 实际输出：纯版本号 + 构建哈希
+        let v = config.parse_version("0.6.0+df70f0b3da0c630bd413bf617e758051f6b64757", "");
+        assert_eq!(v.as_deref(), Some("0.6.0"));
+        // 旧版格式
+        let v = config.parse_version("N_m3u8DL-RE version 0.3.0.0", "");
+        assert_eq!(v.as_deref(), Some("0.3.0.0"));
+    }
+
+    #[test]
+    fn platform_arch_keyword_sanity() {
+        // 防止回归：架构关键字与组合关键字一致
+        assert_eq!(Arch::X64.keyword(), "x64");
+        assert_eq!(Arch::Arm64.keyword(), "arm64");
+        assert!(Platform::Windows
+            .combined_keywords_for(Arch::X64)
+            .contains(&"win-x64"));
+        assert!(Platform::MacOS
+            .combined_keywords_for(Arch::Arm64)
+            .contains(&"osx-arm64"));
+        assert!(Platform::Linux
+            .combined_keywords_for(Arch::X64)
+            .contains(&"linux64"));
     }
 }

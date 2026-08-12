@@ -3,7 +3,8 @@ import { makeTask } from "./app-shell.mjs";
 
 const HLS_URL = "https://example.com/live/index.m3u8";
 const MP4_URL = "https://example.com/movie.mp4";
-const PASTE_PLACEHOLDER = "粘贴下载链接，每行一个（支持 M3U8 / DASH / MP4 直链）";
+const PASTE_PLACEHOLDER =
+  "粘贴下载链接，每行一个（支持 M3U8 / DASH / MP4 直链）";
 
 async function openAddDialog(d) {
   await d.clickText("添加任务");
@@ -286,7 +287,9 @@ test("高级设置：定时开始 → 任务保持等待并显示定时文案", 
   await d.clickText("解析并添加");
   await d.clickText("高级设置");
   await d.clickSwitch("定时开始");
-  await d.assertEval(`() => !!document.querySelector('input[type="datetime-local"]')`);
+  await d.assertEval(
+    `() => !!document.querySelector('input[type="datetime-local"]')`,
+  );
   await d.fillBySelector('input[type="datetime-local"]', "2020-01-01T00:00");
   await d.clickText("完成");
 

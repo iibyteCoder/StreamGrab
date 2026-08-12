@@ -56,12 +56,18 @@ test("标题栏窗口控制按钮触发 Tauri 命令", async (d) => {
   await d.clickTitle("关闭");
 
   const calls = await d.mockCalls();
-  assert(calls.some((c) => c.command === "plugin:window|minimize"), "应调用 minimize");
+  assert(
+    calls.some((c) => c.command === "plugin:window|minimize"),
+    "应调用 minimize",
+  );
   assert(
     calls.some((c) => c.command === "plugin:window|toggle_maximize"),
     "应调用 toggle_maximize",
   );
-  assert(calls.some((c) => c.command === "plugin:window|close"), "应调用 close");
+  assert(
+    calls.some((c) => c.command === "plugin:window|close"),
+    "应调用 close",
+  );
 });
 
 test("标题栏主题按钮切换深色/浅色并持久化", async (d) => {
@@ -130,10 +136,7 @@ test("启动检测到中断任务：弹窗恢复并逐个 resume", async (d) => 
     `() => window.__STREAMGRAB_MOCK__.getCalls().filter(c => c.command === "start_download").length === 2`,
   );
   const resumeCalls = await d.mockCallsOf("start_download");
-  assertEqual(
-    resumeCalls.map((c) => c.args.taskId).sort(),
-    ["t1", "t2"],
-  );
+  assertEqual(resumeCalls.map((c) => c.args.taskId).sort(), ["t1", "t2"]);
 });
 
 test("从首页导航到设置页并可返回", async (d) => {

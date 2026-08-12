@@ -170,7 +170,7 @@
         nm3u8dl: {
           name: "N_m3u8DL-RE",
           installed: true,
-          version: "20260628",
+          version: "0.5.0",
           exePath: "C:\\Tools\\N_m3u8DL-RE\\N_m3u8DL-RE.exe",
           dirPath: "C:\\Tools\\N_m3u8DL-RE",
           error: null,

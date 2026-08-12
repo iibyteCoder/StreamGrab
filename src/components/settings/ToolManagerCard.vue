@@ -126,6 +126,16 @@ const hasUpdate = computed(() => {
   );
 });
 
+/** 已安装且已是最新版本（检查过最新版本后显示，替代下载按钮） */
+const isUpToDate = computed(() => {
+  return !!(
+    toolInfo.value?.installed &&
+    toolInfo.value.version &&
+    latestRelease.value &&
+    !hasUpdate.value
+  );
+});
+
 const downloadPercent = computed(() => {
   if (!downloadProgress.value) return 0;
   return downloadProgress.value.percent;
@@ -188,6 +198,7 @@ async function handleDownload() {
       toolName,
       latestRelease.value.downloadUrl,
       targetDir,
+      latestRelease.value.extraAssets ?? [],
     );
 
     emit("pathChange", extractedPath);
@@ -352,7 +363,7 @@ function formatPublishedDate(dateStr: string): string {
       </Button>
 
       <Button
-        v-if="latestRelease && !isDownloading"
+        v-if="latestRelease && !isDownloading && !isUpToDate"
         variant="default"
         size="sm"
         class="cursor-pointer"
@@ -365,6 +376,14 @@ function formatPublishedDate(dateStr: string): string {
             : t("settings.tool.download", "下载")
         }}
       </Button>
+
+      <span
+        v-if="isUpToDate && !isDownloading"
+        class="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent-success)]"
+      >
+        <AppIcon name="CheckCircle" :size="14" />
+        {{ t("settings.tool.upToDate", "已是最新版本") }}
+      </span>
     </div>
 
     <!-- 最新版本信息 -->

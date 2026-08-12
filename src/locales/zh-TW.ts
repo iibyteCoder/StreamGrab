@@ -191,6 +191,7 @@ export default {
       refresh: "重新偵測",
       selectDirFailed: "選擇目錄失敗",
       toolManagement: "工具管理",
+      upToDate: "已是最新版本",
       update: "更新",
     },
 
